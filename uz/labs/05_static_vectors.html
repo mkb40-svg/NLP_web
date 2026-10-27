@@ -1,0 +1,1593 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5. Soʻz va hujjat vektorlari</title>
+<meta name="description" content="Statik vektorlashtirish: BoW, TF-IDF, Word2Vec va FastText modellari">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=PT+Mono&display=swap" rel="stylesheet">
+<style>
+/* NLP labs: shared style. Light theme only (labs are often projected in class). */
+:root {
+  color-scheme: light;
+  --paper: #EDF1F6;
+  --panel: #FFFFFF;
+  --soft: #F5F7FA;
+  --ink: #1C2A43;
+  --muted: #56637C;
+  --faint: #8C97AB;
+  --line: #D2D9E4;
+  --pen: #2B55C9;
+  --pen-dark: #1F3F9A;
+  --mark: #FFD84D;
+  --mark-soft: #FFF2B8;
+  --good: #1A8F5F;
+  --good-soft: #DDF3E8;
+  --bad: #C2413A;
+  --bad-soft: #FBE3E1;
+  --c1: #2B55C9;
+  --c2: #D04A55;
+  --c3: #17907E;
+  --c4: #9157BF;
+  --c5: #DB8F1F;
+  --c6: #5B7A2A;
+  --c7: #C1508F;
+  --c8: #5E6B85;
+  --font: "Golos Text", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --mono: "PT Mono", Consolas, "Liberation Mono", "Courier New", monospace;
+  --r: 10px;
+  --r-sm: 5px;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.55 var(--font);
+}
+a { color: var(--pen); }
+a:hover { color: var(--pen-dark); }
+:focus-visible { outline: 3px solid var(--mark); outline-offset: 2px; border-radius: 3px; }
+img, svg, canvas { max-width: 100%; }
+
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+
+/* top navigation */
+.topnav { background: var(--ink); color: #fff; font-size: 14px; }
+.topnav .wrap { display: flex; align-items: center; gap: 12px; min-height: 46px; flex-wrap: wrap; }
+.topnav a { color: #fff; text-decoration: none; padding: 6px 10px; border-radius: var(--r-sm); }
+.topnav a:hover { background: rgba(255,255,255,.12); color: #fff; }
+.topnav .course { font-weight: 600; margin-right: auto; }
+.topnav .pager { display: flex; gap: 4px; }
+.topnav .disabled { opacity: .35; pointer-events: none; }
+
+/* header */
+.lab-head { padding: 28px 0 8px; }
+.lab-no { margin: 0 0 6px; color: var(--muted); font-size: 15px; }
+.lab-head h1 { margin: 0; font-size: clamp(28px, 4.2vw, 42px); line-height: 1.12; font-weight: 700; letter-spacing: -.01em; max-width: 26ch; }
+.lab-head .lead { margin: 14px 0 0; font-size: 18px; max-width: 70ch; color: var(--ink); }
+.lab-head .topic { margin: 12px 0 0; font-size: 14px; color: var(--muted); max-width: 90ch; }
+
+/* sections and the highlighter heading: the one decorative motif */
+.part { margin: 34px 0 0; }
+.part > h2, .notes h2 {
+  font-size: 23px; line-height: 1.25; margin: 0 0 6px; font-weight: 700;
+  display: inline;
+  background: linear-gradient(transparent 58%, var(--mark) 58%, var(--mark) 92%, transparent 92%);
+  box-decoration-break: clone; -webkit-box-decoration-break: clone;
+  padding: 0 3px;
+}
+.part > .hint, .part > p.intro { margin: 10px 0 14px; color: var(--muted); max-width: 75ch; }
+.part > h2 + .stage { margin-top: 16px; }
+
+/* stage: visual on the left, controls and readouts on the right */
+.stage { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.stage.even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.stage.single { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 900px) { .stage, .stage.even { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; min-width: 0; }
+.panel + .panel { margin-top: 16px; }
+.stage > .panel + .panel { margin-top: 0; }
+.panel h3 { margin: 0 0 10px; font-size: 16px; font-weight: 600; }
+.panel h3 + .muted { margin-top: -6px; }
+.col > .panel + .panel { margin-top: 16px; }
+.stage > .panel + .panel { margin-top: 0; }
+
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+.tiny { font-size: 12.5px; }
+.mono { font-family: var(--mono); }
+.center { text-align: center; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row + .row { margin-top: 10px; }
+.grow { flex: 1 1 auto; }
+.spacer { height: 10px; }
+
+/* controls */
+.btn {
+  font: inherit; font-size: 15px; font-weight: 500;
+  border: 1px solid var(--pen); background: var(--pen); color: #fff;
+  border-radius: 999px; padding: 7px 16px; cursor: pointer; line-height: 1.3;
+  min-height: 36px; touch-action: manipulation;
+}
+.btn:hover { background: var(--pen-dark); border-color: var(--pen-dark); }
+.btn.ghost { background: transparent; color: var(--pen); }
+.btn.ghost:hover { background: #E6ECFA; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.small { font-size: 14px; padding: 5px 12px; min-height: 32px; }
+
+.player { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.player .speed { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.player .speed input { width: 110px; }
+
+.ctl { margin: 0 0 14px; }
+.panel > .ctl:last-child, .panel > div:last-child > .ctl:last-child { margin-bottom: 0; }
+.ctl label, .ctl .lbl { display: flex; justify-content: space-between; gap: 8px; font-size: 14.5px; margin-bottom: 4px; }
+.ctl .val { font-family: var(--mono); font-weight: 700; color: var(--pen); white-space: nowrap; }
+input[type=range] { width: 100%; accent-color: var(--pen); margin: 0; height: 26px; }
+
+.seg { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
+.seg button { font: inherit; font-size: 14px; border: 1px solid #B8C6EA; background: var(--panel); color: var(--pen); padding: 5px 12px; cursor: pointer; min-height: 34px; border-radius: 999px; }
+.seg button:hover { border-color: var(--pen); }
+.seg button[aria-pressed=true] { background: var(--pen); color: #fff; border-color: var(--pen); }
+
+input[type=text], textarea, select {
+  font: inherit; font-size: 15px; color: var(--ink); background: #fff;
+  border: 1px solid var(--line); border-radius: var(--r-sm); padding: 7px 10px; width: 100%; max-width: 100%;
+}
+textarea { min-height: 76px; resize: vertical; }
+input[type=text]:focus, textarea:focus, select:focus { border-color: var(--pen); outline: none; box-shadow: 0 0 0 3px #D7E1FA; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 14.5px; cursor: pointer; margin: 6px 0; }
+.check input { width: 17px; height: 17px; accent-color: var(--pen); }
+
+/* tokens: strings of text are the material of this course */
+.tokens { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tok {
+  font-family: var(--mono); font-size: 15px; line-height: 1.2;
+  border: 1px solid var(--line); background: var(--soft); border-radius: var(--r-sm);
+  padding: 4px 7px; white-space: pre; display: inline-flex; flex-direction: column; align-items: center;
+}
+.tok .sub { font-family: var(--font); font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.tok.hl { background: var(--mark-soft); border-color: #E8C33A; }
+.tok.on { background: var(--pen); color: #fff; border-color: var(--pen); }
+.tok.on .sub { color: #DCE4FA; }
+button.tok { cursor: pointer; font-family: var(--mono); color: var(--ink); }
+.morph { font-family: var(--mono); }
+.morph .b { color: var(--faint); padding: 0 1px; }
+
+mark, .hl-text { background: var(--mark-soft); color: inherit; border-radius: 3px; padding: 0 2px; }
+
+/* readouts */
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 14.5px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-family: var(--mono); font-weight: 700; text-align: right; }
+.big-num { font-size: 30px; font-weight: 700; line-height: 1.1; }
+.big-num small { font-size: 15px; font-weight: 400; color: var(--muted); margin-left: 6px; }
+
+.bars { display: grid; gap: 6px; }
+.bar { display: grid; grid-template-columns: minmax(70px, 34%) 1fr auto; gap: 8px; align-items: center; font-size: 14px; }
+.bar .lab { overflow-wrap: anywhere; line-height: 1.3; }
+.bar .track { background: var(--soft); border: 1px solid var(--line); border-radius: 4px; height: 16px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--pen); border-radius: 3px 0 0 3px; transition: width .35s ease; }
+.bar .num { font-family: var(--mono); font-size: 13px; min-width: 46px; text-align: right; }
+
+table.grid { border-collapse: collapse; font-size: 14px; width: 100%; }
+table.grid th, table.grid td { border: 1px solid var(--line); padding: 5px 7px; text-align: center; }
+table.grid th { background: var(--soft); font-weight: 600; }
+table.grid td.l, table.grid th.l { text-align: left; }
+table.grid td.num { font-family: var(--mono); }
+table.grid tr.sel td { background: var(--mark-soft); }
+.scroll-x { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+.status { border-radius: var(--r-sm); padding: 8px 12px; font-size: 14.5px; background: var(--soft); border: 1px solid var(--line); }
+.status.good { background: var(--good-soft); border-color: #A9DCC2; }
+.status.bad { background: var(--bad-soft); border-color: #F0B7B2; }
+.status.note { background: var(--mark-soft); border-color: #E8C33A; }
+
+canvas.viz { display: block; width: 100%; touch-action: none; border-radius: var(--r-sm); }
+.viz-wrap { position: relative; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; font-size: 13px; padding: 4px 8px; border-radius: 4px; white-space: nowrap; transform: translate(-50%, -120%); }
+
+/* notes: theory, experiments, quiz */
+.notes { margin: 44px 0 0; }
+.notes > section { margin: 0 0 34px; }
+.notes .text { margin-top: 14px; max-width: 76ch; }
+.notes .text p { margin: 0 0 12px; }
+.notes .text code, .notes li code { font-family: var(--mono); background: var(--soft); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; font-size: 14.5px; }
+.formula { font-family: var(--mono); background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--pen); border-radius: var(--r-sm); padding: 10px 14px; margin: 10px 0 14px; overflow-x: auto; white-space: pre-wrap; }
+ol.exp { margin: 14px 0 0; padding-left: 26px; max-width: 76ch; }
+ol.exp li { margin: 0 0 10px; padding-left: 4px; }
+
+.quiz { display: grid; gap: 14px; margin-top: 16px; max-width: 820px; }
+.quiz .q { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
+.quiz .q p { margin: 0 0 10px; font-weight: 600; }
+.quiz .opts { display: grid; gap: 6px; }
+.quiz .opt { font: inherit; text-align: left; background: var(--soft); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 12px; cursor: pointer; color: var(--ink); }
+.quiz .opt:hover { border-color: var(--pen); }
+.quiz .opt.right { background: var(--good-soft); border-color: var(--good); }
+.quiz .opt.wrong { background: var(--bad-soft); border-color: var(--bad); }
+.quiz .fb { margin-top: 10px; font-size: 14.5px; }
+.quiz .fb b { margin-right: 4px; }
+.quiz-score { font-weight: 600; margin-top: 4px; }
+
+.practice { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--mark); border-radius: var(--r); padding: 16px 18px; max-width: 820px; }
+.practice p { margin: 0 0 12px; }
+.practice a.btn { text-decoration: none; display: inline-block; }
+
+footer { margin: 50px 0 0; padding: 22px 0 40px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+
+@media (max-width: 600px) {
+  body { font-size: 15.5px; }
+  .lab-head .lead { font-size: 16.5px; }
+  .panel { padding: 13px; }
+  .part > h2, .notes h2 { font-size: 21px; }
+  .bar { grid-template-columns: minmax(60px, 38%) 1fr auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+</style>
+</head>
+<body>
+<nav class="topnav" aria-label="Mundarija"><div class="wrap">
+  <a class="course" href="../index.html">Mundarija</a>
+  <span class="pager">
+    <a href="04_ngram_smoothing.html" class="" rel="prev">‹ Orqaga</a>
+    <a href="06_attention_bert.html" class="" rel="next">Keyingi ›</a>
+  </span>
+</div></nav>
+<div class="wrap">
+<header class="lab-head">
+  <p class="lab-no">18 ta laboratoriyadan 5-si</p>
+  <h1>Soʻz va hujjat vektorlari</h1>
+  <p class="lead">Soʻzlar qopi va TF-IDF dan zich vektorlarga: word2vec modelini toʻgʻridan-toʻgʻri brauzerda oʻqitasiz, «shoh − erkak + ayol» oʻxshatishini tekshirasiz va FastText notanish soʻz vektorini boʻlaklardan qanday yigʻishini koʻrasiz.</p>
+  <p class="topic">Kurs mavzusi: Statik vektorlashtirish: BoW, TF-IDF, Word2Vec va FastText modellari</p>
+</header>
+<main id="lab">
+<style>
+.sv-docs { display: grid; gap: 6px; }
+.sv-doc { font: inherit; font-size: 14.5px; text-align: left; background: var(--soft); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 6px 10px; cursor: pointer; color: var(--ink); display: flex; gap: 8px; align-items: baseline; }
+.sv-doc b { font-family: var(--mono); color: var(--pen); }
+.sv-doc[aria-pressed=true] { background: var(--mark-soft); border-color: #E8C33A; }
+.sv-doc.off { opacity: .4; }
+.sv-doc mark { background: transparent; border-bottom: 2px solid var(--mark); padding: 0; }
+table.dtm { border-collapse: collapse; font-size: 12.5px; }
+table.dtm th, table.dtm td { border: 1px solid var(--line); text-align: center; }
+table.dtm td { font-family: var(--mono); min-width: 40px; height: 23px; padding: 0 4px; cursor: pointer; }
+table.dtm td.z { color: #C3CAD6; }
+table.dtm td.cd { box-shadow: inset 2px 0 0 #9DB2EA, inset -2px 0 0 #9DB2EA; }
+table.dtm th { background: var(--soft); font-weight: 600; padding: 3px 4px; }
+table.dtm th.doc { font-family: var(--mono); cursor: pointer; }
+table.dtm th.doc.on { background: var(--pen); color: #fff; }
+table.dtm th.row { padding: 0 8px; font-family: var(--mono); font-weight: 400; text-align: right; cursor: pointer; white-space: nowrap; }
+table.dtm tr.on th.row { background: var(--mark-soft); font-weight: 700; }
+table.dtm th.df { font-family: var(--mono); font-weight: 400; color: var(--muted); }
+table.dtm td.df { background: var(--soft); color: var(--muted); cursor: default; font-size: 11.5px; }
+table.dtm td.df.first, table.dtm th.df:nth-last-child(2) { border-left: 2px solid var(--muted); }
+table.dtm td.sel { outline: 3px solid var(--ink); outline-offset: -3px; }
+table.dtm th.new { animation: svflash 1.2s ease-out; }
+@keyframes svflash { from { background-color: var(--mark); } }
+.sv-calc { font-family: var(--mono); font-size: 13.5px; display: grid; gap: 4px; }
+.sv-calc div { overflow-wrap: anywhere; }
+.sv-calc b { color: var(--pen); }
+
+.w2v-win { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; min-height: 36px; }
+.w2v-win .tok.center { background: var(--pen); color: #fff; border-color: var(--pen); }
+.w2v-win .tok.inwin { background: #E6ECFA; border-color: #9DB2EA; }
+.w2v-win .tok.ctx { background: var(--good-soft); border-color: var(--good); border-width: 2px; }
+.w2v-win .tok.stop { text-decoration: line-through; color: var(--faint); background: transparent; border-style: dashed; }
+table.upd { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+table.upd th, table.upd td { border-bottom: 1px solid var(--line); padding: 3px 5px; text-align: right; }
+table.upd th:first-child, table.upd td:first-child { text-align: left; font-family: var(--mono); }
+table.upd th { color: var(--muted); font-weight: 600; font-size: 12px; }
+table.upd td { font-family: var(--mono); }
+table.upd tr.pos td:first-child { color: var(--good); font-weight: 700; }
+table.upd tr.neg td:first-child { color: var(--bad); }
+table.upd td.up { color: var(--good); }
+table.upd td.down { color: var(--good); }
+table.upd td.worse { color: var(--bad); }
+.w2v-prog { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+
+.an-eq { font-family: var(--mono); font-size: 15px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 8px; }
+.an-eq .tok.on { background: var(--pen); }
+.an-vecs { font-family: var(--mono); font-size: 13px; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; }
+.an-vecs dt { color: var(--muted); }
+.an-vecs dd { margin: 0; text-align: right; }
+.an-vecs .cur { background: var(--mark-soft); }
+
+.ft-grams { display: grid; gap: 6px; }
+.ft-grams .rowlab { font-size: 12px; color: var(--muted); }
+.ft-grams .tokens { gap: 4px; }
+.ft-grams .tok { font-size: 13px; padding: 2px 5px; }
+.ft-grams .tok.known { background: #E6ECFA; border-color: #9DB2EA; }
+.ft-grams .tok.unknown { color: var(--faint); background: transparent; border-style: dashed; }
+.ft-grams .tok.used { background: var(--pen); color: #fff; border-color: var(--pen); }
+.ft-grams .tok.cur { background: var(--mark); color: var(--ink); border-color: #C9A10F; }
+.ft-legend i.k { background: #E6ECFA; border: 1px solid #9DB2EA; }
+.ft-legend i.u { background: transparent; border: 1px dashed var(--faint); }
+.ft-legend i.d { background: var(--pen); }
+</style>
+
+<section class="part" id="p1">
+  <h2>Soʻzlar qopi va TF-IDF</h2>
+  <p class="intro">Oltita qisqa hujjat vektorlarga aylanadi. Vazn turini almashtiring, hujjatlar va jadval kataklarini bosing.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <h3>Hujjatlar</h3>
+        <p class="small muted" style="margin:-6px 0 8px">Hujjatning asosiy soʻzlari va unga eng oʻxshash hujjatni koʻrish uchun uni bosing.</p>
+        <div class="sv-docs" id="bow-docs"></div>
+        <div class="spacer"></div>
+        <div id="bow-player"></div>
+        <div class="spacer"></div>
+        <div class="status note small" id="bow-msg"></div>
+      </div>
+      <div class="panel">
+        <h3>Soʻz × hujjat matritsasi</h3>
+        <p class="small muted" style="margin:-6px 0 8px">Har bir ustun — bitta hujjat vektori, har bir satr — lugʻatdagi soʻz. Oʻngda df (soʻz nechta hujjatda bor) va idf. Katakni bosing.</p>
+        <div class="scroll-x" id="bow-dtm"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <div id="bow-weight"></div>
+        <div id="bow-stop"></div>
+      </div>
+      <div class="panel">
+        <h3>Katak uchun hisob</h3>
+        <div class="sv-calc" id="bow-calc"></div>
+      </div>
+      <div class="panel">
+        <h3 id="bow-top-title"></h3>
+        <div id="bow-top"></div>
+        <p class="small" id="bow-near" style="margin:10px 0 0"></p>
+      </div>
+      <div class="panel">
+        <h3>Hujjatlarning kosinus oʻxshashligi</h3>
+        <p class="small muted" style="margin:-6px 0 8px">cos = 1: vektorlar yoʻnalishi bir xil, 0: vazni nolga teng boʻlmagan umumiy soʻz yoʻq.</p>
+        <div id="bow-sim"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="part" id="p2">
+  <h2>Word2Vec: skip-gram modelini brauzerda oʻqitish</h2>
+  <p class="intro">24 ta soʻzning ikki oʻlchamli vektorlari 30 ta gapdan iborat korpusda oʻqitiladi. «Boshlash»ni bosing va soʻzlar guruhlarga qanday yigʻilishini kuzating yoki juftliklar boʻyicha birma-bir yurib, strelkalarni koʻring.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <h3>Vektorlar xaritasi</h3>
+        <p class="small muted" style="margin:-6px 0 8px">Rang — soʻz mavzusi. Model mavzularni bilmaydi, u faqat oynadagi qoʻshnilarni koʻradi. Eng yaqin qoʻshnilarni koʻrish uchun soʻzni bosing.</p>
+        <div id="w2v-map"></div>
+        <div id="w2v-legend" style="margin-top:6px"></div>
+        <div class="spacer"></div>
+        <div id="w2v-player"></div>
+        <div class="spacer"></div>
+        <div class="w2v-prog" id="w2v-prog"></div>
+      </div>
+      <div class="panel">
+        <h3>Suriluvchi oyna</h3>
+        <div class="w2v-win" id="w2v-win"></div>
+        <p class="tiny muted" style="margin:6px 0 0">Yordamchi soʻzlar (ustidan chizilgan) tashlab yuborilgan: haqiqiy word2vecda koʻp uchraydigan soʻzlar siyraklashtiriladi.</p>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <div id="w2v-gran"></div>
+        <div id="w2v-lr"></div>
+        <div id="w2v-win-s"></div>
+        <div id="w2v-neg"></div>
+        <div class="row" id="w2v-seed"></div>
+      </div>
+      <div class="panel">
+        <h3>Oxirgi yangilanish</h3>
+        <div id="w2v-upd"></div>
+      </div>
+      <div class="panel">
+        <h3>Oʻqitish</h3>
+        <div id="w2v-chart"></div>
+        <p class="small" id="w2v-purity" style="margin:8px 0 0"></p>
+      </div>
+      <div class="panel">
+        <h3 id="w2v-nn-title"></h3>
+        <div id="w2v-nn"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="part" id="p3">
+  <h2>Oʻxshatishlar: vektorlar arifmetikasi</h2>
+  <p class="intro">«Boshlash»ni bosing: A vektoridan B ayiriladi, C qoʻshiladi va eng yaqin soʻz qidiriladi. Nuqtalarni sudrab koʻchirish mumkin.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <div class="status note small" style="margin-bottom:10px">Bu oʻyinchoq xarita: vektorlar ikki oʻq boʻyicha (jins va yosh yoki maqom) qoʻlda joylashtirilgan. Haqiqiy vektorlar oʻqitiladi va yuzlab oʻlchamga ega.</div>
+        <div id="an-map"></div>
+        <p class="tiny muted" style="margin:6px 0 0">Nuqtalarni sichqoncha yoki barmoq bilan surish mumkin.</p>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <div id="an-preset"></div>
+        <div class="an-eq" id="an-eq"></div>
+        <div id="an-player"></div>
+        <div class="spacer"></div>
+        <div class="status note small" id="an-msg"></div>
+      </div>
+      <div class="panel">
+        <h3>Vektor</h3>
+        <dl class="an-vecs" id="an-vecs"></dl>
+      </div>
+      <div class="panel">
+        <h3>Nomzodlar</h3>
+        <div id="an-rank"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="part" id="p4">
+  <h2>FastText: belgilar n-grammalaridan vektor</h2>
+  <p class="intro">Soʻz kiriting yoki misol tanlang. Soʻz n-grammalarga boʻlinadi va har bir «Qadam» soʻz vektoriga bitta tanish n-grammani qoʻshadi.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <div class="ctl"><label for="ft-input"><span>Soʻz</span></label>
+          <input type="text" id="ft-input" autocomplete="off" spellcheck="false"></div>
+        <div id="ft-tests"></div>
+        <div id="ft-maxn"></div>
+        <h3 id="ft-grams-title" style="margin-top:6px"></h3>
+        <div class="ft-grams" id="ft-grams"></div>
+        <div class="legend ft-legend" style="margin-top:8px">
+          <span><i class="k"></i>tanish (lugʻatda uchragan)</span><span><i class="u"></i>notanish</span><span><i class="d"></i>allaqachon qoʻshilgan</span>
+        </div>
+        <div class="spacer"></div>
+        <div id="ft-player"></div>
+      </div>
+      <div class="panel">
+        <h3>Xarita: lugʻat va yangi soʻz</h3>
+        <div id="ft-map"></div>
+        <div id="ft-legend" style="margin-top:6px"></div>
+        <p class="tiny muted" style="margin:6px 0 0">Yulduzcha — soʻzning joriy vektori, chiziq — n-grammalar qoʻshilgan sari uning yoʻli, kichik nuqtalar — qoʻshilgan n-grammalar vektorlari.</p>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <div class="status small" id="ft-w2v"></div>
+        <div class="spacer"></div>
+        <div class="status small" id="ft-ft"></div>
+        <div class="spacer"></div>
+        <div class="status note small" id="ft-msg"></div>
+      </div>
+      <div class="panel">
+        <h3>Lugʻatdagi eng yaqin soʻzlar (xaritadagi masofa, kichigi — yaqinroq)</h3>
+        <div id="ft-nn"></div>
+      </div>
+      <div class="panel">
+        <p class="tiny muted" id="ft-toy" style="margin:0"></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div class="notes">
+  <section><h2>Bu qanday ishlaydi</h2><div class="text">
+<p><b>Vektorlashtirish</b> matnni algoritmlar ishlay oladigan sonlarga aylantiradi. «Statik» degani: soʻzning har qanday kontekstda bitta vektori bor (kontekstual vektorlar — 6-mavzu).</p>
+<p><b>Soʻzlar qopi (Bag of Words, BoW)</b>: hujjat lugʻatdagi soʻzlar sanoqlaridan iborat vektor, soʻz tartibi yoʻqoladi. Koʻp uchraydigan yordamchi soʻzlar («va») xalaqit beradi, shuning uchun soʻzlarga <b>TF-IDF</b> yordamida vazn beriladi:</p>
+<div class="formula">tf(t, d) = c(t, d) / |d|
+idf(t) = ln(N / df(t))
+tf-idf(t, d) = tf(t, d) · idf(t)</div>
+<p>df(t) — soʻz N ta hujjatdan nechtasida borligi. Barcha hujjatlarda bor soʻz idf = 0 oladi: u hech narsani farqlamaydi. Hujjatlar oʻxshashligi vektorlar orasidagi burchak <b>kosinusi</b> bilan oʻlchanadi: cos(a, b) = a·b / (|a|·|b|). U hujjat uzunligiga bogʻliq emas (11-mavzu).</p>
+<p>BoW vektorlari butun lugʻat uzunligida, ulardagi sonlarning deyarli hammasi nol va ular soʻzlar oʻxshashligini koʻrmaydi: «mushuk» «it»dan ham, «non»dan ham bir xil uzoqlikda. <b>Distributiv gipoteza</b>: oʻxshash kontekstlarda keladigan soʻzlar maʼno jihatidan yaqin. <b>Word2Vec</b> (2013) 100–300 ta sondan iborat zich vektorlarni oʻrganadi. <b>Manfiy misollar bilan skip-gram (SGNS)</b> variantida oyna matn boʻylab suriladi. Markaziy w soʻzi va oynadagi c soʻzi uchun model σ(w·c) ni oshiradi, K ta tasodifiy n soʻz uchun esa σ(w·n) ni kamaytiradi:</p>
+<div class="formula">loss = −log σ(w·c) − Σₖ log σ(−w·nₖ)</div>
+<p>Gradient tushish qadami w va c ni bir-biriga tortadi, w ni esa n lardan itaradi. Oʻxshash kontekstlardagi soʻzlar oʻxshash vektorlar oladi va klasterlar paydo boʻladi. Fazodagi yoʻnalishlar munosabatlarni ifodalashi mumkin: shoh − erkak + ayol ≈ malika. Javob sifatida natijaga kosinusi eng katta soʻz olinadi, uchta boshlangʻich soʻz hisobga olinmaydi.</p>
+<p>Word2Vecda oʻqitishda uchramagan soʻz uchun vektor yoʻq. Minglab soʻz shakllariga ega oʻzbek tili uchun bu jiddiy muammo (1- va 17-mavzular). <b>FastText</b> (2016) soʻzni &lt; va &gt; chegaralari bilan belgilar n-grammalari toʻplami sifatida ifodalaydi: uy → &lt;uy, uy&gt; (n = 3) va butun soʻz &lt;uy&gt;. Soʻz vektori uning n-grammalari vektorlari yigʻindisi (dasturda — oʻrtachasi). Notanish «kitoblarimizdan» shakli tanish boʻlaklar «&lt;ki», «kit», «ito», «tob», «obl», «bla», «lar»… dan yigʻiladi va «kitob» yonida chiqadi.</p>
+<p>Laboratoriyadagi soddalashtirishlar: vektorlar ikki oʻlchamli; bu yerda word2vecda har bir soʻzga bitta vektor (asl modelda ikkita: kirish va chiqish vektorlari); FastText n-grammalari vektorlari korpusda oʻrgatilmagan, balki tayyor soʻzlar xaritasiga moslab tanlangan.</p></div></section>
+  <section><h2>Tajribalar</h2><ol class="exp"><li>1-qismda «Sanoqlar»ni tanlang va H3 ustunidagi «onam» hamda «shoʻrva» kataklarini solishtiring. TF-IDF ga oʻting: qaysi biri muhimroq boʻlib qoldi va nima uchun? Oltita hujjatning hammasida bor soʻzning idf qiymati qancha boʻlardi?</li>
+<li>«Sanoqlar» va «TF» rejimlarida kosinuslar matritsasini solishtiring. Nima uchun u oʻzgarmadi? TF-IDF ni yoqing: qaysi hujjat juftliklari kamroq oʻxshash boʻlib qoldi va nima uchun?</li>
+<li>H5 va H6 bitta oʻyin haqida, lekin soʻzlar qopi uchun «oʻyinni» va «oʻyinda», «yutdi» va «gʻalaba qozondi» har xil soʻzlar. Ularning kosinusi qancha va uni qaysi soʻz taʼminlaydi? Lemmatizatsiya (3-mavzu) nimani oʻzgartirgan boʻlardi? Sinonimlar-chi?</li>
+<li>2-qismda «Boshlash»ni bosing (qadam = gap) va soʻzlar necha soniyada uchta guruhga yigʻilishini kuzating. Keyin «Boshidan», qadam = juftlik, va 10 qadam yuring. Qaysi soʻzlar tortiladi (yashil strelkalar), qaysilari itariladi (qizil)?</li>
+<li>Oʻqitish tezligini 0,01 ga, keyin 0,5 ga qoʻyib, oʻqitishni qaytadan boshlang. Xarita va yoʻqotish grafigi bilan nima boʻladi? Oynani 1 ga kamaytiring: qaysi juftliklar endi oynaga tushmaydi?</li>
+<li>3-qismda «malika» nuqtasini boshqa joyga suring va oʻxshatishni qaytadan oʻting. 4-qismda «kitoblarimizdan», «kitop» va «kompyuter»ni tekshiring. FastText qayerda uddalaydi va nima uchun?</li></ol></section>
+  <section><h2>Oʻzingizni tekshiring</h2><div class="quiz" id="quiz"></div></section>
+  <section><h2>Amaliy mashgʻulot</h2>
+    <div class="practice" style="margin-top:14px"><p>Xuddi shu algoritm haqiqiy Python kodida. Daftar Google Colabʼda ochiladi, hech narsa oʻrnatish shart emas.</p><a class="btn" id="colab" href="../notebooks/05_static_vectors.ipynb">Amaliy mashgʻulotni yuklab olish (.ipynb)</a></div>
+  </section>
+</div>
+<footer>«NLP algoritmlari» kursining virtual laboratoriyasi. Brauzerda ishlaydi, oʻrnatish va internet talab qilinmaydi. <a href="../../ru/labs/05_static_vectors.html" lang="ru">Русский</a></footer>
+</div>
+<script src="../../config.js"></script>
+<script>
+const LANG = "uz";
+const META = {"n":5,"slug":"05_static_vectors","total":18};
+const UI = {"toc": "Mundarija",
+"prev": "Orqaga",
+"next": "Keyingi",
+"labOf": (n, total) => `${total} ta laboratoriyadan ${n}-si`,
+"topic": "Kurs mavzusi",
+"play": "Boshlash",
+"pause": "Toʻxtatish",
+"step": "Qadam",
+"reset": "Boshidan",
+"speed": "Tezlik",
+"how": "Bu qanday ishlaydi",
+"experiments": "Tajribalar",
+"quiz": "Oʻzingizni tekshiring",
+"correct": "Toʻgʻri.",
+"wrong": "Unchalik emas.",
+"tryAgain": "Boshqa variantni tanlab koʻring.",
+"score": (a, b) => `Toʻgʻri javoblar: ${b} tadan ${a} ta`,
+"colab": "Amaliy mashgʻulotni Colabʼda ochish",
+"nbDownload": "Amaliy mashgʻulotni yuklab olish (.ipynb)",
+"practice": "Amaliy mashgʻulot",
+"practiceText": "Xuddi shu algoritm haqiqiy Python kodida. Daftar Google Colabʼda ochiladi, hech narsa oʻrnatish shart emas.",
+"langName": "Oʻzbekcha",
+"otherLang": "Русский",
+"footer": "«NLP algoritmlari» kursining virtual laboratoriyasi. Brauzerda ishlaydi, oʻrnatish va internet talab qilinmaydi."};
+const L = {"title":"Soʻz va hujjat vektorlari","lead":"Soʻzlar qopi va TF-IDF dan zich vektorlarga: word2vec modelini toʻgʻridan-toʻgʻri brauzerda oʻqitasiz, «shoh − erkak + ayol» oʻxshatishini tekshirasiz va FastText notanish soʻz vektorini boʻlaklardan qanday yigʻishini koʻrasiz.","p1_title":"Soʻzlar qopi va TF-IDF","p1_intro":"Oltita qisqa hujjat vektorlarga aylanadi. Vazn turini almashtiring, hujjatlar va jadval kataklarini bosing.","docs":["Mushuk va it uyda yashaydi.","It bogʻda sayr qiladi.","Onam oshxonada shoʻrva pishiradi.","Onam va opam oshxonada choy damlaydi.","Jamoa bogʻda oʻyinni yutdi.","Jamoa oʻyinda gol urdi va gʻalaba qozondi."],"doc_prefix":"H","stop1":["va"],"docs_title":"Hujjatlar","docs_hint":"Hujjatning asosiy soʻzlari va unga eng oʻxshash hujjatni koʻrish uchun uni bosing.","weight_label":"Vazn","w_count":"Sanoqlar","w_tf":"TF","w_tfidf":"TF-IDF","stop_label":"Stop-soʻzlarni olib tashlash (va)","dtm_title":"Soʻz × hujjat matritsasi","dtm_hint":"Har bir ustun — bitta hujjat vektori, har bir satr — lugʻatdagi soʻz. Oʻngda df (soʻz nechta hujjatda bor) va idf. Katakni bosing.","row_df":"df","row_idf":"idf","calc_title":"Katak uchun hisob","calc_pick":"Matritsa katagini bosing.","f_count":"c = «{t}» {d} da necha marta uchraydi = {c}","f_tf":"tf = c / |d| = {c} / {n} = {v}","f_idf":"idf = ln(N / df) = ln({N} / {df}) = {v}","f_tfidf":"tf-idf = tf · idf = {tf} · {idf} = {v}","top_title":"{d} hujjatining asosiy soʻzlari","sim_title":"Hujjatlarning kosinus oʻxshashligi","sim_hint":"cos = 1: vektorlar yoʻnalishi bir xil, 0: vazni nolga teng boʻlmagan umumiy soʻz yoʻq.","nearest_doc":"{a} ga eng oʻxshashi: {b} (cos = {c}). Umumiy soʻzlar: {w}.","nearest_none":"{a} ning hech bir hujjat bilan umumiy soʻzi yoʻq: barcha kosinuslar 0 ga teng.","bow_start":"Matritsa boʻsh. «Qadam»ni bosing: hujjatlar bittadan qoʻshiladi, df va idf qayta hisoblanadi.","bow_step":"{d} qoʻshildi: {n} ta token, lugʻatga yangi soʻzlar: {k}. Endi N = {N}.","bow_done":"Barcha {N} ta hujjat matritsada.","p2_title":"Word2Vec: skip-gram modelini brauzerda oʻqitish","p2_intro":"24 ta soʻzning ikki oʻlchamli vektorlari 30 ta gapdan iborat korpusda oʻqitiladi. «Boshlash»ni bosing va soʻzlar guruhlarga qanday yigʻilishini kuzating yoki juftliklar boʻyicha birma-bir yurib, strelkalarni koʻring.","w2v":{"corpus":["ona va ota uyda","aka va opa uyda","buvi va bobo uyda","ona va buvi uyda","ota va aka uyda","opa va bobo uyda","ona va buvi mehribon","ota va bobo mehribon","aka va opa mehribon","opa va ota mehribon","mushuk va it hovlida","sigir va ot hovlida","echki va sigir hovlida","it va ot yuguradi","mushuk va it yuguradi","ot va echki yuguradi","mushuk va echki yuguradi","sigir va it hovlida","echki va ot hovlida","mushuk va sigir hovlida","non va pishloq dasturxonda","shoʻrva va choy dasturxonda","sut va non dasturxonda","choy va pishloq dasturxonda","shoʻrva issiq va mazali","choy issiq va mazali","non yangi va mazali","pishloq yangi va mazali","sut va shoʻrva dasturxonda","non va choy dasturxonda"],"stop":["va"],"groups":[{"name":"oila","words":["ona","ota","aka","opa","buvi","bobo","uyda","mehribon"]},{"name":"hayvonlar","words":["mushuk","it","sigir","ot","echki","hovlida","yuguradi"]},{"name":"taomlar","words":["non","pishloq","shoʻrva","choy","sut","dasturxonda","issiq","mazali","yangi"]}]},"map_title":"Vektorlar xaritasi","map_hint":"Rang — soʻz mavzusi. Model mavzularni bilmaydi, u faqat oynadagi qoʻshnilarni koʻradi. Eng yaqin qoʻshnilarni koʻrish uchun soʻzni bosing.","lr_label":"Oʻqitish tezligi η","win_label":"Oyna: har tomondan soʻzlar soni","neg_label":"Manfiy misollar soni K","gran_label":"Bitta qadam","g_pair":"bitta juftlik","g_sent":"bitta gap","g_epoch":"davr (30 ta gap)","new_seed":"Boshqa tasodifiy boshlangʻich holat","window_title":"Suriluvchi oyna","stop_note":"Yordamchi soʻzlar (ustidan chizilgan) tashlab yuborilgan: haqiqiy word2vecda koʻp uchraydigan soʻzlar siyraklashtiriladi.","progress":"Davrlar: {e} · gaplar: {s} · yangilanishlar: {u}","progress_end":"Oʻqitish {e} davrdan keyin toʻxtatildi. «Boshlash» qaytadan boshlaydi.","upd_title":"Oxirgi yangilanish","upd_none":"Hali birorta yangilanish boʻlmadi. «Qadam»ni bosing.","upd_pos":"Oynadan olingan musbat juftlik","upd_neg":"Manfiy misollar (tasodifiy soʻzlar)","col_pair":"juftlik","col_before":"σ(w·x) oldin","col_after":"keyin","col_goal":"maqsad","upd_loss":"Shu qadamdagi yoʻqotish: {l}","arrows_note":"Xaritadagi strelkalar — shu qadamdagi vektorlar siljishi, {m} marta kattalashtirilgan: yashil — oynadagi soʻz (tortiladi), qizil — manfiy misollar (itariladi), koʻk — markaziy soʻz.","chart_title":"Oʻqitish","leg_loss":"oʻrtacha yoʻqotish","leg_purity":"eng yaqin qoʻshni shu mavzudan","purity":"{b} ta soʻzdan {a} tasining eng yaqin qoʻshnisi shu mavzudan.","nn_title":"Kosinus boʻyicha «{w}»ga eng yaqinlari","nn_pick":"Xaritadagi soʻzni bosing.","p3_title":"Oʻxshatishlar: vektorlar arifmetikasi","p3_intro":"«Boshlash»ni bosing: A vektoridan B ayiriladi, C qoʻshiladi va eng yaqin soʻz qidiriladi. Nuqtalarni sudrab koʻchirish mumkin.","toy3":"Bu oʻyinchoq xarita: vektorlar ikki oʻq boʻyicha (jins va yosh yoki maqom) qoʻlda joylashtirilgan. Haqiqiy vektorlar oʻqitiladi va yuzlab oʻlchamga ega.","an_words":[{"w":"oʻgʻil","x":-1,"y":-1.95},{"w":"qiz","x":1,"y":-2},{"w":"bola","x":0.05,"y":-2.1},{"w":"aka","x":-1.05,"y":-0.95},{"w":"opa","x":0.95,"y":-1.05},{"w":"erkak","x":-1,"y":0.05},{"w":"ayol","x":1.05,"y":0},{"w":"odam","x":0,"y":0.1},{"w":"ota","x":-0.95,"y":1},{"w":"ona","x":1,"y":0.95},{"w":"shoh","x":-1,"y":2},{"w":"malika","x":1,"y":2.05},{"w":"hukmdor","x":0,"y":2.1}],"an_presets":[["shoh","erkak","ayol"],["ota","erkak","ayol"],["aka","oʻgʻil","qiz"],["malika","ayol","erkak"]],"an_preset_label":"Misol","an_a":"A","an_b":"minus B","an_c":"plyus C","an_start":"«Qadam»ni bosing: avval A vektorini olamiz.","an_s1":"1-qadam: A vektori = «{a}».","an_s2":"2-qadam: A − B. «{a}»dan «{b}»da bor narsani olib tashladik.","an_s3":"3-qadam: A − B + C. «{c}»da bor narsani qoʻshdik.","an_s4":"4-qadam: natijaga kosinusi eng katta soʻzni qidiramiz (A, B va C hisobga olinmaydi).","an_vec":"Vektor","an_rank":"Nomzodlar","an_answer":"Javob: «{w}»","an_axis_x":"erkak ← → ayol","an_axis_y":"yosh, maqom","an_drag":"Nuqtalarni sichqoncha yoki barmoq bilan surish mumkin.","p4_title":"FastText: belgilar n-grammalaridan vektor","p4_intro":"Soʻz kiriting yoki misol tanlang. Soʻz n-grammalarga boʻlinadi va har bir «Qadam» soʻz vektoriga bitta tanish n-grammani qoʻshadi.","ft_groups":["oʻquv qurollari","hayvonlar","oziq-ovqat"],"ft_words":[{"w":"kitob","x":-2,"y":1.3,"g":0},{"w":"kitoblar","x":-2.25,"y":1.05,"g":0},{"w":"kitobni","x":-1.75,"y":1.55,"g":0},{"w":"kitobda","x":-2.25,"y":1.6,"g":0},{"w":"daftar","x":-1.25,"y":0.75,"g":0},{"w":"daftarlar","x":-1.45,"y":0.45,"g":0},{"w":"mushuk","x":1.3,"y":1.45,"g":1},{"w":"mushuklar","x":1.05,"y":1.2,"g":1},{"w":"mushukni","x":1.55,"y":1.7,"g":1},{"w":"it","x":2.05,"y":0.8,"g":1},{"w":"itlar","x":2.3,"y":1.05,"g":1},{"w":"sigir","x":2.15,"y":0.5,"g":1},{"w":"non","x":-0.55,"y":-1.6,"g":2},{"w":"nonni","x":-0.8,"y":-1.85,"g":2},{"w":"olma","x":0.05,"y":-2,"g":2},{"w":"olmalar","x":-0.2,"y":-2.25,"g":2},{"w":"olmani","x":0.3,"y":-2.25,"g":2},{"w":"sabzi","x":0.75,"y":-1.7,"g":2}],"ft_tests":["kitoblarimizdan","daftarimda","mushukcha","olmalardan","kitop","kompyuter"],"ft_input":"Soʻz","maxn_label":"Eng uzun n-gramma (n 3 dan … gacha)","ngrams_title":"«{w}» soʻzining n-grammalari","ng_legend_known":"tanish (lugʻatda uchragan)","ng_legend_unknown":"notanish","ng_legend_used":"allaqachon qoʻshilgan","w2v_has":"word2vec: «{w}» lugʻatda bor, vektor jadvaldan olinadi.","w2v_none":"word2vec: «{w}» soʻzi lugʻatda yoʻq, vektor yoʻq.","ft_ok":"FastText: {b} ta n-grammadan {a} tasi tanish. Soʻz vektori — ular vektorlarining oʻrtachasi.","ft_few":"FastText: {b} ta n-grammadan faqat {a} tasi tanish. Vektor bor, lekin unga ishonib boʻlmaydi.","ft_none":"FastText: birorta n-gramma tanish emas. Haqiqiy FastTextda n-grammalar xeshlanadi va vektor chiqadi, lekin maʼnosiz boʻladi.","ft_start":"N-grammalarni bittadan qoʻshish uchun «Qadam»ni bosing.","ft_step":"«{g}» qoʻshildi. Vektor = {k} ta n-gramma oʻrtachasi.","ft_done":"Barcha tanish n-grammalar qoʻshildi.","ft_nn":"Lugʻatdagi eng yaqin soʻzlar (xaritadagi masofa, kichigi — yaqinroq)","ft_map":"Xarita: lugʻat va yangi soʻz","ft_toy":"Oʻyinchoq model: n-gramma vektorlari brauzerda gradient tushish usuli bilan shunday tanlanganki, har bir lugʻat soʻzi n-grammalarining oʻrtachasi xaritadagi oʻsha soʻz nuqtasiga tushadi. Haqiqiy FastText ularni katta korpusda oʻrganadi. Moslash xatosi: {e}.","ft_invalid":"Harflardan iborat soʻz kiriting.","ft_whole":"butun soʻz","ng_row":"n = {n}","ft_dist":"xaritadagi masofa","ft_trail":"Yulduzcha — soʻzning joriy vektori, chiziq — n-grammalar qoʻshilgan sari uning yoʻli, kichik nuqtalar — qoʻshilgan n-grammalar vektorlari.","theory":"\n\u003cp>\u003cb>Vektorlashtirish\u003c/b> matnni algoritmlar ishlay oladigan sonlarga aylantiradi. «Statik» degani: soʻzning har qanday kontekstda bitta vektori bor (kontekstual vektorlar — 6-mavzu).\u003c/p>\n\u003cp>\u003cb>Soʻzlar qopi (Bag of Words, BoW)\u003c/b>: hujjat lugʻatdagi soʻzlar sanoqlaridan iborat vektor, soʻz tartibi yoʻqoladi. Koʻp uchraydigan yordamchi soʻzlar («va») xalaqit beradi, shuning uchun soʻzlarga \u003cb>TF-IDF\u003c/b> yordamida vazn beriladi:\u003c/p>\n\u003cdiv class=\"formula\">tf(t, d) = c(t, d) / |d|\nidf(t) = ln(N / df(t))\ntf-idf(t, d) = tf(t, d) · idf(t)\u003c/div>\n\u003cp>df(t) — soʻz N ta hujjatdan nechtasida borligi. Barcha hujjatlarda bor soʻz idf = 0 oladi: u hech narsani farqlamaydi. Hujjatlar oʻxshashligi vektorlar orasidagi burchak \u003cb>kosinusi\u003c/b> bilan oʻlchanadi: cos(a, b) = a·b / (|a|·|b|). U hujjat uzunligiga bogʻliq emas (11-mavzu).\u003c/p>\n\u003cp>BoW vektorlari butun lugʻat uzunligida, ulardagi sonlarning deyarli hammasi nol va ular soʻzlar oʻxshashligini koʻrmaydi: «mushuk» «it»dan ham, «non»dan ham bir xil uzoqlikda. \u003cb>Distributiv gipoteza\u003c/b>: oʻxshash kontekstlarda keladigan soʻzlar maʼno jihatidan yaqin. \u003cb>Word2Vec\u003c/b> (2013) 100–300 ta sondan iborat zich vektorlarni oʻrganadi. \u003cb>Manfiy misollar bilan skip-gram (SGNS)\u003c/b> variantida oyna matn boʻylab suriladi. Markaziy w soʻzi va oynadagi c soʻzi uchun model σ(w·c) ni oshiradi, K ta tasodifiy n soʻz uchun esa σ(w·n) ni kamaytiradi:\u003c/p>\n\u003cdiv class=\"formula\">loss = −log σ(w·c) − Σₖ log σ(−w·nₖ)\u003c/div>\n\u003cp>Gradient tushish qadami w va c ni bir-biriga tortadi, w ni esa n lardan itaradi. Oʻxshash kontekstlardagi soʻzlar oʻxshash vektorlar oladi va klasterlar paydo boʻladi. Fazodagi yoʻnalishlar munosabatlarni ifodalashi mumkin: shoh − erkak + ayol ≈ malika. Javob sifatida natijaga kosinusi eng katta soʻz olinadi, uchta boshlangʻich soʻz hisobga olinmaydi.\u003c/p>\n\u003cp>Word2Vecda oʻqitishda uchramagan soʻz uchun vektor yoʻq. Minglab soʻz shakllariga ega oʻzbek tili uchun bu jiddiy muammo (1- va 17-mavzular). \u003cb>FastText\u003c/b> (2016) soʻzni &lt; va &gt; chegaralari bilan belgilar n-grammalari toʻplami sifatida ifodalaydi: uy → &lt;uy, uy&gt; (n = 3) va butun soʻz &lt;uy&gt;. Soʻz vektori uning n-grammalari vektorlari yigʻindisi (dasturda — oʻrtachasi). Notanish «kitoblarimizdan» shakli tanish boʻlaklar «&lt;ki», «kit», «ito», «tob», «obl», «bla», «lar»… dan yigʻiladi va «kitob» yonida chiqadi.\u003c/p>\n\u003cp>Laboratoriyadagi soddalashtirishlar: vektorlar ikki oʻlchamli; bu yerda word2vecda har bir soʻzga bitta vektor (asl modelda ikkita: kirish va chiqish vektorlari); FastText n-grammalari vektorlari korpusda oʻrgatilmagan, balki tayyor soʻzlar xaritasiga moslab tanlangan.\u003c/p>","experiments":["1-qismda «Sanoqlar»ni tanlang va H3 ustunidagi «onam» hamda «shoʻrva» kataklarini solishtiring. TF-IDF ga oʻting: qaysi biri muhimroq boʻlib qoldi va nima uchun? Oltita hujjatning hammasida bor soʻzning idf qiymati qancha boʻlardi?","«Sanoqlar» va «TF» rejimlarida kosinuslar matritsasini solishtiring. Nima uchun u oʻzgarmadi? TF-IDF ni yoqing: qaysi hujjat juftliklari kamroq oʻxshash boʻlib qoldi va nima uchun?","H5 va H6 bitta oʻyin haqida, lekin soʻzlar qopi uchun «oʻyinni» va «oʻyinda», «yutdi» va «gʻalaba qozondi» har xil soʻzlar. Ularning kosinusi qancha va uni qaysi soʻz taʼminlaydi? Lemmatizatsiya (3-mavzu) nimani oʻzgartirgan boʻlardi? Sinonimlar-chi?","2-qismda «Boshlash»ni bosing (qadam = gap) va soʻzlar necha soniyada uchta guruhga yigʻilishini kuzating. Keyin «Boshidan», qadam = juftlik, va 10 qadam yuring. Qaysi soʻzlar tortiladi (yashil strelkalar), qaysilari itariladi (qizil)?","Oʻqitish tezligini 0,01 ga, keyin 0,5 ga qoʻyib, oʻqitishni qaytadan boshlang. Xarita va yoʻqotish grafigi bilan nima boʻladi? Oynani 1 ga kamaytiring: qaysi juftliklar endi oynaga tushmaydi?","3-qismda «malika» nuqtasini boshqa joyga suring va oʻxshatishni qaytadan oʻting. 4-qismda «kitoblarimizdan», «kitop» va «kompyuter»ni tekshiring. FastText qayerda uddalaydi va nima uchun?"],"quiz":[{"q":"Soʻz kolleksiyadagi barcha N ta hujjatda uchraydi. Uning idf = ln(N / df) qiymati nimaga teng?","a":["1","0","N","ln N"],"correct":1,"why":"df = N, shuning uchun idf = ln(N / N) = ln 1 = 0. Hamma joyda bor soʻz hujjatlarni farqlashga yordam bermaydi va TF-IDF uni nolga aylantiradi.","hint":"Formulaga df = N ni qoʻying."},{"q":"SGNS ning bitta qadami oynadan olingan musbat (w, c) juftligi uchun nima qiladi?","a":["σ(w·c) ni kamaytirib, vektorlarni uzoqlashtiradi","σ(w·c) ni oshirib, w va c vektorlarini yaqinlashtiradi","Faqat c vektorini oʻzgartiradi","c ni lugʻatga qoʻshadi"],"correct":1,"why":"Oynadagi juftlik uchun maqsad σ(w·c) = 1. −log σ(w·c) gradienti w ni c tomonga, c ni w tomonga siljitadi, manfiy misollar esa w dan uzoqlashtiriladi.","hint":"2-qismda «bitta juftlik» rejimidagi yashil strelkalarga qarang."},{"q":"Nima uchun FastText notanish «kitoblarimizdan» shakli uchun vektor bera oladi, word2vec esa yoʻq?","a":["FastText kattaroq korpusda oʻqitilgan","FastText vektori boshqa soʻzlarda uchragan belgilar n-grammalaridan yigʻiladi","FastText avval soʻzni lemmatizatsiya qiladi","word2vec oʻzbek tili bilan ishlamaydi"],"correct":1,"why":"«&lt;ki», «kit», «tob», «lar»… allaqachon «kitob», «kitoblar» va boshqa soʻzlarda uchragan. Ularning vektorlari maʼlum, oʻrtachasi yangi soʻz vektorini beradi.","hint":"Qaysi n-grammalar tanish deb belgilanganiga qarang."},{"q":"Ikki hujjatning TF vektorlari orasidagi kosinus 0 ga teng. Bu nimani anglatadi?","a":["Hujjatlar bir xil","Hujjatlarda birorta ham umumiy soʻz yoʻq","Hujjatlar uzunligi har xil","Hujjatlardan biri boʻsh"],"correct":1,"why":"TF vaznlari manfiy emas, shuning uchun skalyar koʻpaytma faqat birorta soʻz ikkala hujjatda ham uchramaganda 0 ga teng.","hint":"Manfiy boʻlmagan sonlar koʻpaytmalarining yigʻindisi qachon nolga teng?"}]};
+</script>
+<script>
+/* NLP labs: shared helpers. Globals provided by the build before this file: LANG, UI, L, META. */
+"use strict";
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+
+/* h("div", {class: "x", onclick: fn, style: {...}}, child, [children], "text") */
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  if (props) {
+    for (const [k, v] of Object.entries(props)) {
+      if (v == null || v === false) continue;
+      if (k === "class") el.className = v;
+      else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
+      else if (k === "html") el.innerHTML = v;
+      else if (k === "text") el.textContent = v;
+      else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
+      else if (k in el && typeof v !== "string") el[k] = v;
+      else el.setAttribute(k, v === true ? "" : v);
+    }
+  }
+  const add = (c) => {
+    if (c == null || c === false) return;
+    if (Array.isArray(c)) c.forEach(add);
+    else el.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
+  };
+  kids.forEach(add);
+  return el;
+}
+function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
+function mount(target) { return typeof target === "string" ? $(target) : target; }
+
+/* numbers */
+function fmt(x, d = 2) {
+  if (x == null || Number.isNaN(x)) return "–";
+  if (!Number.isFinite(x)) return x > 0 ? "∞" : "−∞";
+  return Number(x).toFixed(d).replace(".", ",").replace("-", "−");
+}
+function pct(x, d = 0) { return fmt(100 * x, d) + "%"; }
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const sum = (a) => a.reduce((s, x) => s + x, 0);
+const argmax = (a) => a.reduce((bi, x, i) => (x > a[bi] ? i : bi), 0);
+function softmax(arr, T = 1) {
+  const m = Math.max(...arr.map((x) => x / T));
+  const e = arr.map((x) => Math.exp(x / T - m));
+  const s = sum(e);
+  return e.map((x) => x / s);
+}
+function dot(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; }
+function norm(a) { return Math.sqrt(dot(a, a)); }
+function cosine(a, b) { const n = norm(a) * norm(b); return n ? dot(a, b) / n : 0; }
+/* deterministic random numbers: const r = rng(42); r() in [0,1) */
+function rng(seed = 1) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function sample(probs, r = Math.random) {
+  let x = r() * sum(probs);
+  for (let i = 0; i < probs.length; i++) { x -= probs[i]; if (x <= 0) return i; }
+  return probs.length - 1;
+}
+
+/* colors */
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+const PALETTE = ["--c1", "--c2", "--c3", "--c4", "--c5", "--c6", "--c7", "--c8"];
+function color(i) { return cssVar(PALETTE[((i % PALETTE.length) + PALETTE.length) % PALETTE.length]); }
+function hexToRgb(hex) {
+  const m = hex.replace("#", "");
+  const n = parseInt(m.length === 3 ? m.split("").map((c) => c + c).join("") : m, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function alpha(hex, a) { const [r, g, b] = hexToRgb(hex); return `rgba(${r},${g},${b},${a})`; }
+/* white -> pen blue scale for heatmaps, t in [0,1] */
+function heatColor(t, base = "--pen") {
+  const [r, g, b] = hexToRgb(cssVar(base));
+  t = clamp(t, 0, 1);
+  return `rgb(${Math.round(lerp(255, r, t))},${Math.round(lerp(255, g, t))},${Math.round(lerp(255, b, t))})`;
+}
+function inkOn(t) { return t > 0.55 ? "#fff" : cssVar("--ink"); }
+
+/* controls ---------------------------------------------------------------- */
+function slider(parent, o) {
+  const fmtv = o.format || ((v) => String(v));
+  const val = h("span", { class: "val" }, fmtv(o.value));
+  const input = h("input", { type: "range", min: o.min, max: o.max, step: o.step ?? 1, value: o.value, "aria-label": o.label });
+  const box = h("div", { class: "ctl" }, h("label", null, h("span", null, o.label), val), input);
+  input.addEventListener("input", () => {
+    const v = parseFloat(input.value);
+    val.textContent = fmtv(v);
+    o.onInput && o.onInput(v);
+  });
+  mount(parent).appendChild(box);
+  return {
+    el: box, input,
+    get value() { return parseFloat(input.value); },
+    set value(v) { input.value = v; val.textContent = fmtv(parseFloat(input.value)); },
+  };
+}
+
+function segmented(parent, o) {
+  let current = o.value;
+  const btns = o.options.map((opt) =>
+    h("button", { type: "button", "aria-pressed": String(opt.value === current), onclick: () => api.set(opt.value, true) }, opt.label));
+  const seg = h("div", { class: "seg", role: "group", "aria-label": o.label || "" }, btns);
+  const box = h("div", { class: "ctl" }, o.label ? h("div", { class: "lbl" }, h("span", null, o.label)) : null, seg);
+  const api = {
+    el: box,
+    get value() { return current; },
+    set(v, fire) {
+      current = v;
+      btns.forEach((b, i) => b.setAttribute("aria-pressed", String(o.options[i].value === v)));
+      if (fire && o.onChange) o.onChange(v);
+    },
+  };
+  mount(parent).appendChild(box);
+  return api;
+}
+
+function button(parent, label, onClick, variant = "") {
+  const b = h("button", { type: "button", class: "btn " + variant, onclick: onClick }, label);
+  mount(parent).appendChild(b);
+  return b;
+}
+
+function checkbox(parent, label, checked, onChange) {
+  const input = h("input", { type: "checkbox", checked: !!checked });
+  input.addEventListener("change", () => onChange && onChange(input.checked));
+  const box = h("label", { class: "check" }, input, h("span", null, label));
+  mount(parent).appendChild(box);
+  return input;
+}
+
+/* Play / Pause / Step / Reset with a speed slider.
+   o.step() advances one step and returns false when the process is finished.
+   o.reset() restores the initial state. o.interval: base delay in ms. */
+function player(parent, o) {
+  let timer = null;
+  let speed = o.speed ?? 3;
+  const delay = () => (o.interval ?? 700) * Math.pow(0.6, speed - 3);
+  const playBtn = h("button", { type: "button", class: "btn", onclick: () => (timer ? stop() : start()) }, UI.play);
+  const stepBtn = h("button", { type: "button", class: "btn ghost", onclick: () => { stop(); doStep(); } }, UI.step);
+  const resetBtn = h("button", { type: "button", class: "btn ghost", onclick: () => { stop(); o.reset(); } }, UI.reset);
+  const sp = h("input", { type: "range", min: 1, max: 5, step: 1, value: speed, "aria-label": UI.speed });
+  sp.addEventListener("input", () => { speed = +sp.value; if (timer) { stop(); start(); } });
+  const box = h("div", { class: "player" }, playBtn, stepBtn, resetBtn, o.noSpeed ? null : h("span", { class: "speed" }, UI.speed, sp));
+  mount(parent).appendChild(box);
+  function doStep() { const more = o.step(); if (more === false) stop(); return more; }
+  function start() {
+    if (o.canStep && !o.canStep()) o.reset();
+    playBtn.textContent = UI.pause;
+    timer = setInterval(() => { if (doStep() === false) stop(); }, delay());
+    o.onPlay && o.onPlay();
+  }
+  function stop() { if (timer) clearInterval(timer); timer = null; playBtn.textContent = UI.play; }
+  return { el: box, start, stop, get playing() { return !!timer; } };
+}
+
+/* Responsive HiDPI canvas.
+   o.height (px) or o.aspect (h/w); o.draw(ctx, w, h); pointer callbacks get {x, y} in CSS pixels. */
+function canvasBox(parent, o) {
+  const cv = h("canvas", { class: "viz", role: "img", "aria-label": o.label || "" });
+  const wrap = h("div", { class: "viz-wrap" }, cv);
+  mount(parent).appendChild(wrap);
+  const ctx = cv.getContext("2d");
+  let W = 0, H = 0;
+  function size() {
+    const w = Math.max(10, wrap.clientWidth);
+    const hh = o.height ? (typeof o.height === "function" ? o.height(w) : o.height) : Math.round(w * (o.aspect || 0.6));
+    const dpr = window.devicePixelRatio || 1;
+    if (w !== W || hh !== H || cv.width !== Math.round(w * dpr)) {
+      W = w; H = hh;
+      cv.width = Math.round(w * dpr); cv.height = Math.round(hh * dpr);
+      cv.style.height = hh + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+  }
+  function redraw() { size(); ctx.clearRect(0, 0, W, H); o.draw && o.draw(ctx, W, H); }
+  const pos = (e) => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  let down = false;
+  cv.addEventListener("pointerdown", (e) => { down = true; try { cv.setPointerCapture(e.pointerId); } catch (_) {} o.onDown && o.onDown(pos(e), e); });
+  cv.addEventListener("pointermove", (e) => { if (down) o.onDrag && o.onDrag(pos(e), e); else o.onHover && o.onHover(pos(e), e); });
+  cv.addEventListener("pointerup", (e) => { down = false; o.onUp && o.onUp(pos(e), e); });
+  cv.addEventListener("pointerleave", () => { if (!down && o.onLeave) o.onLeave(); });
+  if (window.ResizeObserver) new ResizeObserver(() => redraw()).observe(wrap);
+  else window.addEventListener("resize", redraw);
+  requestAnimationFrame(redraw);
+  return { canvas: cv, wrap, ctx, redraw, get w() { return W; }, get h() { return H; } };
+}
+
+/* canvas text helpers */
+function font(px, weight = 400, mono = false) { return `${weight} ${px}px ${mono ? cssVar("--mono") : cssVar("--font")}`; }
+function text(ctx, s, x, y, o = {}) {
+  ctx.save();
+  ctx.font = font(o.size || 13, o.weight || 400, o.mono);
+  ctx.fillStyle = o.color || cssVar("--ink");
+  ctx.textAlign = o.align || "left";
+  ctx.textBaseline = o.base || "middle";
+  if (o.bg) {
+    const m = ctx.measureText(s), pad = 3, tw = m.width, th = (o.size || 13) + 4;
+    let bx = x - (o.align === "center" ? tw / 2 : o.align === "right" ? tw : 0);
+    ctx.fillStyle = o.bg; ctx.fillRect(bx - pad, y - th / 2, tw + 2 * pad, th);
+    ctx.fillStyle = o.color || cssVar("--ink");
+  }
+  ctx.fillText(s, x, y);
+  ctx.restore();
+}
+function roundRect(ctx, x, y, w, hh, r) {
+  r = Math.min(r, w / 2, hh / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + hh, r); ctx.arcTo(x + w, y + hh, x, y + hh, r);
+  ctx.arcTo(x, y + hh, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function arrow(ctx, x1, y1, x2, y2, o = {}) {
+  ctx.save();
+  ctx.strokeStyle = ctx.fillStyle = o.color || cssVar("--ink");
+  ctx.lineWidth = o.width || 1.5;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  const a = Math.atan2(y2 - y1, x2 - x1), s = o.head || 8;
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - s * Math.cos(a - 0.4), y2 - s * Math.sin(a - 0.4));
+  ctx.lineTo(x2 - s * Math.cos(a + 0.4), y2 - s * Math.sin(a + 0.4));
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+/* Simple line chart on a canvas. series: [{values:[...], color, label, dash}] ; o: {xLabels, yMin, yMax, yFmt, title, markX} */
+function lineChart(ctx, W, H, series, o = {}) {
+  const pad = { l: 44, r: 12, t: o.title ? 24 : 10, b: 26 };
+  const n = Math.max(1, ...series.map((s) => s.values.length));
+  const all = series.flatMap((s) => s.values.filter((v) => Number.isFinite(v)));
+  let y0 = o.yMin ?? Math.min(0, ...all), y1 = o.yMax ?? Math.max(1e-9, ...all);
+  if (y1 === y0) y1 = y0 + 1;
+  const X = (i) => pad.l + (n === 1 ? 0 : (i / (n - 1)) * (W - pad.l - pad.r));
+  const Y = (v) => H - pad.b - ((v - y0) / (y1 - y0)) * (H - pad.t - pad.b);
+  ctx.save();
+  ctx.strokeStyle = cssVar("--line"); ctx.lineWidth = 1;
+  for (let k = 0; k <= 4; k++) {
+    const v = y0 + (k / 4) * (y1 - y0), y = Y(v);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+    text(ctx, (o.yFmt || ((x) => fmt(x, 2)))(v), pad.l - 6, y, { align: "right", size: 11, color: cssVar("--muted") });
+  }
+  if (o.title) text(ctx, o.title, pad.l, 10, { size: 12.5, weight: 600, color: cssVar("--muted") });
+  const labels = o.xLabels || [];
+  const every = Math.ceil(labels.length / Math.max(1, Math.floor((W - pad.l) / 46)));
+  labels.forEach((lab, i) => { if (i % every === 0) text(ctx, String(lab), X(i), H - pad.b + 13, { align: "center", size: 11, color: cssVar("--muted") }); });
+  if (o.markX != null) {
+    ctx.strokeStyle = cssVar("--mark"); ctx.lineWidth = 6; ctx.globalAlpha = 0.7;
+    ctx.beginPath(); ctx.moveTo(X(o.markX), pad.t); ctx.lineTo(X(o.markX), H - pad.b); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  for (const s of series) {
+    ctx.strokeStyle = s.color || cssVar("--pen"); ctx.lineWidth = s.width || 2; ctx.setLineDash(s.dash || []);
+    ctx.beginPath();
+    let started = false;
+    s.values.forEach((v, i) => { if (!Number.isFinite(v)) return; if (!started) { ctx.moveTo(X(i), Y(v)); started = true; } else ctx.lineTo(X(i), Y(v)); });
+    ctx.stroke(); ctx.setLineDash([]);
+    if (s.dots) s.values.forEach((v, i) => { if (Number.isFinite(v)) { ctx.fillStyle = s.color || cssVar("--pen"); ctx.beginPath(); ctx.arc(X(i), Y(v), 3, 0, 7); ctx.fill(); } });
+  }
+  ctx.restore();
+  return { X, Y };
+}
+
+/* DOM widgets ------------------------------------------------------------- */
+/* items: [{label, value, color, note}] ; o: {max, format} */
+function bars(parent, items, o = {}) {
+  const el = clear(mount(parent));
+  el.classList.add("bars");
+  const max = o.max ?? Math.max(1e-9, ...items.map((i) => Math.abs(i.value)));
+  for (const it of items) {
+    const w = clamp(Math.abs(it.value) / max, 0, 1) * 100;
+    el.appendChild(h("div", { class: "bar", title: it.note || "" },
+      h("span", { class: "lab" + (o.mono ? " mono" : "") }, it.label),
+      h("span", { class: "track" }, h("span", { class: "fill", style: { width: w + "%", display: "block", background: it.color || cssVar("--pen") } })),
+      h("span", { class: "num" }, (o.format || ((v) => fmt(v, 2)))(it.value))));
+  }
+  return el;
+}
+
+/* tokens: array of strings or {text, sub, cls, title, onclick} */
+function tokens(parent, toks, o = {}) {
+  const el = clear(mount(parent));
+  el.classList.add("tokens");
+  toks.forEach((t, i) => {
+    const d = typeof t === "string" ? { text: t } : t;
+    const tag = d.onclick ? "button" : "span";
+    const attrs = { class: "tok " + (d.cls || ""), title: d.title || null, type: d.onclick ? "button" : null, onclick: d.onclick || null };
+    if (d.color) attrs.style = { background: d.color, borderColor: d.color, color: d.ink || "#fff" };
+    el.appendChild(h(tag, attrs, d.text, d.sub != null ? h("span", { class: "sub" }, d.sub) : null));
+  });
+  return el;
+}
+
+/* heatmap table. matrix[r][c]; o: {format, max, min, rowHead, colHead, highlight:(r,c)=>bool} */
+function heatTable(parent, rows, cols, matrix, o = {}) {
+  const el = clear(mount(parent));
+  const flat = matrix.flat().filter(Number.isFinite);
+  const mx = o.max ?? Math.max(...flat), mn = o.min ?? Math.min(0, ...flat);
+  const t = (v) => (mx === mn ? 0 : (v - mn) / (mx - mn));
+  const head = h("tr", null, h("th", { class: "l" }, o.corner || ""), cols.map((c) => h("th", null, c)));
+  const body = rows.map((r, i) => h("tr", null, h("th", { class: "l" }, r), cols.map((_, j) => {
+    const v = matrix[i][j];
+    const tv = Number.isFinite(v) ? t(v) : 0;
+    const style = { background: o.plain ? "" : heatColor(tv * 0.85), color: o.plain ? "" : inkOn(tv * 0.85) };
+    if (o.highlight && o.highlight(i, j)) { style.outline = "3px solid " + cssVar("--mark"); style.outlineOffset = "-3px"; }
+    return h("td", { class: "num", style }, (o.format || ((x) => fmt(x, 2)))(v));
+  })));
+  el.appendChild(h("div", { class: "scroll-x" }, h("table", { class: "grid" }, h("thead", null, head), h("tbody", null, body))));
+  return el;
+}
+
+function legend(parent, items) {
+  const el = clear(mount(parent));
+  el.classList.add("legend");
+  items.forEach((it) => el.appendChild(h("span", null, h("i", { style: { background: it.color } }), it.label)));
+  return el;
+}
+
+/* page sections built from L.theory, L.experiments, L.quiz ----------------- */
+function renderNotes() {
+  const q = $("#quiz");
+  if (!q || !Array.isArray(L.quiz)) return;
+  let right = 0, answered = 0;
+  const score = h("p", { class: "quiz-score" });
+  const upd = () => { score.textContent = answered ? UI.score(right, L.quiz.length) : ""; };
+  L.quiz.forEach((item, qi) => {
+    const fb = h("div", { class: "fb", "aria-live": "polite" });
+    let done = false;
+    const opts = item.a.map((txt, ai) => h("button", {
+      type: "button", class: "opt", html: txt,
+      onclick: (e) => {
+        const ok = ai === item.correct;
+        e.currentTarget.classList.add(ok ? "right" : "wrong");
+        clear(fb).appendChild(h("span", { html: `<b>${ok ? UI.correct : UI.wrong}</b>` + (ok ? (item.why || "") : (item.hint || UI.tryAgain)) }));
+        if (!done) { done = true; answered++; if (ok) right++; upd(); }
+      },
+    }));
+    q.appendChild(h("div", { class: "q" }, h("p", { html: `${qi + 1}. ${item.q}` }), h("div", { class: "opts" }, opts), fb));
+  });
+  q.appendChild(score);
+}
+
+/* Colab link: on *.github.io the repository and the folder are read from the address;
+   elsewhere config.js (window.NLP_LABS = {repo, branch, folder}) is used; otherwise the .ipynb is offered as a download. */
+function colabTarget(lang, slug) {
+  const cfg = window.NLP_LABS || {};
+  const branch = cfg.branch || "main";
+  let repo = cfg.repo || "", folder = (cfg.folder || "").replace(/^\/+|\/+$/g, "");
+  if (!repo && /\.github\.io$/.test(location.hostname)) {
+    const user = location.hostname.replace(/\.github\.io$/, "");
+    const seg = location.pathname.split("/").filter(Boolean);
+    const li = seg.findIndex((x) => x === "ru" || x === "uz");
+    const before = li >= 0 ? seg.slice(0, li) : [];
+    // project site: user.github.io/<repo>/…  ;  user site: user.github.io/…
+    if (before.length && before[0] !== user + ".github.io") { repo = `${user}/${before[0]}`; folder = before.slice(1).join("/"); }
+    else { repo = `${user}/${location.hostname}`; folder = before.join("/"); }
+  }
+  if (!repo) return null;
+  const nb = (folder ? folder + "/" : "") + `${lang}/notebooks/${slug}.ipynb`;
+  return `https://colab.research.google.com/github/${repo}/blob/${branch}/${nb}`;
+}
+
+function setupPractice() {
+  const a = $("#colab");
+  if (!a) return;
+  const url = colabTarget(LANG, META.slug);
+  if (url) {
+    a.href = url;
+    a.textContent = UI.colab;
+    a.target = "_blank"; a.rel = "noopener";
+  } else {
+    a.href = `../notebooks/${META.slug}.ipynb`;
+    a.textContent = UI.nbDownload;
+    a.setAttribute("download", "");
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => { renderNotes(); setupPractice(); });
+
+</script>
+<script>
+/* Lab 5: bag of words and TF-IDF, word2vec SGNS trained live in 2-D, vector analogies, FastText n-grams. */
+
+const tpl = (s, o) => s.replace(/\{(\w+)\}/g, (m, k) => (k in o ? o[k] : m));
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const sigmoid = (x) => 1 / (1 + Math.exp(-x));
+const GROUP_COL = ["--c1", "--c2", "--c3"];
+
+/* shared: a 2-D scatter map with automatic or fixed bounds */
+function mapFrame(W, H, pts, o = {}) {
+  const pad = o.pad ?? 26;
+  let x0 = o.x0, x1 = o.x1, y0 = o.y0, y1 = o.y1;
+  if (x0 == null) {
+    const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+    x0 = Math.min(...xs); x1 = Math.max(...xs); y0 = Math.min(...ys); y1 = Math.max(...ys);
+    const m = Math.max(x1 - x0, y1 - y0, 0.5) * 0.08;
+    x0 -= m; x1 += m; y0 -= m; y1 += m;
+  }
+  // equal scale on both axes so that angles and distances are honest
+  const s = Math.min((W - 2 * pad) / (x1 - x0), (H - 2 * pad) / (y1 - y0));
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const X = (x) => W / 2 + (x - cx) * s, Y = (y) => H / 2 - (y - cy) * s;
+  const inv = (px, py) => [(px - W / 2) / s + cx, -(py - H / 2) / s + cy];
+  return { X, Y, s, inv };
+}
+/* Draw labelled points: dots first, then labels placed greedily where they overlap least. */
+function drawPoints(ctx, W, H, pts) {
+  pts.forEach((p) => {
+    ctx.fillStyle = p.col;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r || 4.5, 0, 7); ctx.fill();
+    if (p.ring) { ctx.strokeStyle = p.ring; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(p.x, p.y, (p.r || 4.5) + 4, 0, 7); ctx.stroke(); }
+  });
+  const boxes = pts.map((p) => [p.x - 5, p.y - 5, p.x + 5, p.y + 5]);
+  const overlap = (a, b) => Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])) * Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
+  // important labels first so that they get the best spots
+  const order = pts.map((_, i) => i).sort((a, b) => (pts[b].prio || 0) - (pts[a].prio || 0));
+  const placed = [];
+  order.forEach((i) => {
+    const p = pts[i], size = p.size || 12.5;
+    ctx.font = font(size, p.weight || 500);
+    const w = ctx.measureText(p.label).width + 4, hh = size + 3;
+    const cand = [[7, -hh - 1], [7, 1], [-w - 7, -hh - 1], [-w - 7, 1], [-w / 2, -hh - 8], [-w / 2, 7]];
+    let best = null, bs = Infinity;
+    cand.forEach(([dx, dy], k) => {
+      const b = [p.x + dx, p.y + dy, p.x + dx + w, p.y + dy + hh];
+      let sc = k * 0.5;
+      if (b[0] < 0 || b[2] > W || b[1] < 0 || b[3] > H) sc += 1e4;
+      boxes.forEach((o) => { sc += overlap(b, o); });
+      if (sc < bs) { bs = sc; best = b; }
+    });
+    boxes.push(best);
+    placed.push([p, best, size]);
+  });
+  // paint in reverse so that the most important labels end up on top
+  placed.reverse().forEach(([p, b, size]) => {
+    ctx.fillStyle = "rgba(255,255,255,.8)"; ctx.fillRect(b[0], b[1], b[2] - b[0], b[3] - b[1]);
+    text(ctx, p.label, b[0] + 2, (b[1] + b[3]) / 2, { size, weight: p.weight || 500, color: p.ink || p.col });
+  });
+}
+
+/* ---------- Part 1: bag of words, TF-IDF, cosine ---------- */
+(function bagOfWords() {
+  const ND = L.docs.length;
+  const docTok = L.docs.map((d) => d.toLowerCase().split(/[^\p{L}ʻʼ-]+/u).filter(Boolean));
+  let mode = "tfidf", useStop = false, selDoc = 0, selTerm = null, shown = ND, fresh = -1;
+  const name = (i) => L.doc_prefix + (i + 1);
+
+  segmented("#bow-weight", { label: L.weight_label, value: mode, options: [{ value: "count", label: L.w_count }, { value: "tf", label: L.w_tf }, { value: "tfidf", label: L.w_tfidf }], onChange: (v) => { mode = v; render(); } });
+  checkbox("#bow-stop", L.stop_label, useStop, (v) => { useStop = v; render(); });
+
+  function model() {
+    const toks = docTok.slice(0, shown).map((t) => (useStop ? t.filter((w) => !L.stop1.includes(w)) : t));
+    const vocab = [];
+    toks.forEach((t) => t.forEach((w) => { if (!vocab.includes(w)) vocab.push(w); }));
+    const N = toks.length;
+    const cnt = toks.map((t) => vocab.map((w) => t.filter((x) => x === w).length));
+    const df = vocab.map((_, j) => cnt.filter((r) => r[j] > 0).length);
+    const idf = df.map((d) => Math.log(N / d));
+    const tf = cnt.map((r, i) => r.map((c) => c / toks[i].length));
+    const tfidf = tf.map((r) => r.map((v, j) => v * idf[j]));
+    const M = mode === "count" ? cnt : mode === "tf" ? tf : tfidf;
+    const sim = M.map((a) => M.map((b) => cosine(a, b)));
+    return { toks, vocab, N, cnt, df, idf, tf, tfidf, M, sim };
+  }
+
+  function render() {
+    const m = model();
+    if (selDoc >= m.N) selDoc = m.N - 1;
+    if (selTerm != null && !m.vocab.includes(selTerm)) selTerm = null;
+
+    // documents
+    const box = clear($("#bow-docs"));
+    L.docs.forEach((d, i) => box.appendChild(h("button", {
+      type: "button", class: "sv-doc" + (i >= shown ? " off" : ""), "aria-pressed": String(i === selDoc && i < shown),
+      onclick: () => { if (i < shown) { selDoc = i; render(); } },
+    }, h("b", null, name(i)), h("span", null, d))));
+
+    // document-term matrix
+    const host = clear($("#bow-dtm"));
+    if (m.N) {
+      const fm = mode === "count" ? (v) => String(v) : (v) => fmt(v, 2);
+      const mx = Math.max(1e-9, ...m.M.flat());
+      const head = h("tr", null, h("th", null, ""),
+        Array.from({ length: m.N }, (_, i) => h("th", { class: "doc" + (i === selDoc ? " on" : "") + (i === fresh ? " new" : ""), onclick: () => { selDoc = i; render(); } }, name(i))),
+        h("th", { class: "df" }, L.row_df), h("th", { class: "df" }, L.row_idf));
+      const rows = m.vocab.map((w, j) => h("tr", { class: w === selTerm ? "on" : "" },
+        h("th", { class: "row", onclick: () => { selTerm = w; render(); } }, w),
+        m.M.map((r, i) => {
+          const v = r[j], t = (v / mx) * 0.85;
+          return h("td", {
+            class: (v ? "" : "z") + (i === selDoc ? " cd" : "") + (i === selDoc && w === selTerm ? " sel" : ""),
+            style: v ? { background: heatColor(t), color: inkOn(t) } : null,
+            onclick: () => { selDoc = i; selTerm = w; render(); },
+          }, fm(v));
+        }),
+        h("td", { class: "df first" }, String(m.df[j])), h("td", { class: "df" }, fmt(m.idf[j], 2))));
+      host.appendChild(h("table", { class: "dtm" }, h("thead", null, head), h("tbody", null, rows)));
+    }
+
+    // calculation for the selected cell
+    const calc = clear($("#bow-calc"));
+    if (selTerm == null || !m.N) calc.appendChild(h("div", { class: "muted" }, L.calc_pick));
+    else {
+      const j = m.vocab.indexOf(selTerm), i = selDoc;
+      const c = m.cnt[i][j], n = m.toks[i].length;
+      [tpl(L.f_count, { t: esc(selTerm), d: name(i), c }),
+       tpl(L.f_tf, { c, n, v: `<b>${fmt(m.tf[i][j], 3)}</b>` }),
+       tpl(L.f_idf, { N: m.N, df: m.df[j], v: `<b>${fmt(m.idf[j], 3)}</b>` }),
+       tpl(L.f_tfidf, { tf: fmt(m.tf[i][j], 3), idf: fmt(m.idf[j], 3), v: `<b>${fmt(m.tfidf[i][j], 3)}</b>` }),
+      ].forEach((line) => calc.appendChild(h("div", { html: line })));
+    }
+
+    // top words of the selected document
+    $("#bow-top-title").textContent = tpl(L.top_title, { d: m.N ? name(selDoc) : "" });
+    const near = $("#bow-near");
+    if (m.N) {
+      const r = m.M[selDoc];
+      const items = m.vocab.map((w, j) => ({ w, v: r[j] })).filter((x) => x.v > 0 || m.cnt[selDoc][m.vocab.indexOf(x.w)] > 0)
+        .sort((a, b) => b.v - a.v).slice(0, 6);
+      const fm = mode === "count" ? (v) => String(v) : (v) => fmt(v, 3);
+      bars("#bow-top", items.map((x) => ({ label: x.w, value: x.v, color: x.v ? cssVar("--pen") : cssVar("--faint") })), { format: fm, mono: true });
+      let best = -1, bc = 0;
+      m.sim[selDoc].forEach((c, k) => { if (k !== selDoc && c > bc + 1e-12) { bc = c; best = k; } });
+      if (best < 0) near.innerHTML = tpl(L.nearest_none, { a: name(selDoc) });
+      else {
+        const common = m.vocab.filter((w, j) => m.M[selDoc][j] > 0 && m.M[best][j] > 0);
+        near.innerHTML = tpl(L.nearest_doc, { a: name(selDoc), b: name(best), c: fmt(bc, 2), w: common.map((w) => "«" + esc(w) + "»").join(", ") });
+      }
+    } else { clear($("#bow-top")); near.textContent = ""; }
+
+    // cosine similarity matrix
+    if (m.N) {
+      const names = Array.from({ length: m.N }, (_, i) => name(i));
+      heatTable("#bow-sim", names, names, m.sim, { min: 0, max: 1, format: (v) => fmt(v, 2), highlight: (r, c) => r === selDoc && c !== selDoc && Math.abs(m.sim[r][c] - Math.max(...m.sim[r].filter((_, k) => k !== r))) < 1e-12 && m.sim[r][c] > 0 });
+    } else clear($("#bow-sim"));
+
+    const msg = $("#bow-msg");
+    if (shown === 0) msg.innerHTML = L.bow_start;
+    else if (fresh >= 0) {
+      msg.innerHTML = tpl(L.bow_step, { d: name(fresh), n: m.toks[fresh].length, k: newWords(fresh), N: m.N }) + (shown === ND ? "<br>" + tpl(L.bow_done, { N: ND }) : "");
+    } else msg.innerHTML = tpl(L.bow_done, { N: ND });
+  }
+  function newWords(i) {
+    const t = (d) => (useStop ? docTok[d].filter((w) => !L.stop1.includes(w)) : docTok[d]);
+    const seen = new Set(); for (let d = 0; d < i; d++) t(d).forEach((w) => seen.add(w));
+    return new Set(t(i).filter((w) => !seen.has(w))).size;
+  }
+
+  player("#bow-player", {
+    interval: 1300,
+    step: () => { if (shown >= ND) return false; shown++; fresh = shown - 1; selDoc = fresh; render(); return shown < ND; },
+    canStep: () => shown < ND,
+    reset: () => { shown = 0; fresh = -1; selDoc = 0; render(); },
+  });
+  render();
+})();
+
+/* ---------- Part 2: word2vec skip-gram with negative sampling, trained live ---------- */
+(function word2vec() {
+  const C = L.w2v;
+  const SENTS = C.corpus.map((s) => s.split(" "));
+  const VOCAB = [];
+  SENTS.forEach((s) => s.forEach((w) => { if (!C.stop.includes(w) && !VOCAB.includes(w)) VOCAB.push(w); }));
+  const V = VOCAB.length;
+  const GROUP = VOCAB.map((w) => C.groups.findIndex((g) => g.words.includes(w)));
+  const IDX = Object.fromEntries(VOCAB.map((w, i) => [w, i]));
+  const freq = new Array(V).fill(0);
+  SENTS.forEach((s) => s.forEach((w) => { if (w in IDX) freq[IDX[w]]++; }));
+  const NOISE = (() => { const p = freq.map((f) => Math.pow(f, 0.75)); const z = sum(p); return p.map((x) => x / z); })();
+  const MAX_EPOCHS = 12;
+  const AMP = 6;
+
+  const REC = 10;            // record loss and purity every REC sentences
+  let lr = 0.1, win = 2, K = 3, gran = "sent", seed = 1;
+  let R, E, order, oi, sentIdx, pos, ctxList, ci, updates, sentsDone, epoch, lossHist, purityHist, lossAcc, lossN, last, selWord, finished, viewR, lossWin;
+
+  segmented("#w2v-gran", { label: L.gran_label, value: gran, options: [{ value: "pair", label: L.g_pair }, { value: "sent", label: L.g_sent }, { value: "epoch", label: L.g_epoch }], onChange: (v) => { gran = v; } });
+  slider("#w2v-lr", { label: L.lr_label, min: 0.01, max: 0.5, step: 0.01, value: lr, format: (v) => fmt(v, 2), onInput: (v) => { lr = v; } });
+  slider("#w2v-win-s", { label: L.win_label, min: 1, max: 3, step: 1, value: win, onInput: (v) => { win = v; if (sentIdx != null && !finished) { ctxList = contexts(); ci = Math.min(ci, ctxList.length); settle(); } renderWindow(); } });
+  slider("#w2v-neg", { label: L.neg_label, min: 1, max: 5, step: 1, value: K, onInput: (v) => { K = v; } });
+  button("#w2v-seed", L.new_seed, () => { seed++; resetAll(); }, "ghost small");
+  legend("#w2v-legend", C.groups.map((g, i) => ({ label: g.name, color: cssVar(GROUP_COL[i]) })));
+
+  const map = canvasBox("#w2v-map", {
+    height: (w) => Math.round(clamp(w * 0.78, 300, 520)), draw: drawMap, label: L.map_title,
+    onDown: (p) => { const k = pick(p); if (k >= 0) { selWord = k; renderNN(); map.redraw(); } },
+  });
+  const chart = canvasBox("#w2v-chart", { height: 250, draw: drawChart, label: L.chart_title });
+  let frame = null;
+
+  // the sentence as content-word indices (stop words dropped, as subsampling would)
+  const content = (si) => SENTS[si].filter((w) => w in IDX).map((w) => IDX[w]);
+  function contexts() {
+    const s = content(sentIdx), out = [];
+    for (let q = Math.max(0, pos - win); q <= Math.min(s.length - 1, pos + win); q++) if (q !== pos) out.push(q);
+    return out;
+  }
+  function shuffle() { order = SENTS.map((_, i) => i); for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; } oi = 0; }
+  function resetAll() {
+    R = rng(seed * 7919 + 13);
+    E = VOCAB.map(() => [R() - 0.5, R() - 0.5]);
+    shuffle();
+    sentIdx = order[0]; pos = 0; ctxList = contexts(); ci = 0;
+    updates = 0; sentsDone = 0; epoch = 0; lossAcc = 0; lossN = 0; finished = false;
+    lossHist = [NaN]; purityHist = [purity()]; lossWin = [];
+    last = null; selWord = null; frame = null; viewR = 0.6;
+    renderAll();
+  }
+
+  // one SGD update on (center, context) with K negatives; returns a record for display
+  function update(w, c) {
+    const a = E[w].slice(), b = E[c].slice();
+    const sp = sigmoid(dot(a, b));
+    const negs = [];
+    for (let t = 0; t < K; t++) { let n; do { n = sample(NOISE, R); } while (n === w || n === c); negs.push(n); }
+    const nvs = negs.map((n) => E[n].slice());
+    const sn = nvs.map((v) => sigmoid(dot(a, v)));
+    const loss = -Math.log(sp) - sum(sn.map((x) => Math.log(1 - x)));
+    const before = { w: a, c: b, n: nvs };
+    const gw = [(1 - sp) * b[0], (1 - sp) * b[1]];
+    E[c] = [E[c][0] + lr * (1 - sp) * a[0], E[c][1] + lr * (1 - sp) * a[1]];
+    negs.forEach((n, t) => {
+      gw[0] -= sn[t] * nvs[t][0]; gw[1] -= sn[t] * nvs[t][1];
+      E[n] = [E[n][0] - lr * sn[t] * a[0], E[n][1] - lr * sn[t] * a[1]];
+    });
+    E[w] = [E[w][0] + lr * gw[0], E[w][1] + lr * gw[1]];
+    updates++; lossAcc += loss; lossN++;
+    return {
+      w, c, negs, loss, before,
+      pos: { b: sp, a: sigmoid(dot(E[w], E[c])) },
+      neg: negs.map((n, t) => ({ b: sn[t], a: sigmoid(dot(E[w], E[n])) })),
+    };
+  }
+  // move the (sentence, center, context) pointer forward until it points at a valid pair
+  function settle() {
+    while (!finished && ci >= ctxList.length) {
+      pos++;
+      if (pos >= content(sentIdx).length) {
+        sentsDone++;
+        if (sentsDone % REC === 0) {
+          lossWin.push(lossN ? lossAcc / lossN : NaN); if (lossWin.length > 3) lossWin.shift();
+          lossHist.push(sum(lossWin) / lossWin.length); purityHist.push(purity()); lossAcc = 0; lossN = 0;
+        }
+        oi++;
+        if (oi >= order.length) {
+          epoch++;
+          if (epoch >= MAX_EPOCHS) { finished = true; return; }
+          shuffle();
+        }
+        sentIdx = order[oi]; pos = 0;
+      }
+      ctxList = contexts(); ci = 0;
+    }
+  }
+  // one SGD update on the current pair, then advance; returns false when training is over
+  function pairStep() {
+    if (finished) return false;
+    const s = content(sentIdx);
+    last = update(s[pos], s[ctxList[ci]]);
+    last.si = sentIdx; last.p = pos; last.q = ctxList[ci];
+    ci++;
+    settle();
+    return !finished;
+  }
+  function step() {
+    if (gran === "pair") return pairStep();
+    const s0 = sentsDone, e0 = epoch;
+    let ok = true;
+    do { ok = pairStep(); } while (ok && (gran === "sent" ? sentsDone === s0 : epoch === e0));
+    return ok;
+  }
+
+  function purity() {
+    let ok = 0;
+    for (let i = 0; i < V; i++) {
+      let best = -2, bj = -1;
+      for (let j = 0; j < V; j++) if (j !== i) { const c = cosine(E[i], E[j]); if (c > best) { best = c; bj = j; } }
+      if (GROUP[bj] === GROUP[i]) ok++;
+    }
+    return ok / V;
+  }
+
+  function pick(p) {
+    if (!frame) return -1;
+    let best = -1, bd = 18 * 18;
+    E.forEach((v, i) => { const dx = frame.X(v[0]) - p.x, dy = frame.Y(v[1]) - p.y, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = i; } });
+    return best;
+  }
+
+  function drawMap(ctx, W, H) {
+    // square view around the origin: grows at once, shrinks slowly, so the picture does not jitter
+    const need = Math.max(0.6, ...E.map((v) => 1.12 * Math.max(Math.abs(v[0]), Math.abs(v[1]))));
+    viewR = need > viewR ? need : viewR * 0.97 + need * 0.03;
+    const r = viewR;
+    frame = mapFrame(W, H, null, { x0: -r, x1: r, y0: -r, y1: r, pad: 18 });
+    const { X, Y } = frame;
+    ctx.strokeStyle = cssVar("--line"); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(X(-r), Y(0)); ctx.lineTo(X(r), Y(0)); ctx.moveTo(X(0), Y(-r)); ctx.lineTo(X(0), Y(r)); ctx.stroke();
+    const hot = new Set();
+    if (last) {
+      hot.add(last.w); hot.add(last.c); last.negs.forEach((n) => hot.add(n));
+      const arrows = [[last.c, last.before.c, cssVar("--good")], ...last.negs.map((n, t) => [n, last.before.n[t], cssVar("--bad")]), [last.w, last.before.w, cssVar("--pen")]];
+      if (gran === "pair") arrows.forEach(([i, from, col]) => {
+        const dx = (E[i][0] - from[0]) * AMP, dy = (E[i][1] - from[1]) * AMP;
+        if (Math.hypot(dx, dy) * frame.s > 3) arrow(ctx, X(E[i][0]), Y(E[i][1]), X(E[i][0] + dx), Y(E[i][1] + dy), { color: col, width: 2.5, head: 9 });
+      });
+    }
+    // nearest neighbours of the selected word
+    if (selWord != null) nearest(selWord).slice(0, 3).forEach(([j]) => {
+      ctx.strokeStyle = alpha(cssVar("--ink"), 0.35); ctx.setLineDash([4, 4]); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(X(E[selWord][0]), Y(E[selWord][1])); ctx.lineTo(X(E[j][0]), Y(E[j][1])); ctx.stroke(); ctx.setLineDash([]);
+    });
+    drawPoints(ctx, W, H, E.map((v, i) => {
+      let ring = null;
+      if (gran === "pair" && last) ring = i === last.w ? cssVar("--mark") : i === last.c ? cssVar("--good") : last.negs.includes(i) ? alpha(cssVar("--bad"), 0.7) : null;
+      if (i === selWord) ring = cssVar("--ink");
+      const hotNow = (hot.has(i) && gran === "pair") || i === selWord;
+      return { x: X(v[0]), y: Y(v[1]), label: VOCAB[i], col: cssVar(GROUP_COL[GROUP[i]]), ring, weight: hotNow ? 700 : 500, prio: hotNow ? 1 : 0 };
+    }));
+  }
+
+  // two stacked charts: loss (own scale) and nearest-neighbour purity (0..100%), x = epochs
+  function drawChart(ctx, W, H) {
+    const per = 30 / REC, n = MAX_EPOCHS * per + 1;
+    const pad = (a) => a.concat(new Array(Math.max(0, n - a.length)).fill(NaN));
+    const fin = lossHist.filter(Number.isFinite);
+    const lo = fin.length ? Math.floor(Math.min(...fin) * 10 - 1) / 10 : 0, hi = fin.length ? Math.ceil(Math.max(...fin) * 10 + 1) / 10 : 1;
+    const hh = Math.floor(H / 2);
+    // epoch labels drawn by hand: every 2 epochs, or every 3 on narrow screens
+    const ticks = (X, y) => { const k = W < 420 ? 3 : 2; for (let e = 0; e <= MAX_EPOCHS; e += k) text(ctx, String(e), X(e * per), y, { align: "center", size: 11, color: cssVar("--muted") }); };
+    const a = lineChart(ctx, W, hh, [{ values: pad(lossHist), color: cssVar("--c5"), dots: true }], { xLabels: [], yMin: lo, yMax: hi, yFmt: (v) => fmt(v, 1), title: L.leg_loss });
+    ticks(a.X, hh - 13);
+    ctx.save(); ctx.translate(0, hh);
+    const b = lineChart(ctx, W, H - hh, [{ values: pad(purityHist), color: cssVar("--c3"), dots: true }], { xLabels: [], yMin: 0, yMax: 1, yFmt: (v) => pct(v, 0), title: L.leg_purity });
+    ticks(b.X, H - hh - 13);
+    ctx.restore();
+  }
+
+  function nearest(i) {
+    return VOCAB.map((_, j) => [j, cosine(E[i], E[j])]).filter(([j]) => j !== i).sort((a, b) => b[1] - a[1]);
+  }
+  function renderNN() {
+    if (selWord == null) { $("#w2v-nn-title").textContent = tpl(L.nn_title, { w: "…" }); clear($("#w2v-nn")).appendChild(h("p", { class: "small muted", style: { margin: 0 } }, L.nn_pick)); return; }
+    $("#w2v-nn-title").textContent = tpl(L.nn_title, { w: VOCAB[selWord] });
+    bars("#w2v-nn", nearest(selWord).slice(0, 5).map(([j, c]) => ({ label: VOCAB[j], value: c, color: cssVar(GROUP_COL[GROUP[j]]) })), { max: 1, format: (v) => fmt(v, 2), mono: true });
+  }
+
+  function renderWindow() {
+    const box = clear($("#w2v-win"));
+    const si = last && gran === "pair" ? last.si : sentIdx;
+    const p = last && gran === "pair" ? last.p : pos, q = last && gran === "pair" ? last.q : -1;
+    let k = -1;
+    SENTS[si].forEach((w) => {
+      if (!(w in IDX)) { box.appendChild(h("span", { class: "tok stop" }, w)); return; }
+      k++;
+      const cls = k === p ? "center" : k === q ? "ctx" : Math.abs(k - p) <= win ? "inwin" : "";
+      box.appendChild(h("span", { class: "tok " + cls }, w));
+    });
+  }
+
+  function renderUpdate() {
+    const host = clear($("#w2v-upd"));
+    if (!last) { host.appendChild(h("p", { class: "small muted", style: { margin: 0 } }, L.upd_none)); return; }
+    const row = (cls, a, b, s, goal) => {
+      const better = goal === 1 ? s.a > s.b : s.a < s.b;
+      return h("tr", { class: cls }, h("td", null, `${VOCAB[a]} · ${VOCAB[b]}`), h("td", null, fmt(s.b, 3)),
+        h("td", { class: better ? "up" : "worse" }, (better ? (goal ? "↑ " : "↓ ") : "") + fmt(s.a, 3)), h("td", null, String(goal)));
+    };
+    const head = h("tr", null, h("th", null, L.col_pair), h("th", null, L.col_before), h("th", null, L.col_after), h("th", null, L.col_goal));
+    const body = [
+      h("tr", null, h("td", { colspan: 4, class: "small", style: { fontFamily: "inherit", color: cssVar("--muted"), textAlign: "left" } }, L.upd_pos)),
+      row("pos", last.w, last.c, last.pos, 1),
+      h("tr", null, h("td", { colspan: 4, class: "small", style: { fontFamily: "inherit", color: cssVar("--muted"), textAlign: "left" } }, L.upd_neg)),
+      ...last.negs.map((n, t) => row("neg", last.w, n, last.neg[t], 0)),
+    ];
+    host.appendChild(h("div", { class: "scroll-x" }, h("table", { class: "upd" }, h("thead", null, head), h("tbody", null, body))));
+    host.appendChild(h("p", { class: "small", style: { margin: "8px 0 0" } }, tpl(L.upd_loss, { l: fmt(last.loss, 3) })));
+    if (gran === "pair") host.appendChild(h("p", { class: "tiny muted", style: { margin: "4px 0 0" } }, tpl(L.arrows_note, { m: AMP })));
+  }
+
+  function renderAll() {
+    renderWindow(); renderUpdate(); renderNN();
+    $("#w2v-prog").textContent = finished ? tpl(L.progress_end, { e: epoch }) : tpl(L.progress, { e: epoch, s: sentsDone, u: updates });
+    $("#w2v-purity").textContent = tpl(L.purity, { a: Math.round(purity() * V), b: V });
+    map.redraw(); chart.redraw();
+  }
+
+  player("#w2v-player", {
+    interval: 180,
+    step: () => { const more = step(); renderAll(); return more; },
+    canStep: () => !finished,
+    reset: resetAll,
+  });
+  resetAll();
+})();
+
+/* ---------- Part 3: analogies by vector arithmetic (hand-placed toy vectors) ---------- */
+(function analogy() {
+  const P = L.an_words.map((d) => ({ w: d.w, v: [d.x, d.y] }));
+  const find = (w) => P.findIndex((p) => p.w === w);
+  let pr = 0, stage = 0, drag = -1;
+  const seg = segmented("#an-preset", { label: L.an_preset_label, value: 0, options: L.an_presets.map((t, i) => ({ value: i, label: `${t[0]} − ${t[1]} + ${t[2]}` })), onChange: (v) => { pr = v; stage = 0; render(); } });
+  const map = canvasBox("#an-map", {
+    height: (w) => Math.round(clamp(w * 0.85, 320, 520)), draw, label: L.p3_title,
+    onDown: (p) => { drag = pickAt(p); },
+    onDrag: (p) => { if (drag < 0 || !frame) return; P[drag].v = frame.inv(p.x, p.y).map((x) => clamp(x, -2.8, 2.8)); render(); },
+    onUp: () => { drag = -1; },
+  });
+  let frame = null;
+  const ids = () => L.an_presets[pr].map(find);
+  function result(st) {
+    const [a, b, c] = ids();
+    const A = P[a].v, B = P[b].v, Cc = P[c].v;
+    if (st <= 1) return A.slice();
+    if (st === 2) return [A[0] - B[0], A[1] - B[1]];
+    return [A[0] - B[0] + Cc[0], A[1] - B[1] + Cc[1]];
+  }
+  function ranking() {
+    const r = result(3), ex = ids();
+    return P.map((p, i) => ({ i, c: cosine(r, p.v), ex: ex.includes(i) })).sort((x, y) => y.c - x.c);
+  }
+  function pickAt(p) {
+    if (!frame) return -1;
+    let best = -1, bd = 20 * 20;
+    P.forEach((q, i) => { const dx = frame.X(q.v[0]) - p.x, dy = frame.Y(q.v[1]) - p.y, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = i; } });
+    return best;
+  }
+  function draw(ctx, W, H) {
+    frame = mapFrame(W, H, null, { x0: -3, x1: 3, y0: -3, y1: 3, pad: 14 });
+    const { X, Y } = frame;
+    ctx.strokeStyle = cssVar("--line"); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(X(-3), Y(0)); ctx.lineTo(X(3), Y(0)); ctx.moveTo(X(0), Y(-3)); ctx.lineTo(X(0), Y(3)); ctx.stroke();
+    text(ctx, L.an_axis_x, X(3) - 4, Y(0) + 12, { align: "right", size: 11.5, color: cssVar("--muted") });
+    text(ctx, L.an_axis_y, X(0) + 6, Y(3) + 8, { size: 11.5, color: cssVar("--muted") });
+    const [a, b, c] = ids();
+    const rk = ranking();
+    const ans = rk.find((x) => !x.ex);
+    // arithmetic arrows from the origin
+    const R1 = result(1), R2 = result(2), R3 = result(3);
+    if (stage >= 1) arrow(ctx, X(0), Y(0), X(R1[0]), Y(R1[1]), { color: cssVar("--c1"), width: 2.5 });
+    if (stage >= 2) { arrow(ctx, X(R1[0]), Y(R1[1]), X(R2[0]), Y(R2[1]), { color: cssVar("--c2"), width: 2.5 }); }
+    if (stage >= 3) { arrow(ctx, X(R2[0]), Y(R2[1]), X(R3[0]), Y(R3[1]), { color: cssVar("--c3"), width: 2.5 }); }
+    if (stage >= 4 && ans) {
+      // the cosine compares directions: draw the ray of the result and of the answer
+      const t = 3.2 / Math.max(1e-6, Math.hypot(...R3));
+      ctx.setLineDash([5, 4]); ctx.strokeStyle = alpha(cssVar("--ink"), 0.5); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(X(0), Y(0)); ctx.lineTo(X(R3[0] * t), Y(R3[1] * t)); ctx.stroke(); ctx.setLineDash([]);
+    }
+    drawPoints(ctx, W, H, P.map((p, i) => {
+      let col = cssVar("--faint"), ring = null, weight = 500, ink = cssVar("--muted");
+      if (stage >= 1 && i === a) { col = cssVar("--c1"); ink = col; weight = 700; }
+      if (stage >= 2 && i === b) { col = cssVar("--c2"); ink = col; weight = 700; }
+      if (stage >= 3 && i === c) { col = cssVar("--c3"); ink = col; weight = 700; }
+      if (stage >= 4 && ans && i === ans.i) { col = cssVar("--ink"); ink = col; ring = cssVar("--mark"); weight = 700; }
+      return { x: X(p.v[0]), y: Y(p.v[1]), label: p.w, col, ring, weight, ink, size: 13, prio: weight === 700 ? 1 : 0 };
+    }));
+    if (stage >= 2) {
+      const R = stage >= 3 ? R3 : R2;
+      ctx.fillStyle = cssVar("--mark"); ctx.strokeStyle = cssVar("--ink"); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.rect(X(R[0]) - 6, Y(R[1]) - 6, 12, 12); ctx.fill(); ctx.stroke();
+    }
+  }
+  function render() {
+    const [a, b, c] = ids();
+    const eq = clear($("#an-eq"));
+    const tok = (w, on) => h("span", { class: "tok" + (on ? " on" : "") }, w);
+    eq.append(tok(P[a].w, stage >= 1), "−", tok(P[b].w, stage >= 2), "+", tok(P[c].w, stage >= 3), "≈");
+    const rk = ranking(), ans = rk.find((x) => !x.ex);
+    eq.appendChild(stage >= 4 && ans ? h("span", { class: "tok hl", style: { fontWeight: 700 } }, P[ans.i].w) : h("span", { class: "tok" }, "?"));
+    const names = { a: P[a].w, b: P[b].w, c: P[c].w };
+    $("#an-msg").innerHTML = [L.an_start, L.an_s1, L.an_s2, L.an_s3, L.an_s4][stage].replace(/\{(\w)\}/g, (m, k) => esc(names[k] ?? m)) +
+      (stage >= 4 && ans ? "<br><b>" + tpl(L.an_answer, { w: esc(P[ans.i].w) }) + "</b>" : "");
+    // vectors
+    const vv = clear($("#an-vecs"));
+    const f = (v) => `(${fmt(v[0], 2)}; ${fmt(v[1], 2)})`;
+    const lines = [[`A = ${P[a].w}`, P[a].v, 1], [`B = ${P[b].w}`, P[b].v, 2], [`C = ${P[c].w}`, P[c].v, 3], ["A − B", result(2), 2], ["A − B + C", result(3), 3]];
+    lines.forEach(([lab, v, st]) => {
+      const on = stage >= st;
+      vv.append(h("dt", { class: on && st === stage ? "cur" : "" }, lab), h("dd", { class: on && st === stage ? "cur" : "" }, on ? f(v) : "…"));
+    });
+    // ranking
+    if (stage >= 4) {
+      bars("#an-rank", rk.filter((x) => x.c > 0).slice(0, 7).map((x) => ({
+        label: x.ex ? `(${P[x.i].w})` : P[x.i].w, value: x.c,
+        color: x.ex ? cssVar("--faint") : x === ans ? cssVar("--good") : cssVar("--pen"),
+      })), { max: 1, format: (v) => fmt(v, 3), mono: true });
+    } else clear($("#an-rank")).appendChild(h("p", { class: "small muted", style: { margin: 0 } }, "…"));
+    map.redraw();
+  }
+  player("#an-player", {
+    interval: 1300,
+    step: () => { if (stage >= 4) return false; stage++; render(); return stage < 4; },
+    canStep: () => stage < 4,
+    reset: () => { stage = 0; render(); },
+  });
+  render();
+})();
+
+/* ---------- Part 4: FastText, word vectors from character n-grams ---------- */
+(function fasttext() {
+  const WORDS = L.ft_words;
+  const MINN = 3;
+  let maxn = 4, word = L.ft_tests[0], used = 0, model = null;
+
+  // character n-grams of <word>, plus the whole word as its own unit (as in FastText)
+  function grams(w, mx) {
+    const s = "<" + w + ">", out = [];
+    for (let n = MINN; n <= mx; n++) {
+      const row = [];
+      for (let i = 0; i + n <= s.length; i++) { const g = s.slice(i, i + n); if (g !== s && !row.includes(g)) row.push(g); }
+      out.push({ n, list: row });
+    }
+    return out;
+  }
+  const unitsOf = (w, mx) => ["<" + w + ">", ...grams(w, mx).flatMap((r) => r.list)];
+
+  // fit n-gram vectors so that mean(units of w) ≈ target(w), by gradient descent (ridge)
+  function fit(mx) {
+    const units = new Map(), feats = WORDS.map((d) => unitsOf(d.w, mx));
+    feats.forEach((f) => f.forEach((u) => { if (!units.has(u)) units.set(u, [0, 0]); }));
+    const lam = 0.002, eta = 2.0;
+    let err = 0;
+    for (let it = 0; it < 700; it++) {
+      const g = new Map();
+      err = 0;
+      WORDS.forEach((d, k) => {
+        const f = feats[k], m = [0, 0];
+        f.forEach((u) => { const z = units.get(u); m[0] += z[0] / f.length; m[1] += z[1] / f.length; });
+        const e = [m[0] - d.x, m[1] - d.y];
+        err += Math.hypot(e[0], e[1]) / WORDS.length;
+        f.forEach((u) => { const q = g.get(u) || [0, 0]; q[0] += e[0] / f.length; q[1] += e[1] / f.length; g.set(u, q); });
+      });
+      units.forEach((z, u) => { const q = g.get(u) || [0, 0]; z[0] -= eta * (q[0] + lam * z[0]); z[1] -= eta * (q[1] + lam * z[1]); });
+    }
+    return { units, err };
+  }
+  const cache = {};
+  const getModel = (mx) => cache[mx] || (cache[mx] = fit(mx));
+
+  const inp = $("#ft-input");
+  inp.value = word;
+  const tests = segmented("#ft-tests", { value: word, options: L.ft_tests.map((w) => ({ value: w, label: w })), onChange: (v) => { inp.value = v; setWord(); } });
+  slider("#ft-maxn", { label: L.maxn_label, min: 3, max: 6, step: 1, value: maxn, onInput: (v) => { maxn = v; setWord(true); } });
+  inp.addEventListener("input", () => setWord());
+  const map = canvasBox("#ft-map", { height: (w) => Math.round(clamp(w * 0.8, 300, 460)), draw, label: L.ft_map });
+  legend("#ft-legend", L.ft_groups.map((g, i) => ({ label: g, color: cssVar(GROUP_COL[i]) })));
+
+  function state() {
+    const all = unitsOf(word, maxn);
+    const known = all.filter((u) => model.units.has(u));
+    const part = known.slice(0, used);
+    const trail = [];
+    let m = null;
+    part.forEach((u, k) => {
+      const z = model.units.get(u);
+      m = m ? [(m[0] * k + z[0]) / (k + 1), (m[1] * k + z[1]) / (k + 1)] : z.slice();
+      trail.push(m.slice());
+    });
+    return { all, known, part, m, trail };
+  }
+  function setWord(keepStep) {
+    word = inp.value.trim().toLowerCase().replace(/([og])['`‘’]/g, "$1ʻ");
+    tests.set(L.ft_tests.includes(word) ? word : null);
+    model = getModel(maxn);
+    used = model && /^[\p{L}ʻʼ-]+$/u.test(word) ? unitsOf(word, maxn).filter((u) => model.units.has(u)).length : 0;
+    render();
+  }
+
+  function draw(ctx, W, H) {
+    const st = valid() ? state() : null;
+    const extra = st ? [...st.trail, ...st.part.map((u) => model.units.get(u))] : [];
+    const b = [-2.9, 2.9, -2.7, 2.3];
+    extra.forEach((p) => { b[0] = Math.min(b[0], p[0] - 0.3); b[1] = Math.max(b[1], p[0] + 0.3); b[2] = Math.min(b[2], p[1] - 0.3); b[3] = Math.max(b[3], p[1] + 0.3); });
+    const fr = mapFrame(W, H, null, { x0: b[0], x1: b[1], y0: b[2], y1: b[3], pad: 14 });
+    const { X, Y } = fr;
+    ctx.strokeStyle = cssVar("--line"); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(X(b[0]), Y(0)); ctx.lineTo(X(b[1]), Y(0)); ctx.moveTo(X(0), Y(b[2])); ctx.lineTo(X(0), Y(b[3])); ctx.stroke();
+    if (!st) { drawPoints(ctx, W, H, WORDS.map((d) => ({ x: X(d.x), y: Y(d.y), label: d.w, col: cssVar(GROUP_COL[d.g]), size: 12 }))); return; }
+    // vectors of the n-grams already added
+    st.part.forEach((u) => { const z = model.units.get(u); ctx.fillStyle = alpha(cssVar("--muted"), 0.45); ctx.beginPath(); ctx.arc(X(z[0]), Y(z[1]), 2.6, 0, 7); ctx.fill(); });
+    const near = st.m ? ranked(st.m).slice(0, 3).map((r) => r.k) : [];
+    const star = st.m ? [X(st.m[0]), Y(st.m[1])] : null;
+    drawPoints(ctx, W, H, [
+      ...WORDS.map((d, k) => ({ x: X(d.x), y: Y(d.y), label: d.w, col: cssVar(GROUP_COL[d.g]), size: 12, ring: near[0] === k ? cssVar("--mark") : null, weight: near.includes(k) ? 700 : 500, prio: near.includes(k) ? 1 : 0 })),
+      ...(star ? [{ x: star[0], y: star[1], r: 0.01, label: word, col: cssVar("--ink"), size: 13.5, weight: 700, prio: 2 }] : []),
+    ]);
+    if (st.trail.length) {
+      ctx.strokeStyle = alpha(cssVar("--ink"), 0.55); ctx.lineWidth = 1.5;
+      ctx.beginPath(); st.trail.forEach((p, i) => (i ? ctx.lineTo(X(p[0]), Y(p[1])) : ctx.moveTo(X(p[0]), Y(p[1])))); ctx.stroke();
+      const m = st.m, x = X(m[0]), y = Y(m[1]);
+      ctx.fillStyle = cssVar("--mark"); ctx.strokeStyle = cssVar("--ink"); ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) { const r = i % 2 ? 5 : 11, a = -Math.PI / 2 + (i * Math.PI) / 5; ctx.lineTo(x + r * Math.cos(a), y + r * Math.sin(a)); }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+  }
+  const valid = () => /^[\p{L}ʻʼ-]+$/u.test(word);
+  function ranked(m) {
+    return WORDS.map((d, k) => ({ k, d: Math.hypot(d.x - m[0], d.y - m[1]) })).sort((a, b) => a.d - b.d);
+  }
+
+  function render() {
+    $("#ft-grams-title").textContent = tpl(L.ngrams_title, { w: word });
+    const host = clear($("#ft-grams"));
+    const w2v = $("#ft-w2v"), ft = $("#ft-ft"), msg = $("#ft-msg");
+    $("#ft-toy").textContent = tpl(L.ft_toy, { e: fmt(model.err, 3) });
+    if (!valid()) {
+      w2v.className = "status small"; ft.className = "status small";
+      w2v.textContent = L.ft_invalid; ft.textContent = ""; msg.textContent = "";
+      clear($("#ft-nn")); map.redraw(); return;
+    }
+    const st = state();
+    const usedSet = new Set(st.part), cur = st.part[st.part.length - 1];
+    const chip = (u) => ({ text: u, cls: u === cur ? "cur" : usedSet.has(u) ? "used" : model.units.has(u) ? "known" : "unknown" });
+    host.appendChild(h("div", null, h("div", { class: "rowlab" }, L.ft_whole), tokens(h("div"), [chip("<" + word + ">")])));
+    grams(word, maxn).forEach((r) => host.appendChild(h("div", null, h("div", { class: "rowlab" }, tpl(L.ng_row, { n: r.n })), tokens(h("div"), r.list.map(chip)))));
+
+    const inVocab = WORDS.some((d) => d.w === word);
+    w2v.className = "status small " + (inVocab ? "good" : "bad");
+    w2v.textContent = tpl(inVocab ? L.w2v_has : L.w2v_none, { w: word });
+    const a = st.known.length, b = st.all.length;
+    ft.className = "status small " + (a === 0 ? "bad" : a / b < 0.25 ? "note" : "good");
+    ft.textContent = tpl(a === 0 ? L.ft_none : a / b < 0.25 ? L.ft_few : L.ft_ok, { a, b });
+    msg.innerHTML = a === 0 ? "" : used === 0 ? L.ft_start : used >= a ? L.ft_done : tpl(L.ft_step, { g: esc(cur), k: used });
+    msg.style.display = msg.innerHTML ? "" : "none";
+
+    if (st.m) {
+      bars("#ft-nn", ranked(st.m).slice(0, 5).map((r) => ({ label: WORDS[r.k].w, value: r.d, color: cssVar(GROUP_COL[WORDS[r.k].g]) })),
+        { max: Math.max(...ranked(st.m).slice(0, 5).map((r) => r.d), 0.5), format: (v) => fmt(v, 2), mono: true });
+      $$("#ft-nn .bar").forEach((el) => (el.title = L.ft_dist));
+    } else clear($("#ft-nn")).appendChild(h("p", { class: "small muted", style: { margin: 0 } }, "—"));
+    map.redraw();
+  }
+
+  player("#ft-player", {
+    interval: 700,
+    step: () => { const n = valid() ? state().known.length : 0; if (used >= n) return false; used++; render(); return used < n; },
+    canStep: () => valid() && used < state().known.length,
+    reset: () => { used = 0; render(); },
+  });
+  setWord();
+})();
+
+</script>
+</body>
+</html>

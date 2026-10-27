@@ -1,0 +1,1489 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4. N-grammlar va silliqlash</title>
+<meta name="description" content="N-gram modellari va silliqlash usullari (Smoothing, Laplas, Kneser–Ney)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=PT+Mono&display=swap" rel="stylesheet">
+<style>
+/* NLP labs: shared style. Light theme only (labs are often projected in class). */
+:root {
+  color-scheme: light;
+  --paper: #EDF1F6;
+  --panel: #FFFFFF;
+  --soft: #F5F7FA;
+  --ink: #1C2A43;
+  --muted: #56637C;
+  --faint: #8C97AB;
+  --line: #D2D9E4;
+  --pen: #2B55C9;
+  --pen-dark: #1F3F9A;
+  --mark: #FFD84D;
+  --mark-soft: #FFF2B8;
+  --good: #1A8F5F;
+  --good-soft: #DDF3E8;
+  --bad: #C2413A;
+  --bad-soft: #FBE3E1;
+  --c1: #2B55C9;
+  --c2: #D04A55;
+  --c3: #17907E;
+  --c4: #9157BF;
+  --c5: #DB8F1F;
+  --c6: #5B7A2A;
+  --c7: #C1508F;
+  --c8: #5E6B85;
+  --font: "Golos Text", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --mono: "PT Mono", Consolas, "Liberation Mono", "Courier New", monospace;
+  --r: 10px;
+  --r-sm: 5px;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.55 var(--font);
+}
+a { color: var(--pen); }
+a:hover { color: var(--pen-dark); }
+:focus-visible { outline: 3px solid var(--mark); outline-offset: 2px; border-radius: 3px; }
+img, svg, canvas { max-width: 100%; }
+
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+
+/* top navigation */
+.topnav { background: var(--ink); color: #fff; font-size: 14px; }
+.topnav .wrap { display: flex; align-items: center; gap: 12px; min-height: 46px; flex-wrap: wrap; }
+.topnav a { color: #fff; text-decoration: none; padding: 6px 10px; border-radius: var(--r-sm); }
+.topnav a:hover { background: rgba(255,255,255,.12); color: #fff; }
+.topnav .course { font-weight: 600; margin-right: auto; }
+.topnav .pager { display: flex; gap: 4px; }
+.topnav .disabled { opacity: .35; pointer-events: none; }
+
+/* header */
+.lab-head { padding: 28px 0 8px; }
+.lab-no { margin: 0 0 6px; color: var(--muted); font-size: 15px; }
+.lab-head h1 { margin: 0; font-size: clamp(28px, 4.2vw, 42px); line-height: 1.12; font-weight: 700; letter-spacing: -.01em; max-width: 26ch; }
+.lab-head .lead { margin: 14px 0 0; font-size: 18px; max-width: 70ch; color: var(--ink); }
+.lab-head .topic { margin: 12px 0 0; font-size: 14px; color: var(--muted); max-width: 90ch; }
+
+/* sections and the highlighter heading: the one decorative motif */
+.part { margin: 34px 0 0; }
+.part > h2, .notes h2 {
+  font-size: 23px; line-height: 1.25; margin: 0 0 6px; font-weight: 700;
+  display: inline;
+  background: linear-gradient(transparent 58%, var(--mark) 58%, var(--mark) 92%, transparent 92%);
+  box-decoration-break: clone; -webkit-box-decoration-break: clone;
+  padding: 0 3px;
+}
+.part > .hint, .part > p.intro { margin: 10px 0 14px; color: var(--muted); max-width: 75ch; }
+.part > h2 + .stage { margin-top: 16px; }
+
+/* stage: visual on the left, controls and readouts on the right */
+.stage { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.stage.even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.stage.single { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 900px) { .stage, .stage.even { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; min-width: 0; }
+.panel + .panel { margin-top: 16px; }
+.stage > .panel + .panel { margin-top: 0; }
+.panel h3 { margin: 0 0 10px; font-size: 16px; font-weight: 600; }
+.panel h3 + .muted { margin-top: -6px; }
+.col > .panel + .panel { margin-top: 16px; }
+.stage > .panel + .panel { margin-top: 0; }
+
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+.tiny { font-size: 12.5px; }
+.mono { font-family: var(--mono); }
+.center { text-align: center; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row + .row { margin-top: 10px; }
+.grow { flex: 1 1 auto; }
+.spacer { height: 10px; }
+
+/* controls */
+.btn {
+  font: inherit; font-size: 15px; font-weight: 500;
+  border: 1px solid var(--pen); background: var(--pen); color: #fff;
+  border-radius: 999px; padding: 7px 16px; cursor: pointer; line-height: 1.3;
+  min-height: 36px; touch-action: manipulation;
+}
+.btn:hover { background: var(--pen-dark); border-color: var(--pen-dark); }
+.btn.ghost { background: transparent; color: var(--pen); }
+.btn.ghost:hover { background: #E6ECFA; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.small { font-size: 14px; padding: 5px 12px; min-height: 32px; }
+
+.player { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.player .speed { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.player .speed input { width: 110px; }
+
+.ctl { margin: 0 0 14px; }
+.panel > .ctl:last-child, .panel > div:last-child > .ctl:last-child { margin-bottom: 0; }
+.ctl label, .ctl .lbl { display: flex; justify-content: space-between; gap: 8px; font-size: 14.5px; margin-bottom: 4px; }
+.ctl .val { font-family: var(--mono); font-weight: 700; color: var(--pen); white-space: nowrap; }
+input[type=range] { width: 100%; accent-color: var(--pen); margin: 0; height: 26px; }
+
+.seg { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
+.seg button { font: inherit; font-size: 14px; border: 1px solid #B8C6EA; background: var(--panel); color: var(--pen); padding: 5px 12px; cursor: pointer; min-height: 34px; border-radius: 999px; }
+.seg button:hover { border-color: var(--pen); }
+.seg button[aria-pressed=true] { background: var(--pen); color: #fff; border-color: var(--pen); }
+
+input[type=text], textarea, select {
+  font: inherit; font-size: 15px; color: var(--ink); background: #fff;
+  border: 1px solid var(--line); border-radius: var(--r-sm); padding: 7px 10px; width: 100%; max-width: 100%;
+}
+textarea { min-height: 76px; resize: vertical; }
+input[type=text]:focus, textarea:focus, select:focus { border-color: var(--pen); outline: none; box-shadow: 0 0 0 3px #D7E1FA; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 14.5px; cursor: pointer; margin: 6px 0; }
+.check input { width: 17px; height: 17px; accent-color: var(--pen); }
+
+/* tokens: strings of text are the material of this course */
+.tokens { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tok {
+  font-family: var(--mono); font-size: 15px; line-height: 1.2;
+  border: 1px solid var(--line); background: var(--soft); border-radius: var(--r-sm);
+  padding: 4px 7px; white-space: pre; display: inline-flex; flex-direction: column; align-items: center;
+}
+.tok .sub { font-family: var(--font); font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.tok.hl { background: var(--mark-soft); border-color: #E8C33A; }
+.tok.on { background: var(--pen); color: #fff; border-color: var(--pen); }
+.tok.on .sub { color: #DCE4FA; }
+button.tok { cursor: pointer; font-family: var(--mono); color: var(--ink); }
+.morph { font-family: var(--mono); }
+.morph .b { color: var(--faint); padding: 0 1px; }
+
+mark, .hl-text { background: var(--mark-soft); color: inherit; border-radius: 3px; padding: 0 2px; }
+
+/* readouts */
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 14.5px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-family: var(--mono); font-weight: 700; text-align: right; }
+.big-num { font-size: 30px; font-weight: 700; line-height: 1.1; }
+.big-num small { font-size: 15px; font-weight: 400; color: var(--muted); margin-left: 6px; }
+
+.bars { display: grid; gap: 6px; }
+.bar { display: grid; grid-template-columns: minmax(70px, 34%) 1fr auto; gap: 8px; align-items: center; font-size: 14px; }
+.bar .lab { overflow-wrap: anywhere; line-height: 1.3; }
+.bar .track { background: var(--soft); border: 1px solid var(--line); border-radius: 4px; height: 16px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--pen); border-radius: 3px 0 0 3px; transition: width .35s ease; }
+.bar .num { font-family: var(--mono); font-size: 13px; min-width: 46px; text-align: right; }
+
+table.grid { border-collapse: collapse; font-size: 14px; width: 100%; }
+table.grid th, table.grid td { border: 1px solid var(--line); padding: 5px 7px; text-align: center; }
+table.grid th { background: var(--soft); font-weight: 600; }
+table.grid td.l, table.grid th.l { text-align: left; }
+table.grid td.num { font-family: var(--mono); }
+table.grid tr.sel td { background: var(--mark-soft); }
+.scroll-x { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+.status { border-radius: var(--r-sm); padding: 8px 12px; font-size: 14.5px; background: var(--soft); border: 1px solid var(--line); }
+.status.good { background: var(--good-soft); border-color: #A9DCC2; }
+.status.bad { background: var(--bad-soft); border-color: #F0B7B2; }
+.status.note { background: var(--mark-soft); border-color: #E8C33A; }
+
+canvas.viz { display: block; width: 100%; touch-action: none; border-radius: var(--r-sm); }
+.viz-wrap { position: relative; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; font-size: 13px; padding: 4px 8px; border-radius: 4px; white-space: nowrap; transform: translate(-50%, -120%); }
+
+/* notes: theory, experiments, quiz */
+.notes { margin: 44px 0 0; }
+.notes > section { margin: 0 0 34px; }
+.notes .text { margin-top: 14px; max-width: 76ch; }
+.notes .text p { margin: 0 0 12px; }
+.notes .text code, .notes li code { font-family: var(--mono); background: var(--soft); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; font-size: 14.5px; }
+.formula { font-family: var(--mono); background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--pen); border-radius: var(--r-sm); padding: 10px 14px; margin: 10px 0 14px; overflow-x: auto; white-space: pre-wrap; }
+ol.exp { margin: 14px 0 0; padding-left: 26px; max-width: 76ch; }
+ol.exp li { margin: 0 0 10px; padding-left: 4px; }
+
+.quiz { display: grid; gap: 14px; margin-top: 16px; max-width: 820px; }
+.quiz .q { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
+.quiz .q p { margin: 0 0 10px; font-weight: 600; }
+.quiz .opts { display: grid; gap: 6px; }
+.quiz .opt { font: inherit; text-align: left; background: var(--soft); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 12px; cursor: pointer; color: var(--ink); }
+.quiz .opt:hover { border-color: var(--pen); }
+.quiz .opt.right { background: var(--good-soft); border-color: var(--good); }
+.quiz .opt.wrong { background: var(--bad-soft); border-color: var(--bad); }
+.quiz .fb { margin-top: 10px; font-size: 14.5px; }
+.quiz .fb b { margin-right: 4px; }
+.quiz-score { font-weight: 600; margin-top: 4px; }
+
+.practice { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--mark); border-radius: var(--r); padding: 16px 18px; max-width: 820px; }
+.practice p { margin: 0 0 12px; }
+.practice a.btn { text-decoration: none; display: inline-block; }
+
+footer { margin: 50px 0 0; padding: 22px 0 40px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+
+@media (max-width: 600px) {
+  body { font-size: 15.5px; }
+  .lab-head .lead { font-size: 16.5px; }
+  .panel { padding: 13px; }
+  .part > h2, .notes h2 { font-size: 21px; }
+  .bar { grid-template-columns: minmax(60px, 38%) 1fr auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+</style>
+</head>
+<body>
+<nav class="topnav" aria-label="Mundarija"><div class="wrap">
+  <a class="course" href="../index.html">Mundarija</a>
+  <span class="pager">
+    <a href="03_morphology_lemmatization.html" class="" rel="prev">‹ Orqaga</a>
+    <a href="05_static_vectors.html" class="" rel="next">Keyingi ›</a>
+  </span>
+</div></nav>
+<div class="wrap">
+<header class="lab-head">
+  <p class="lab-no">18 ta laboratoriyadan 4-si</p>
+  <h1>N-grammlar va silliqlash</h1>
+  <p class="lead">Til modeli qoʻshni soʻz juftlarini oddiy sanashdan quriladi. Bunday jadvaldagi nollar modelni nima uchun buzishini va Laplas hamda Kneser–Ney silliqlashi ularni qanday tuzatishini koʻrasiz.</p>
+  <p class="topic">Kurs mavzusi: N-gram modellari va silliqlash usullari (Smoothing, Laplas, Kneser–Ney)</p>
+</header>
+<main id="lab">
+<style>
+.ng-corpus { display: grid; gap: 5px; }
+.ng-sent { display: flex; flex-wrap: wrap; gap: 4px; }
+.ng-sent .tok { font-size: 13.5px; padding: 2px 6px; cursor: pointer; }
+.ng-sent .tok.bnd { color: var(--faint); background: transparent; border-style: dashed; cursor: default; }
+.ng-sent .tok.ctx { background: var(--pen); color: #fff; border-color: var(--pen); }
+.ng-sent .tok.nxt { background: var(--mark-soft); border-color: #E8C33A; }
+.ng-sent .tok.cur { background: var(--mark); border-color: #C9A10F; color: var(--ink); }
+.ng-sent .tok.done { border-color: #9DB2EA; }
+
+table.ngm { border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+table.ngm th, table.ngm td { border: 1px solid var(--line); padding: 0; text-align: center; }
+table.ngm td { width: 23px; min-width: 23px; height: 22px; cursor: pointer; }
+table.ngm td.z { color: #C3CAD6; }
+table.ngm td.sum { font-weight: 700; background: var(--soft); width: 30px; cursor: default; }
+table.ngm th { background: var(--soft); font-weight: 600; font-family: var(--font); font-size: 12px; }
+table.ngm th.col { height: 92px; vertical-align: bottom; padding: 4px 0; }
+table.ngm th.col span { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; display: inline-block; }
+table.ngm th.row { text-align: right; padding: 0 6px; white-space: nowrap; cursor: pointer; }
+table.ngm tr.on th.row { background: var(--pen); color: #fff; }
+table.ngm tr.on td { box-shadow: inset 0 2px 0 #9DB2EA, inset 0 -2px 0 #9DB2EA; }
+table.ngm th.col.on { background: var(--mark-soft); }
+table.ngm td.sel { outline: 3px solid var(--ink); outline-offset: -3px; }
+table.ngm td.cur { outline: 3px solid var(--mark); outline-offset: -3px; }
+
+table.ngp { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+table.ngp th, table.ngp td { border-bottom: 1px solid var(--line); padding: 4px 5px; }
+table.ngp th { font-weight: 600; color: var(--muted); font-size: 12.5px; text-align: right; }
+table.ngp th:first-child, table.ngp td:first-child { text-align: left; }
+table.ngp td { text-align: right; font-family: var(--mono); }
+table.ngp td:first-child { font-family: var(--mono); max-width: 110px; overflow-wrap: anywhere; }
+table.ngp tbody tr { cursor: pointer; }
+table.ngp tbody tr:hover td { background-color: var(--soft); }
+table.ngp tr.sel td { background-color: var(--mark-soft); }
+table.ngp tr.oth td { color: var(--muted); cursor: default; }
+table.ngp tr.tot td { font-weight: 700; border-top: 2px solid var(--line); border-bottom: 0; cursor: default; }
+table.ngp td.p { background-repeat: no-repeat; background-position: left bottom; background-size: 0 4px; }
+table.ngp td.zero { color: var(--bad); font-weight: 700; }
+.ng-formula { font-family: var(--mono); font-size: 13.5px; display: grid; gap: 8px; }
+.ng-formula > div { background: var(--soft); border: 1px solid var(--line); border-left: 4px solid var(--pen); border-radius: var(--r-sm); padding: 6px 9px; overflow-x: auto; }
+.ng-formula b { font-family: var(--font); display: block; font-size: 13px; margin-bottom: 2px; }
+
+.ng-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.ng-chips .tok { font-size: 13px; padding: 2px 6px; }
+table.ngpp { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+table.ngpp th, table.ngpp td { border-bottom: 1px solid var(--line); padding: 4px 6px; text-align: right; }
+table.ngpp th:first-child, table.ngpp td:first-child { text-align: left; }
+table.ngpp th { color: var(--muted); font-weight: 600; font-size: 12.5px; }
+table.ngpp td { font-family: var(--mono); }
+table.ngpp td .lg { display: block; font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+table.ngpp tr.cur td { background: var(--mark-soft); }
+table.ngpp tr.fut td { color: #B5BDCB; }
+table.ngpp tr.fut td .lg { color: #C9CFDA; }
+table.ngpp td.inf { color: var(--bad); font-weight: 700; }
+table.ngpp td.unseen:first-child { color: var(--bad); }
+.pp-list { display: grid; gap: 10px; }
+.pp-row { display: grid; grid-template-columns: 96px 1fr; gap: 4px 10px; align-items: baseline; }
+.pp-row .nm { font-weight: 600; font-size: 14.5px; }
+.pp-row .val { font-size: 26px; font-weight: 700; font-family: var(--mono); line-height: 1.1; }
+.pp-row .val.inf { color: var(--bad); }
+.pp-row .how { grid-column: 2; font-size: 12.5px; color: var(--muted); font-family: var(--mono); }
+
+.kn-nums { width: 100%; }
+.kn-nums th.a { color: var(--c1); }
+.kn-nums th.b { color: var(--c2); }
+
+.gen-sent { display: flex; flex-wrap: wrap; gap: 5px; min-height: 40px; align-items: center; }
+.gen-sent .tok.unseen { border-style: dashed; border-color: var(--bad); border-width: 2px; }
+.gen-sent .tok.last { background: var(--mark); border-color: #C9A10F; }
+.gen-hist { display: grid; gap: 6px; font-size: 14.5px; }
+.gen-hist div { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.gen-hist .tag { font-size: 12px; border-radius: 999px; padding: 1px 8px; border: 1px solid var(--line); color: var(--muted); }
+.gen-hist .tag.new { border-color: #E8C33A; background: var(--mark-soft); color: var(--ink); }
+.bars .bar.chosen .lab { font-weight: 700; }
+.bars .bar.chosen .track { outline: 2px solid var(--mark); }
+</style>
+
+<section class="part" id="p1">
+  <h2>Bigramma sanoqlari va silliqlash</h2>
+  <p class="intro">«Boshlash»ni bosing: model korpus boʻylab yurib, qoʻshni soʻz juftlarini sanaydi. Keyin istalgan soʻzni bosing va keyingi soʻz ehtimolining uchta bahosini solishtiring.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <h3>Korpus</h3>
+        <p class="small muted" style="margin:-6px 0 8px">&lt;s&gt; va &lt;/s&gt; gap boshi va oxirini bildiradi. Soʻzni kontekst v qilish uchun uni bosing.</p>
+        <div class="ng-corpus" id="ng-corpus"></div>
+        <p class="tiny muted" style="margin:8px 0 10px">Korpus oldindan tayyorlangan: hammasi kichik harflarda, tinish belgilari olib tashlangan.</p>
+        <div id="ng-count-player"></div>
+        <div class="spacer"></div>
+        <div class="status note small" id="ng-count-msg"></div>
+      </div>
+      <div class="panel">
+        <h3>Bigrammalar jadvali c(v w)</h3>
+        <p class="small muted" style="margin:-6px 0 8px">Satr — oldingi soʻz v, ustun — keyingi soʻz w. Oxirgi Σ ustuni c(v): v necha marta kontekst boʻlgan. Katakni bosing.</p>
+        <div class="scroll-x" id="ng-matrix"></div>
+        <p class="small" id="ng-fill" style="margin:8px 0 0"></p>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <div id="ng-ctx"></div>
+        <div id="ng-k"></div>
+        <div id="ng-d"></div>
+      </div>
+      <div class="panel">
+        <h3 id="ng-probs-title"></h3>
+        <p class="small muted" style="margin:-6px 0 6px">Avval v dan keyin uchragan soʻzlar, keyin koʻrilmaganlari. Formulalarni koʻrish uchun satrni bosing.</p>
+        <div id="ng-probs"></div>
+      </div>
+      <div class="panel">
+        <h3 id="ng-formula-title"></h3>
+        <div class="ng-formula" id="ng-formula"></div>
+      </div>
+      <div class="panel">
+        <h3>Koʻrilmagan soʻzlarga tegadigan ehtimol ulushi</h3>
+        <p class="small muted" style="margin:-6px 0 8px" id="ng-mass-hint"></p>
+        <div id="ng-mass"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="part" id="p2">
+  <h2>Test gapining perpleksiyasi</h2>
+  <p class="intro">Gap yozing yoki tayyorini tanlang. Har bir «Qadam» navbatdagi bigrammani oladi: uning log₂ P qiymati yigʻindiga qoʻshiladi, perpleksiya qayta hisoblanadi.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <div class="ctl"><label for="pp-input"><span>Test gapi</span></label>
+          <input type="text" id="pp-input" autocomplete="off" spellcheck="false"></div>
+        <div id="pp-presets"></div>
+        <div class="ctl"><div class="lbl"><span>Model lugʻati: soʻzni gap oxiriga qoʻshish uchun bosing</span></div>
+          <div class="ng-chips" id="pp-vocab"></div></div>
+        <div class="row" id="pp-edit"></div>
+      </div>
+      <div class="panel">
+        <div id="pp-msg" class="status small" style="margin-bottom:10px"></div>
+        <p class="tiny muted" style="margin:0 0 4px">Har bir katakda: P va uning ostida log₂ P.</p>
+        <div class="scroll-x" id="pp-table"></div>
+        <div class="spacer"></div>
+        <div id="pp-player"></div>
+      </div>
+      <div class="panel">
+        <h3>Tokenlar boʻyicha toʻplangan ajablanish −log₂ P</h3>
+        <p class="small muted" style="margin:-6px 0 6px">Har bir boʻlak bitta token. Chiziq uzunligi = Σ(−log₂ P); perpleksiya = 2 ning (uzunlik / N) darajasi.</p>
+        <div id="pp-stack"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <div id="pp-k"></div>
+        <div id="pp-d"></div>
+      </div>
+      <div class="panel">
+        <h3>Perpleksiya</h3>
+        <div class="pp-list" id="pp-vals"></div>
+      </div>
+      <div class="panel">
+        <h3>Bu gap perpleksiyasining k ga bogʻliqligi</h3>
+        <div id="pp-chart"></div>
+        <div id="pp-legend" style="margin-top:6px"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="part" id="p3">
+  <h2>Kneser–Ney: nechta turli soʻzdan keyin kelgani muhim</h2>
+  <p class="intro">«Ulugʻbek» «samarqandda»dan koʻproq uchraydi, lekin faqat «mirzo»dan keyin. «Boshlash»ni bosing: har bir juftlik yo yangi qirra qoʻshadi (yangi oldingi soʻz), yo eskisini yoʻgʻonlashtiradi.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <h3>A va B dan oldin qaysi soʻzlar keladi</h3>
+        <p class="small muted" style="margin:-6px 0 6px">Qirra qalinligi — juftlik necha marta uchragani. P_cont qirralarni sanaydi, qalinlikni emas.</p>
+        <div id="kn-graph"></div>
+        <div class="spacer"></div>
+        <div id="kn-player"></div>
+        <div class="spacer"></div>
+        <div class="status note small" id="kn-msg"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <div id="kn-a"></div>
+        <div id="kn-b"></div>
+        <div class="scroll-x" id="kn-nums"></div>
+        <p class="tiny muted" id="kn-note" style="margin:8px 0 0"></p>
+      </div>
+      <div class="panel">
+        <h3 id="kn-bo-title"></h3>
+        <div id="kn-ctx"></div>
+        <p class="small muted" style="margin:0 0 8px">Ikkala juftlik ham korpus uchun notipik, shuning uchun hammasini model tayanadigan taqsimot hal qiladi. Chegirma d = 0,75.</p>
+        <div id="kn-bo"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="part" id="p4">
+  <h2>Bigramma modeli bilan matn yaratish</h2>
+  <p class="intro">Har bir «Qadam» P(w | oldingi soʻz) taqsimotini oladi, uni harorat bilan oʻzgartiradi va ruletka mili kabi tasodifiy soʻz tanlaydi.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <h3>Gap</h3>
+        <div class="gen-sent" id="gen-sent"></div>
+        <p class="tiny muted" style="margin:6px 0 10px">Punktir ramka: bunday bigramma korpusda boʻlmagan.</p>
+        <div id="gen-player"></div>
+        <div class="spacer"></div>
+        <div class="status note small" id="gen-msg"></div>
+      </div>
+      <div class="panel">
+        <h3>Ruletka: sektor kengligi ehtimolga teng</h3>
+        <div id="gen-roulette"></div>
+        <h3 style="margin-top:14px" id="gen-dist-title"></h3>
+        <div id="gen-dist"></div>
+        <div id="gen-legend" style="margin-top:8px"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <div id="gen-method"></div>
+        <div id="gen-temp"></div>
+      </div>
+      <div class="panel">
+        <h3>Yaratilgan gaplar</h3>
+        <div class="gen-hist" id="gen-hist"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div class="notes">
+  <section><h2>Bu qanday ishlaydi</h2><div class="text">
+<p><b>Til modeli</b> soʻzlar ketma-ketligining ehtimolini baholaydi. Zanjir qoidasiga koʻra P(w₁…wₙ) = Π P(wᵢ | w₁…wᵢ₋₁), <b>n-gram modeli</b> esa buni soddalashtiradi: soʻz faqat oldingi n − 1 ta soʻzga bogʻliq. Bigrammalar uchun:</p>
+<div class="formula">P(w₁…wₙ) ≈ Π P(wᵢ | wᵢ₋₁)</div>
+<p>Gap boshi va oxiri &lt;s&gt; va &lt;/s&gt; xizmat tokenlari bilan belgilanadi. <b>Maksimal haqiqatga oʻxshashlik bahosi (MLE)</b> oddiy ulushdir:</p>
+<div class="formula">P(w | v) = c(v w) / c(v)</div>
+<p>Muammo nollarda: korpusda uchramagan bigramma 0 ehtimol oladi, u bilan birga butun gap ham. Bizning korpusda jadvalning atigi 7 foizi toʻlgan, real korpuslarda bundan ham kam. <b>Silliqlash (smoothing)</b> koʻrilgan bigrammalardan ehtimolning bir qismini olib, koʻrilmaganlarga beradi.</p>
+<p><b>Laplas silliqlashi (add-k)</b> har bir sanoqqa k qoʻshadi: P = (c(v w) + k) / (c(v) + k·V), bu yerda V — lugʻat hajmi. Usul sodda, lekin lugʻat katta boʻlsa, koʻrilmagan soʻzlarga juda koʻp ehtimol tegadi.</p>
+<p><b>Interpolyatsiyalangan Kneser–Ney silliqlashi</b> nolga teng boʻlmagan har bir sanoqdan d chegirmani (odatda 0,75) ayiradi va boʻshagan λ(v) massani <b>davom ettirish ehtimoli</b> boʻyicha taqsimlaydi:</p>
+<div class="formula">P_KN(w | v) = max(c(v w) − d; 0) / c(v) + λ(v) · P_cont(w)
+λ(v) = d · N₁₊(v •) / c(v)
+P_cont(w) = N₁₊(• w) / N₁₊(• •)</div>
+<p>N₁₊(• w) — w dan oldin kelgan <i>turli</i> soʻzlar soni, N₁₊(• •) esa turli bigrammalar soni. «Ulugʻbek» koʻp uchraydi, lekin faqat «mirzo»dan keyin, shuning uchun yangi kontekstning davomi sifatida u kam ehtimolli. Kneser–Neyni soʻz chastotasiga oddiy tayanishdan aynan shu farqlaydi.</p>
+<p>Model sifati N ta tokendan iborat test matnidagi <b>perpleksiya</b> bilan oʻlchanadi:</p>
+<div class="formula">PP = 2^(−(1/N) · Σ log₂ P(wᵢ | wᵢ₋₁))</div>
+<p>Perpleksiya 4 ga teng boʻlsa, model oʻrtacha 4 ta teng ehtimolli soʻzdan birini tanlayotgandek ikkilanadi. Qanchalik kichik boʻlsa, shunchalik yaxshi, bitta nol esa perpleksiyani cheksiz qiladi.</p>
+<p>Model <b>matn yaratishi</b> ham mumkin: keyingi soʻz P(w | v) taqsimoti boʻyicha tasodifiy tanlanadi. Harorat T taqsimotni oʻzgartiradi: pᵢ^(1/T), soʻng normallashtirish. Xuddi shu gʻoyalar (kontekst, taqsimot, harorat) neyron modellarda ham ishlaydi (6- va 16-mavzular). N-grammalar ulardan qisqa kontekst va siyraklik sababli ortda qoldi.</p></div></section>
+  <section><h2>Tajribalar</h2><ol class="exp"><li>Korpusda «ulugʻbek» soʻzini bosing. MLE undan keyin qaysi soʻzlarga P = 0 beradi? k ni 0 dan 3 gacha suring. Koʻrilgan «buyuk» ehtimoli va koʻrilmagan soʻzlar ulushi bilan nima boʻladi?</li>
+<li>d = 0 qilib, MLE va Kneser–Ney ustunlarini solishtiring. Endi d = 1: «buyuk» va «samarqandda»dan olingan massa qayerga ketdi? Nima uchun har bir ustundagi yigʻindi doim 1 ga teng?</li>
+<li>Perpleksiya qismida «onam samarqandda yashagan»ni tanlang va qadamma-qadam oʻting. Qaysi tokenda MLE perpleksiyasi cheksiz boʻladi? add-k perpleksiyasi eng kichik boʻladigan k ni toping.</li>
+<li>«alisher navoiy samarqandda yashagan» gapi korpusda yoʻq, lekin MLE unga chekli perpleksiya beradi. Nima uchun? Endi «onam choy ichaman»ni tekshiring: gap notoʻgʻri («onam choy ichadi» boʻlishi kerak), perpleksiyasi esa past. Bigramma modeli nimani koʻrmaydi?</li>
+<li>Kneser–Ney qismida «Boshlash»ni bosing va qirralarni sanang. «onam»dan keyin chastotaga tayanganda qaysi soʻz ehtimolroq, Kneser–Neyda-chi? A ni «buyuk»ka almashtiring: u ham «samarqandda» kabi 3 marta uchraydi. Nima uchun Kneser–Ney baribir ularni farqlaydi?</li>
+<li>T = 0,3 va T = 1,8 da avval MLE, keyin Kneser–Ney bilan 5 tadan gap yarating. Qaysi model korpusda boʻlmagan bigrammalarni yaratadi (punktir ramka)? Ulardan qanchasi oʻzbekcha toʻgʻri eshitiladi?</li></ol></section>
+  <section><h2>Oʻzingizni tekshiring</h2><div class="quiz" id="quiz"></div></section>
+  <section><h2>Amaliy mashgʻulot</h2>
+    <div class="practice" style="margin-top:14px"><p>Xuddi shu algoritm haqiqiy Python kodida. Daftar Google Colabʼda ochiladi, hech narsa oʻrnatish shart emas.</p><a class="btn" id="colab" href="../notebooks/04_ngram_smoothing.ipynb">Amaliy mashgʻulotni yuklab olish (.ipynb)</a></div>
+  </section>
+</div>
+<footer>«NLP algoritmlari» kursining virtual laboratoriyasi. Brauzerda ishlaydi, oʻrnatish va internet talab qilinmaydi. <a href="../../ru/labs/04_ngram_smoothing.html" lang="ru">Русский</a></footer>
+</div>
+<script src="../../config.js"></script>
+<script>
+const LANG = "uz";
+const META = {"n":4,"slug":"04_ngram_smoothing","total":18};
+const UI = {"toc": "Mundarija",
+"prev": "Orqaga",
+"next": "Keyingi",
+"labOf": (n, total) => `${total} ta laboratoriyadan ${n}-si`,
+"topic": "Kurs mavzusi",
+"play": "Boshlash",
+"pause": "Toʻxtatish",
+"step": "Qadam",
+"reset": "Boshidan",
+"speed": "Tezlik",
+"how": "Bu qanday ishlaydi",
+"experiments": "Tajribalar",
+"quiz": "Oʻzingizni tekshiring",
+"correct": "Toʻgʻri.",
+"wrong": "Unchalik emas.",
+"tryAgain": "Boshqa variantni tanlab koʻring.",
+"score": (a, b) => `Toʻgʻri javoblar: ${b} tadan ${a} ta`,
+"colab": "Amaliy mashgʻulotni Colabʼda ochish",
+"nbDownload": "Amaliy mashgʻulotni yuklab olish (.ipynb)",
+"practice": "Amaliy mashgʻulot",
+"practiceText": "Xuddi shu algoritm haqiqiy Python kodida. Daftar Google Colabʼda ochiladi, hech narsa oʻrnatish shart emas.",
+"langName": "Oʻzbekcha",
+"otherLang": "Русский",
+"footer": "«NLP algoritmlari» kursining virtual laboratoriyasi. Brauzerda ishlaydi, oʻrnatish va internet talab qilinmaydi."};
+const L = {"title":"N-grammlar va silliqlash","lead":"Til modeli qoʻshni soʻz juftlarini oddiy sanashdan quriladi. Bunday jadvaldagi nollar modelni nima uchun buzishini va Laplas hamda Kneser–Ney silliqlashi ularni qanday tuzatishini koʻrasiz.","corpus":["mirzo ulugʻbek buyuk olim edi","mirzo ulugʻbek samarqandda yashagan","mirzo ulugʻbek buyuk hukmdor edi","mirzo ulugʻbek rasadxona qurdirgan","alisher navoiy buyuk shoir edi","alisher navoiy samarqandda oʻqigan","men samarqandda yashayman","men choy ichaman","onam choy ichadi"],"corpus_note":"Korpus oldindan tayyorlangan: hammasi kichik harflarda, tinish belgilari olib tashlangan.","m_mle":"MLE","m_add":"add-k","m_kn":"Kneser–Ney","bits":"bit","p1_title":"Bigramma sanoqlari va silliqlash","p1_intro":"«Boshlash»ni bosing: model korpus boʻylab yurib, qoʻshni soʻz juftlarini sanaydi. Keyin istalgan soʻzni bosing va keyingi soʻz ehtimolining uchta bahosini solishtiring.","p1_ctx":"ulugʻbek","p1_sel":"olim","corpus_title":"Korpus","corpus_hint":"&lt;s&gt; va &lt;/s&gt; gap boshi va oxirini bildiradi. Soʻzni kontekst v qilish uchun uni bosing.","matrix_title":"Bigrammalar jadvali c(v w)","matrix_hint":"Satr — oldingi soʻz v, ustun — keyingi soʻz w. Oxirgi Σ ustuni c(v): v necha marta kontekst boʻlgan. Katakni bosing.","matrix_fill":"Nolga teng boʻlmagan kataklar: {b} tadan {a} ta ({p}). Qolgan barcha bigrammalarni MLE imkonsiz deb hisoblaydi.","count_start":"Hali hech narsa sanalmagan. «Qadam» yoki «Boshlash»ni bosing.","count_step":"{t} ta bigrammadan {n}-si: «{v} → {w}». Endi c({v} {w}) = {c}.","count_done":"Korpusdagi barcha {t} ta bigramma sanaldi.","ctx_label":"Kontekst v (oldingi soʻz)","k_label":"add-k uchun k (k = 1 — bu Laplas)","d_label":"Kneser–Ney uchun d chegirma","probs_title":"Keyingi soʻz ehtimoli P(w | {v})","probs_hint":"Avval v dan keyin uchragan soʻzlar, keyin koʻrilmaganlari. Formulalarni koʻrish uchun satrni bosing.","sum_row":"Yigʻindi","others_unseen":"yana koʻrilmaganlar ({n})","cell_note":"Har bir katakda: P va uning ostida log₂ P.","empty_hist":"—","no_ctx":"«{v}» konteksti korpusning sanalgan qismida hali uchramadi: ehtimollar aniqlanmagan.","formula_title":"P({w} | {v}) uchun formulalar","mass_title":"Koʻrilmagan soʻzlarga tegadigan ehtimol ulushi","mass_hint":"Korpusda «{v}»dan keyin kelmagan soʻzlarga ({V} tadan {n} ta) model qancha ehtimol qoldiradi.","p2_title":"Test gapining perpleksiyasi","p2_intro":"Gap yozing yoki tayyorini tanlang. Har bir «Qadam» navbatdagi bigrammani oladi: uning log₂ P qiymati yigʻindiga qoʻshiladi, perpleksiya qayta hisoblanadi.","input_label":"Test gapi","presets_label":"Tayyor misollar","vocab_label":"Model lugʻati: soʻzni gap oxiriga qoʻshish uchun bosing","del_word":"Oxirgi soʻzni oʻchirish","clear_input":"Tozalash","tests":[{"text":"onam samarqandda yashagan"},{"text":"alisher navoiy samarqandda yashagan"},{"text":"men choy ichaman"},{"text":"onam choy ichaman"}],"oov":"Bu soʻzlar model lugʻatida yoʻq: \u003cb>{s}\u003c/b>. Lugʻati qatʼiy model ularni baholay olmaydi. Amalda bunday soʻzlar &lt;unk&gt; tokeni bilan almashtiriladi yoki soʻz qismlariga boʻlinadi (2-mavzu).","empty_input":"Lugʻatdan kamida bitta soʻz kiriting.","col_bigram":"bigramma v → w","stack_title":"Tokenlar boʻyicha toʻplangan ajablanish −log₂ P","stack_hint":"Har bir boʻlak bitta token. Chiziq uzunligi = Σ(−log₂ P); perpleksiya = 2 ning (uzunlik / N) darajasi.","pp_title":"Perpleksiya","pp_formula":"Σ log₂ P = {s}; N = {n}","pp_start":"Gapdagi bigrammalar boʻylab yurish uchun «Qadam»ni bosing.","pp_step":"{n} ta tokendan {i}-si: P({w} | {v}).","pp_inf":"«{b}» bigrammasi korpusda yoʻq: P_MLE = 0, log₂ 0 = −∞, shuning uchun MLE perpleksiyasi cheksiz.","pp_done":"Gap oxirigacha oʻtildi. Bu gapda perpleksiyasi kichikroq model yaxshiroq.","p3_title":"Kneser–Ney: nechta turli soʻzdan keyin kelgani muhim","p3_intro":"«Ulugʻbek» «samarqandda»dan koʻproq uchraydi, lekin faqat «mirzo»dan keyin. «Boshlash»ni bosing: har bir juftlik yo yangi qirra qoʻshadi (yangi oldingi soʻz), yo eskisini yoʻgʻonlashtiradi.","p3_a":"ulugʻbek","p3_b":"samarqandda","p3_opts":["ulugʻbek","mirzo","buyuk","samarqandda","edi","choy"],"p3_ctxs":["onam","men","alisher"],"nums_note":"N = {n} ta token (&lt;/s&gt; bilan birga), N₁₊(• •) = {t} ta turli bigramma.","a_label":"A soʻzi","b_label":"B soʻzi","ctx3_label":"Yangi kontekst v","graph_title":"A va B dan oldin qaysi soʻzlar keladi","graph_hint":"Qirra qalinligi — juftlik necha marta uchragani. P_cont qirralarni sanaydi, qalinlikni emas.","stack_inf":"∞","chart_k_title":"Bu gap perpleksiyasining k ga bogʻliqligi","num_c":"c(w): necha marta uchragan","num_puni":"P(w) = c(w) / N","num_n1":"N₁₊(• w): turli oldingi soʻzlar","num_pcont":"P_cont(w) = N₁₊(• w) / N₁₊(• •)","backoff_title":"«{v}»dan keyin qaysi biri ehtimolroq?","backoff_hint":"Ikkala juftlik ham korpus uchun notipik, shuning uchun hammasini model tayanadigan taqsimot hal qiladi. Chegirma d = 0,75.","row_abs":"Chastotaga tayanish P(w)","row_kn":"Kneser–Ney: P_cont(w) ga tayanish","seen_note":"«{v} {w}» bigrammasi korpusda bor, shuning uchun uning ehtimolini asosan oʻz sanogʻi belgilaydi.","kn_start":"«Qadam»ni bosing: model korpusdagi A yoki B bilan tugaydigan barcha juftliklarni koʻrib chiqadi.","kn_new":"«{v} → {w}»: yangi oldingi soʻz, N₁₊(• {w}) oshadi.","kn_old":"«{v} → {w}»: bu oldingi soʻz avval ham boʻlgan, faqat c({w}) oshadi.","kn_done":"Tayyor. c({a}) = {ca}, lekin turli oldingi soʻzlar {na} ta; c({b}) = {cb}, turli oldingi soʻzlar {nb} ta.","p4_title":"Bigramma modeli bilan matn yaratish","p4_intro":"Har bir «Qadam» P(w | oldingi soʻz) taqsimotini oladi, uni harorat bilan oʻzgartiradi va ruletka mili kabi tasodifiy soʻz tanlaydi.","method_label":"Model","g_mle":"MLE","g_add":"Laplas, k = 1","g_kn":"Kneser–Ney, d = 0,75","temp_label":"Harorat T","sent_title":"Gap","roulette_title":"Ruletka: sektor kengligi ehtimolga teng","dist_title":"«{v}»dan keyingi taqsimot, T = {t}","gen_start":"Gap &lt;s&gt; bilan boshlanadi. «Qadam»ni bosing.","gen_step":"Tasodifiy son r = {r} «{w}» sektoriga tushdi (p = {p}).","gen_end":"&lt;/s&gt; tushdi: gap tugadi.","gen_long":"Maksimal uzunlikka yetildi, generatsiya toʻxtatildi.","unseen_legend":"Punktir ramka: bunday bigramma korpusda boʻlmagan.","history_title":"Yaratilgan gaplar","history_empty":"Tugallangan gaplar shu yerda paydo boʻladi.","others":"boshqalar ({n})","leg_seen":"bigramma korpusda bor","leg_unseen":"bigramma korpusda yoʻq","tag_corpus":"korpusda bor","tag_new":"yangi","theory":"\n\u003cp>\u003cb>Til modeli\u003c/b> soʻzlar ketma-ketligining ehtimolini baholaydi. Zanjir qoidasiga koʻra P(w₁…wₙ) = Π P(wᵢ | w₁…wᵢ₋₁), \u003cb>n-gram modeli\u003c/b> esa buni soddalashtiradi: soʻz faqat oldingi n − 1 ta soʻzga bogʻliq. Bigrammalar uchun:\u003c/p>\n\u003cdiv class=\"formula\">P(w₁…wₙ) ≈ Π P(wᵢ | wᵢ₋₁)\u003c/div>\n\u003cp>Gap boshi va oxiri &lt;s&gt; va &lt;/s&gt; xizmat tokenlari bilan belgilanadi. \u003cb>Maksimal haqiqatga oʻxshashlik bahosi (MLE)\u003c/b> oddiy ulushdir:\u003c/p>\n\u003cdiv class=\"formula\">P(w | v) = c(v w) / c(v)\u003c/div>\n\u003cp>Muammo nollarda: korpusda uchramagan bigramma 0 ehtimol oladi, u bilan birga butun gap ham. Bizning korpusda jadvalning atigi 7 foizi toʻlgan, real korpuslarda bundan ham kam. \u003cb>Silliqlash (smoothing)\u003c/b> koʻrilgan bigrammalardan ehtimolning bir qismini olib, koʻrilmaganlarga beradi.\u003c/p>\n\u003cp>\u003cb>Laplas silliqlashi (add-k)\u003c/b> har bir sanoqqa k qoʻshadi: P = (c(v w) + k) / (c(v) + k·V), bu yerda V — lugʻat hajmi. Usul sodda, lekin lugʻat katta boʻlsa, koʻrilmagan soʻzlarga juda koʻp ehtimol tegadi.\u003c/p>\n\u003cp>\u003cb>Interpolyatsiyalangan Kneser–Ney silliqlashi\u003c/b> nolga teng boʻlmagan har bir sanoqdan d chegirmani (odatda 0,75) ayiradi va boʻshagan λ(v) massani \u003cb>davom ettirish ehtimoli\u003c/b> boʻyicha taqsimlaydi:\u003c/p>\n\u003cdiv class=\"formula\">P_KN(w | v) = max(c(v w) − d; 0) / c(v) + λ(v) · P_cont(w)\nλ(v) = d · N₁₊(v •) / c(v)\nP_cont(w) = N₁₊(• w) / N₁₊(• •)\u003c/div>\n\u003cp>N₁₊(• w) — w dan oldin kelgan \u003ci>turli\u003c/i> soʻzlar soni, N₁₊(• •) esa turli bigrammalar soni. «Ulugʻbek» koʻp uchraydi, lekin faqat «mirzo»dan keyin, shuning uchun yangi kontekstning davomi sifatida u kam ehtimolli. Kneser–Neyni soʻz chastotasiga oddiy tayanishdan aynan shu farqlaydi.\u003c/p>\n\u003cp>Model sifati N ta tokendan iborat test matnidagi \u003cb>perpleksiya\u003c/b> bilan oʻlchanadi:\u003c/p>\n\u003cdiv class=\"formula\">PP = 2^(−(1/N) · Σ log₂ P(wᵢ | wᵢ₋₁))\u003c/div>\n\u003cp>Perpleksiya 4 ga teng boʻlsa, model oʻrtacha 4 ta teng ehtimolli soʻzdan birini tanlayotgandek ikkilanadi. Qanchalik kichik boʻlsa, shunchalik yaxshi, bitta nol esa perpleksiyani cheksiz qiladi.\u003c/p>\n\u003cp>Model \u003cb>matn yaratishi\u003c/b> ham mumkin: keyingi soʻz P(w | v) taqsimoti boʻyicha tasodifiy tanlanadi. Harorat T taqsimotni oʻzgartiradi: pᵢ^(1/T), soʻng normallashtirish. Xuddi shu gʻoyalar (kontekst, taqsimot, harorat) neyron modellarda ham ishlaydi (6- va 16-mavzular). N-grammalar ulardan qisqa kontekst va siyraklik sababli ortda qoldi.\u003c/p>","experiments":["Korpusda «ulugʻbek» soʻzini bosing. MLE undan keyin qaysi soʻzlarga P = 0 beradi? k ni 0 dan 3 gacha suring. Koʻrilgan «buyuk» ehtimoli va koʻrilmagan soʻzlar ulushi bilan nima boʻladi?","d = 0 qilib, MLE va Kneser–Ney ustunlarini solishtiring. Endi d = 1: «buyuk» va «samarqandda»dan olingan massa qayerga ketdi? Nima uchun har bir ustundagi yigʻindi doim 1 ga teng?","Perpleksiya qismida «onam samarqandda yashagan»ni tanlang va qadamma-qadam oʻting. Qaysi tokenda MLE perpleksiyasi cheksiz boʻladi? add-k perpleksiyasi eng kichik boʻladigan k ni toping.","«alisher navoiy samarqandda yashagan» gapi korpusda yoʻq, lekin MLE unga chekli perpleksiya beradi. Nima uchun? Endi «onam choy ichaman»ni tekshiring: gap notoʻgʻri («onam choy ichadi» boʻlishi kerak), perpleksiyasi esa past. Bigramma modeli nimani koʻrmaydi?","Kneser–Ney qismida «Boshlash»ni bosing va qirralarni sanang. «onam»dan keyin chastotaga tayanganda qaysi soʻz ehtimolroq, Kneser–Neyda-chi? A ni «buyuk»ka almashtiring: u ham «samarqandda» kabi 3 marta uchraydi. Nima uchun Kneser–Ney baribir ularni farqlaydi?","T = 0,3 va T = 1,8 da avval MLE, keyin Kneser–Ney bilan 5 tadan gap yarating. Qaysi model korpusda boʻlmagan bigrammalarni yaratadi (punktir ramka)? Ulardan qanchasi oʻzbekcha toʻgʻri eshitiladi?"],"quiz":[{"q":"«onam samarqandda» bigrammasi korpusda yoʻq. «onam samarqandda yashagan» gapi uchun MLE perpleksiyasi nimaga teng?","a":["1 dan katta chekli songa","Cheksizlikka","Nolga","Birga"],"correct":1,"why":"P_MLE(samarqandda | onam) = 0 va log₂ 0 = −∞. Logarifmlar yigʻindisi −∞ ga ketadi, shuning uchun PP = ∞: bitta nol butun gapni buzadi.","hint":"P = 0 boʻlganda log₂ P bilan nima boʻlishini koʻring."},{"q":"Nima uchun Laplas silliqlashi (k = 1) katta lugʻat bilan yomon ishlaydi?","a":["U manfiy ehtimollar beradi","U koʻrilmagan soʻzlarga ehtimolning juda katta ulushini beradi","U nol ehtimollarni oʻzgartirmaydi","Ehtimollar yigʻindisi 1 dan oshib ketadi"],"correct":1,"why":"c(v) + V maxraj lugʻat bilan birga oʻsadi. V = 50 000 va c(v) = 10 boʻlsa, deyarli butun massa koʻrilmagan soʻzlarga ketadi, kuzatilgan bigrammalar esa juda past baholanadi.","hint":"k = 1 da «Koʻrilmagan soʻzlarga tegadigan ehtimol ulushi» paneliga qarang."},{"q":"«Ulugʻbek» soʻzi koʻp uchraydi, lekin faqat «Mirzo»dan keyin. Uning davom ettirish ehtimoli P_cont qanday?","a":["Yuqori, chunki soʻz koʻp uchraydi","Past: uning faqat bitta oldingi soʻzi bor","Nolga teng","P(Ulugʻbek | Mirzo) ga teng"],"correct":1,"why":"P_cont takrorlarni emas, turli kontekstlarni sanaydi: N₁₊(• Ulugʻbek) = 1. Yangi kontekstda «Ulugʻbek» kam ehtimolli, Kneser–Ney buni hisobga oladi.","hint":"P_cont oldingi soʻzlar grafidagi qirralarni sanaydi, ularning qalinligini emas."},{"q":"Modelning test matnidagi perpleksiyasi 4 ga teng. Bu nimani anglatadi?","a":["Model 4 ta soʻzda xato qildi","Model oʻrtacha 4 ta teng ehtimolli soʻzdan birini tanlayotgandek ikkilanadi","Matn ehtimoli 1/4 ga teng","Matnda 4 ta koʻrilmagan bigramma bor"],"correct":1,"why":"PP = 2^H, bu yerda H — har bir tokenga toʻgʻri keladigan oʻrtacha ajablanish (bitlarda). H = 2 bit har qadamda 4 ta teng ehtimolli variantdan tanlashga mos keladi.","hint":"Formulaga har qadamda P = 1/4 beradigan modelni qoʻyib koʻring."}]};
+</script>
+<script>
+/* NLP labs: shared helpers. Globals provided by the build before this file: LANG, UI, L, META. */
+"use strict";
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+
+/* h("div", {class: "x", onclick: fn, style: {...}}, child, [children], "text") */
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  if (props) {
+    for (const [k, v] of Object.entries(props)) {
+      if (v == null || v === false) continue;
+      if (k === "class") el.className = v;
+      else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
+      else if (k === "html") el.innerHTML = v;
+      else if (k === "text") el.textContent = v;
+      else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
+      else if (k in el && typeof v !== "string") el[k] = v;
+      else el.setAttribute(k, v === true ? "" : v);
+    }
+  }
+  const add = (c) => {
+    if (c == null || c === false) return;
+    if (Array.isArray(c)) c.forEach(add);
+    else el.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
+  };
+  kids.forEach(add);
+  return el;
+}
+function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
+function mount(target) { return typeof target === "string" ? $(target) : target; }
+
+/* numbers */
+function fmt(x, d = 2) {
+  if (x == null || Number.isNaN(x)) return "–";
+  if (!Number.isFinite(x)) return x > 0 ? "∞" : "−∞";
+  return Number(x).toFixed(d).replace(".", ",").replace("-", "−");
+}
+function pct(x, d = 0) { return fmt(100 * x, d) + "%"; }
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const sum = (a) => a.reduce((s, x) => s + x, 0);
+const argmax = (a) => a.reduce((bi, x, i) => (x > a[bi] ? i : bi), 0);
+function softmax(arr, T = 1) {
+  const m = Math.max(...arr.map((x) => x / T));
+  const e = arr.map((x) => Math.exp(x / T - m));
+  const s = sum(e);
+  return e.map((x) => x / s);
+}
+function dot(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; }
+function norm(a) { return Math.sqrt(dot(a, a)); }
+function cosine(a, b) { const n = norm(a) * norm(b); return n ? dot(a, b) / n : 0; }
+/* deterministic random numbers: const r = rng(42); r() in [0,1) */
+function rng(seed = 1) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function sample(probs, r = Math.random) {
+  let x = r() * sum(probs);
+  for (let i = 0; i < probs.length; i++) { x -= probs[i]; if (x <= 0) return i; }
+  return probs.length - 1;
+}
+
+/* colors */
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+const PALETTE = ["--c1", "--c2", "--c3", "--c4", "--c5", "--c6", "--c7", "--c8"];
+function color(i) { return cssVar(PALETTE[((i % PALETTE.length) + PALETTE.length) % PALETTE.length]); }
+function hexToRgb(hex) {
+  const m = hex.replace("#", "");
+  const n = parseInt(m.length === 3 ? m.split("").map((c) => c + c).join("") : m, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function alpha(hex, a) { const [r, g, b] = hexToRgb(hex); return `rgba(${r},${g},${b},${a})`; }
+/* white -> pen blue scale for heatmaps, t in [0,1] */
+function heatColor(t, base = "--pen") {
+  const [r, g, b] = hexToRgb(cssVar(base));
+  t = clamp(t, 0, 1);
+  return `rgb(${Math.round(lerp(255, r, t))},${Math.round(lerp(255, g, t))},${Math.round(lerp(255, b, t))})`;
+}
+function inkOn(t) { return t > 0.55 ? "#fff" : cssVar("--ink"); }
+
+/* controls ---------------------------------------------------------------- */
+function slider(parent, o) {
+  const fmtv = o.format || ((v) => String(v));
+  const val = h("span", { class: "val" }, fmtv(o.value));
+  const input = h("input", { type: "range", min: o.min, max: o.max, step: o.step ?? 1, value: o.value, "aria-label": o.label });
+  const box = h("div", { class: "ctl" }, h("label", null, h("span", null, o.label), val), input);
+  input.addEventListener("input", () => {
+    const v = parseFloat(input.value);
+    val.textContent = fmtv(v);
+    o.onInput && o.onInput(v);
+  });
+  mount(parent).appendChild(box);
+  return {
+    el: box, input,
+    get value() { return parseFloat(input.value); },
+    set value(v) { input.value = v; val.textContent = fmtv(parseFloat(input.value)); },
+  };
+}
+
+function segmented(parent, o) {
+  let current = o.value;
+  const btns = o.options.map((opt) =>
+    h("button", { type: "button", "aria-pressed": String(opt.value === current), onclick: () => api.set(opt.value, true) }, opt.label));
+  const seg = h("div", { class: "seg", role: "group", "aria-label": o.label || "" }, btns);
+  const box = h("div", { class: "ctl" }, o.label ? h("div", { class: "lbl" }, h("span", null, o.label)) : null, seg);
+  const api = {
+    el: box,
+    get value() { return current; },
+    set(v, fire) {
+      current = v;
+      btns.forEach((b, i) => b.setAttribute("aria-pressed", String(o.options[i].value === v)));
+      if (fire && o.onChange) o.onChange(v);
+    },
+  };
+  mount(parent).appendChild(box);
+  return api;
+}
+
+function button(parent, label, onClick, variant = "") {
+  const b = h("button", { type: "button", class: "btn " + variant, onclick: onClick }, label);
+  mount(parent).appendChild(b);
+  return b;
+}
+
+function checkbox(parent, label, checked, onChange) {
+  const input = h("input", { type: "checkbox", checked: !!checked });
+  input.addEventListener("change", () => onChange && onChange(input.checked));
+  const box = h("label", { class: "check" }, input, h("span", null, label));
+  mount(parent).appendChild(box);
+  return input;
+}
+
+/* Play / Pause / Step / Reset with a speed slider.
+   o.step() advances one step and returns false when the process is finished.
+   o.reset() restores the initial state. o.interval: base delay in ms. */
+function player(parent, o) {
+  let timer = null;
+  let speed = o.speed ?? 3;
+  const delay = () => (o.interval ?? 700) * Math.pow(0.6, speed - 3);
+  const playBtn = h("button", { type: "button", class: "btn", onclick: () => (timer ? stop() : start()) }, UI.play);
+  const stepBtn = h("button", { type: "button", class: "btn ghost", onclick: () => { stop(); doStep(); } }, UI.step);
+  const resetBtn = h("button", { type: "button", class: "btn ghost", onclick: () => { stop(); o.reset(); } }, UI.reset);
+  const sp = h("input", { type: "range", min: 1, max: 5, step: 1, value: speed, "aria-label": UI.speed });
+  sp.addEventListener("input", () => { speed = +sp.value; if (timer) { stop(); start(); } });
+  const box = h("div", { class: "player" }, playBtn, stepBtn, resetBtn, o.noSpeed ? null : h("span", { class: "speed" }, UI.speed, sp));
+  mount(parent).appendChild(box);
+  function doStep() { const more = o.step(); if (more === false) stop(); return more; }
+  function start() {
+    if (o.canStep && !o.canStep()) o.reset();
+    playBtn.textContent = UI.pause;
+    timer = setInterval(() => { if (doStep() === false) stop(); }, delay());
+    o.onPlay && o.onPlay();
+  }
+  function stop() { if (timer) clearInterval(timer); timer = null; playBtn.textContent = UI.play; }
+  return { el: box, start, stop, get playing() { return !!timer; } };
+}
+
+/* Responsive HiDPI canvas.
+   o.height (px) or o.aspect (h/w); o.draw(ctx, w, h); pointer callbacks get {x, y} in CSS pixels. */
+function canvasBox(parent, o) {
+  const cv = h("canvas", { class: "viz", role: "img", "aria-label": o.label || "" });
+  const wrap = h("div", { class: "viz-wrap" }, cv);
+  mount(parent).appendChild(wrap);
+  const ctx = cv.getContext("2d");
+  let W = 0, H = 0;
+  function size() {
+    const w = Math.max(10, wrap.clientWidth);
+    const hh = o.height ? (typeof o.height === "function" ? o.height(w) : o.height) : Math.round(w * (o.aspect || 0.6));
+    const dpr = window.devicePixelRatio || 1;
+    if (w !== W || hh !== H || cv.width !== Math.round(w * dpr)) {
+      W = w; H = hh;
+      cv.width = Math.round(w * dpr); cv.height = Math.round(hh * dpr);
+      cv.style.height = hh + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+  }
+  function redraw() { size(); ctx.clearRect(0, 0, W, H); o.draw && o.draw(ctx, W, H); }
+  const pos = (e) => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  let down = false;
+  cv.addEventListener("pointerdown", (e) => { down = true; try { cv.setPointerCapture(e.pointerId); } catch (_) {} o.onDown && o.onDown(pos(e), e); });
+  cv.addEventListener("pointermove", (e) => { if (down) o.onDrag && o.onDrag(pos(e), e); else o.onHover && o.onHover(pos(e), e); });
+  cv.addEventListener("pointerup", (e) => { down = false; o.onUp && o.onUp(pos(e), e); });
+  cv.addEventListener("pointerleave", () => { if (!down && o.onLeave) o.onLeave(); });
+  if (window.ResizeObserver) new ResizeObserver(() => redraw()).observe(wrap);
+  else window.addEventListener("resize", redraw);
+  requestAnimationFrame(redraw);
+  return { canvas: cv, wrap, ctx, redraw, get w() { return W; }, get h() { return H; } };
+}
+
+/* canvas text helpers */
+function font(px, weight = 400, mono = false) { return `${weight} ${px}px ${mono ? cssVar("--mono") : cssVar("--font")}`; }
+function text(ctx, s, x, y, o = {}) {
+  ctx.save();
+  ctx.font = font(o.size || 13, o.weight || 400, o.mono);
+  ctx.fillStyle = o.color || cssVar("--ink");
+  ctx.textAlign = o.align || "left";
+  ctx.textBaseline = o.base || "middle";
+  if (o.bg) {
+    const m = ctx.measureText(s), pad = 3, tw = m.width, th = (o.size || 13) + 4;
+    let bx = x - (o.align === "center" ? tw / 2 : o.align === "right" ? tw : 0);
+    ctx.fillStyle = o.bg; ctx.fillRect(bx - pad, y - th / 2, tw + 2 * pad, th);
+    ctx.fillStyle = o.color || cssVar("--ink");
+  }
+  ctx.fillText(s, x, y);
+  ctx.restore();
+}
+function roundRect(ctx, x, y, w, hh, r) {
+  r = Math.min(r, w / 2, hh / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + hh, r); ctx.arcTo(x + w, y + hh, x, y + hh, r);
+  ctx.arcTo(x, y + hh, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function arrow(ctx, x1, y1, x2, y2, o = {}) {
+  ctx.save();
+  ctx.strokeStyle = ctx.fillStyle = o.color || cssVar("--ink");
+  ctx.lineWidth = o.width || 1.5;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  const a = Math.atan2(y2 - y1, x2 - x1), s = o.head || 8;
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - s * Math.cos(a - 0.4), y2 - s * Math.sin(a - 0.4));
+  ctx.lineTo(x2 - s * Math.cos(a + 0.4), y2 - s * Math.sin(a + 0.4));
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+/* Simple line chart on a canvas. series: [{values:[...], color, label, dash}] ; o: {xLabels, yMin, yMax, yFmt, title, markX} */
+function lineChart(ctx, W, H, series, o = {}) {
+  const pad = { l: 44, r: 12, t: o.title ? 24 : 10, b: 26 };
+  const n = Math.max(1, ...series.map((s) => s.values.length));
+  const all = series.flatMap((s) => s.values.filter((v) => Number.isFinite(v)));
+  let y0 = o.yMin ?? Math.min(0, ...all), y1 = o.yMax ?? Math.max(1e-9, ...all);
+  if (y1 === y0) y1 = y0 + 1;
+  const X = (i) => pad.l + (n === 1 ? 0 : (i / (n - 1)) * (W - pad.l - pad.r));
+  const Y = (v) => H - pad.b - ((v - y0) / (y1 - y0)) * (H - pad.t - pad.b);
+  ctx.save();
+  ctx.strokeStyle = cssVar("--line"); ctx.lineWidth = 1;
+  for (let k = 0; k <= 4; k++) {
+    const v = y0 + (k / 4) * (y1 - y0), y = Y(v);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+    text(ctx, (o.yFmt || ((x) => fmt(x, 2)))(v), pad.l - 6, y, { align: "right", size: 11, color: cssVar("--muted") });
+  }
+  if (o.title) text(ctx, o.title, pad.l, 10, { size: 12.5, weight: 600, color: cssVar("--muted") });
+  const labels = o.xLabels || [];
+  const every = Math.ceil(labels.length / Math.max(1, Math.floor((W - pad.l) / 46)));
+  labels.forEach((lab, i) => { if (i % every === 0) text(ctx, String(lab), X(i), H - pad.b + 13, { align: "center", size: 11, color: cssVar("--muted") }); });
+  if (o.markX != null) {
+    ctx.strokeStyle = cssVar("--mark"); ctx.lineWidth = 6; ctx.globalAlpha = 0.7;
+    ctx.beginPath(); ctx.moveTo(X(o.markX), pad.t); ctx.lineTo(X(o.markX), H - pad.b); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  for (const s of series) {
+    ctx.strokeStyle = s.color || cssVar("--pen"); ctx.lineWidth = s.width || 2; ctx.setLineDash(s.dash || []);
+    ctx.beginPath();
+    let started = false;
+    s.values.forEach((v, i) => { if (!Number.isFinite(v)) return; if (!started) { ctx.moveTo(X(i), Y(v)); started = true; } else ctx.lineTo(X(i), Y(v)); });
+    ctx.stroke(); ctx.setLineDash([]);
+    if (s.dots) s.values.forEach((v, i) => { if (Number.isFinite(v)) { ctx.fillStyle = s.color || cssVar("--pen"); ctx.beginPath(); ctx.arc(X(i), Y(v), 3, 0, 7); ctx.fill(); } });
+  }
+  ctx.restore();
+  return { X, Y };
+}
+
+/* DOM widgets ------------------------------------------------------------- */
+/* items: [{label, value, color, note}] ; o: {max, format} */
+function bars(parent, items, o = {}) {
+  const el = clear(mount(parent));
+  el.classList.add("bars");
+  const max = o.max ?? Math.max(1e-9, ...items.map((i) => Math.abs(i.value)));
+  for (const it of items) {
+    const w = clamp(Math.abs(it.value) / max, 0, 1) * 100;
+    el.appendChild(h("div", { class: "bar", title: it.note || "" },
+      h("span", { class: "lab" + (o.mono ? " mono" : "") }, it.label),
+      h("span", { class: "track" }, h("span", { class: "fill", style: { width: w + "%", display: "block", background: it.color || cssVar("--pen") } })),
+      h("span", { class: "num" }, (o.format || ((v) => fmt(v, 2)))(it.value))));
+  }
+  return el;
+}
+
+/* tokens: array of strings or {text, sub, cls, title, onclick} */
+function tokens(parent, toks, o = {}) {
+  const el = clear(mount(parent));
+  el.classList.add("tokens");
+  toks.forEach((t, i) => {
+    const d = typeof t === "string" ? { text: t } : t;
+    const tag = d.onclick ? "button" : "span";
+    const attrs = { class: "tok " + (d.cls || ""), title: d.title || null, type: d.onclick ? "button" : null, onclick: d.onclick || null };
+    if (d.color) attrs.style = { background: d.color, borderColor: d.color, color: d.ink || "#fff" };
+    el.appendChild(h(tag, attrs, d.text, d.sub != null ? h("span", { class: "sub" }, d.sub) : null));
+  });
+  return el;
+}
+
+/* heatmap table. matrix[r][c]; o: {format, max, min, rowHead, colHead, highlight:(r,c)=>bool} */
+function heatTable(parent, rows, cols, matrix, o = {}) {
+  const el = clear(mount(parent));
+  const flat = matrix.flat().filter(Number.isFinite);
+  const mx = o.max ?? Math.max(...flat), mn = o.min ?? Math.min(0, ...flat);
+  const t = (v) => (mx === mn ? 0 : (v - mn) / (mx - mn));
+  const head = h("tr", null, h("th", { class: "l" }, o.corner || ""), cols.map((c) => h("th", null, c)));
+  const body = rows.map((r, i) => h("tr", null, h("th", { class: "l" }, r), cols.map((_, j) => {
+    const v = matrix[i][j];
+    const tv = Number.isFinite(v) ? t(v) : 0;
+    const style = { background: o.plain ? "" : heatColor(tv * 0.85), color: o.plain ? "" : inkOn(tv * 0.85) };
+    if (o.highlight && o.highlight(i, j)) { style.outline = "3px solid " + cssVar("--mark"); style.outlineOffset = "-3px"; }
+    return h("td", { class: "num", style }, (o.format || ((x) => fmt(x, 2)))(v));
+  })));
+  el.appendChild(h("div", { class: "scroll-x" }, h("table", { class: "grid" }, h("thead", null, head), h("tbody", null, body))));
+  return el;
+}
+
+function legend(parent, items) {
+  const el = clear(mount(parent));
+  el.classList.add("legend");
+  items.forEach((it) => el.appendChild(h("span", null, h("i", { style: { background: it.color } }), it.label)));
+  return el;
+}
+
+/* page sections built from L.theory, L.experiments, L.quiz ----------------- */
+function renderNotes() {
+  const q = $("#quiz");
+  if (!q || !Array.isArray(L.quiz)) return;
+  let right = 0, answered = 0;
+  const score = h("p", { class: "quiz-score" });
+  const upd = () => { score.textContent = answered ? UI.score(right, L.quiz.length) : ""; };
+  L.quiz.forEach((item, qi) => {
+    const fb = h("div", { class: "fb", "aria-live": "polite" });
+    let done = false;
+    const opts = item.a.map((txt, ai) => h("button", {
+      type: "button", class: "opt", html: txt,
+      onclick: (e) => {
+        const ok = ai === item.correct;
+        e.currentTarget.classList.add(ok ? "right" : "wrong");
+        clear(fb).appendChild(h("span", { html: `<b>${ok ? UI.correct : UI.wrong}</b>` + (ok ? (item.why || "") : (item.hint || UI.tryAgain)) }));
+        if (!done) { done = true; answered++; if (ok) right++; upd(); }
+      },
+    }));
+    q.appendChild(h("div", { class: "q" }, h("p", { html: `${qi + 1}. ${item.q}` }), h("div", { class: "opts" }, opts), fb));
+  });
+  q.appendChild(score);
+}
+
+/* Colab link: on *.github.io the repository and the folder are read from the address;
+   elsewhere config.js (window.NLP_LABS = {repo, branch, folder}) is used; otherwise the .ipynb is offered as a download. */
+function colabTarget(lang, slug) {
+  const cfg = window.NLP_LABS || {};
+  const branch = cfg.branch || "main";
+  let repo = cfg.repo || "", folder = (cfg.folder || "").replace(/^\/+|\/+$/g, "");
+  if (!repo && /\.github\.io$/.test(location.hostname)) {
+    const user = location.hostname.replace(/\.github\.io$/, "");
+    const seg = location.pathname.split("/").filter(Boolean);
+    const li = seg.findIndex((x) => x === "ru" || x === "uz");
+    const before = li >= 0 ? seg.slice(0, li) : [];
+    // project site: user.github.io/<repo>/…  ;  user site: user.github.io/…
+    if (before.length && before[0] !== user + ".github.io") { repo = `${user}/${before[0]}`; folder = before.slice(1).join("/"); }
+    else { repo = `${user}/${location.hostname}`; folder = before.join("/"); }
+  }
+  if (!repo) return null;
+  const nb = (folder ? folder + "/" : "") + `${lang}/notebooks/${slug}.ipynb`;
+  return `https://colab.research.google.com/github/${repo}/blob/${branch}/${nb}`;
+}
+
+function setupPractice() {
+  const a = $("#colab");
+  if (!a) return;
+  const url = colabTarget(LANG, META.slug);
+  if (url) {
+    a.href = url;
+    a.textContent = UI.colab;
+    a.target = "_blank"; a.rel = "noopener";
+  } else {
+    a.href = `../notebooks/${META.slug}.ipynb`;
+    a.textContent = UI.nbDownload;
+    a.setAttribute("download", "");
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => { renderNotes(); setupPractice(); });
+
+</script>
+<script>
+/* Lab 4: bigram counts, add-k and Kneser–Ney smoothing, perplexity, continuation counts, sampling. */
+
+const BOS = "<s>", EOS = "</s>";
+const tpl = (s, o) => s.replace(/\{(\w+)\}/g, (m, k) => (k in o ? o[k] : m));
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const log2 = (x) => Math.log(x) / Math.LN2;
+const fp = (p) => fmt(p, 3);
+const COL = { mle: "--c2", add: "--c5", kn: "--c3" };
+
+/* ---------- corpus and the bigram model shared by all parts ---------- */
+const SENTS = L.corpus.map((s) => [BOS, ...s.split(" "), EOS]);
+const WORDS = [];
+SENTS.forEach((s) => s.slice(1, -1).forEach((w) => { if (!WORDS.includes(w)) WORDS.push(w); }));
+const PRED = [...WORDS, EOS];   // what can follow a context; V = |PRED|
+const HIST = [BOS, ...WORDS];   // what can be a context
+const V = PRED.length;
+const ALL_BIGRAMS = [];         // every bigram token of the corpus, in reading order
+SENTS.forEach((s, si) => { for (let i = 1; i < s.length; i++) ALL_BIGRAMS.push({ v: s[i - 1], w: s[i], s: si, i }); });
+
+function makeModel(list) {
+  const c = new Map();          // v -> Map(w -> count)
+  list.forEach(({ v, w }) => { if (!c.has(v)) c.set(v, new Map()); const m = c.get(v); m.set(w, (m.get(w) || 0) + 1); });
+  const n1b = new Map(), uni = new Map();
+  let n1pp = 0;
+  c.forEach((m) => m.forEach((n, w) => { n1b.set(w, (n1b.get(w) || 0) + 1); uni.set(w, (uni.get(w) || 0) + n); n1pp++; }));
+  const N = list.length;
+  const cb = (v, w) => (c.has(v) && c.get(v).get(w)) || 0;
+  const cv = (v) => (c.has(v) ? sum([...c.get(v).values()]) : 0);
+  const n1a = (v) => (c.has(v) ? c.get(v).size : 0);
+  const pcont = (w) => (n1pp ? (n1b.get(w) || 0) / n1pp : 0);
+  const puni = (w) => (N ? (uni.get(w) || 0) / N : 0);
+  const lambda = (v, d) => (cv(v) ? (d * n1a(v)) / cv(v) : 1);
+  const disc = (v, w, d) => (cv(v) ? Math.max(cb(v, w) - d, 0) / cv(v) : 0);
+  return {
+    cb, cv, n1a, N, n1pp, pcont, puni, lambda,
+    n1b: (w) => n1b.get(w) || 0,
+    uni: (w) => uni.get(w) || 0,
+    mle: (v, w) => (cv(v) ? cb(v, w) / cv(v) : NaN),
+    addk: (v, w, k) => { const n = cv(v) + k * V; return n ? (cb(v, w) + k) / n : NaN; },
+    kn: (v, w, d) => disc(v, w, d) + lambda(v, d) * pcont(w),     // interpolated Kneser–Ney
+    ad: (v, w, d) => disc(v, w, d) + lambda(v, d) * puni(w),      // same, but backing off to unigram frequency
+  };
+}
+const FULL = makeModel(ALL_BIGRAMS);
+
+function miniBar(p, col) {
+  return { backgroundImage: `linear-gradient(${col}, ${col})`, backgroundSize: `${clamp(p, 0, 1) * 100}% 4px` };
+}
+
+/* ---------- Part 1: counting bigrams, three estimates of P(w | v) ---------- */
+(function counting() {
+  const T = ALL_BIGRAMS.length;
+  let pos = T, cur = -1;        // bigrams counted so far; index of the one just counted
+  let M = FULL;
+  let ctx = L.p1_ctx, sel = L.p1_sel, k = 1, d = 0.75;
+  const maxC = Math.max(...HIST.flatMap((v) => PRED.map((w) => FULL.cb(v, w))));
+
+  const box = h("div", { class: "ctl" }, h("label", { for: "ng-ctx-sel" }, h("span", null, L.ctx_label)));
+  const selEl = h("select", { id: "ng-ctx-sel" }, HIST.map((v) => h("option", { value: v }, v)));
+  selEl.value = ctx;
+  selEl.addEventListener("change", () => { ctx = selEl.value; render(); });
+  box.appendChild(selEl);
+  $("#ng-ctx").appendChild(box);
+  slider("#ng-k", { label: L.k_label, min: 0, max: 3, step: 0.05, value: k, format: (v) => fmt(v, 2), onInput: (v) => { k = v; render(); } });
+  slider("#ng-d", { label: L.d_label, min: 0, max: 1, step: 0.05, value: d, format: (v) => fmt(v, 2), onInput: (v) => { d = v; render(); } });
+
+  function setCtx(v, w) { ctx = v; if (w) sel = w; selEl.value = v; render(); }
+
+  function renderCorpus() {
+    const el = clear($("#ng-corpus"));
+    let bi = 0;
+    SENTS.forEach((s) => {
+      const first = bi;             // bigram index of (s[0], s[1])
+      const row = h("div", { class: "ng-sent" });
+      s.forEach((t, i) => {
+        const left = i >= 1 ? first + i - 1 : -1, right = i < s.length - 1 ? first + i : -1;
+        const cls = ["tok"];
+        if (t === BOS || t === EOS) cls.push("bnd");
+        if (i < s.length - 1 && t === ctx) cls.push("ctx");
+        else if (i >= 1 && s[i - 1] === ctx) cls.push("nxt");
+        if (cur >= 0 && (left === cur || right === cur)) cls.push("cur");
+        else if (pos < T && ((left >= 0 && left < pos) || (right >= 0 && right < pos))) cls.push("done");
+        const clickable = t !== EOS;
+        row.appendChild(h(clickable ? "button" : "span", {
+          class: cls.join(" "), type: clickable ? "button" : null,
+          onclick: clickable ? () => setCtx(t, i < s.length - 1 ? s[i + 1] : null) : null,
+        }, t));
+      });
+      bi += s.length - 1;
+      el.appendChild(row);
+    });
+    const msg = $("#ng-count-msg");
+    if (pos === 0) msg.innerHTML = L.count_start;
+    else if (pos === T) msg.innerHTML = tpl(L.count_done, { t: T });
+    else { const b = ALL_BIGRAMS[cur]; msg.innerHTML = tpl(L.count_step, { n: cur + 1, t: T, v: esc(b.v), w: esc(b.w), c: M.cb(b.v, b.w) }); }
+  }
+
+  function renderMatrix() {
+    const curB = cur >= 0 ? ALL_BIGRAMS[cur] : null;
+    const head = h("tr", null, h("th", null, "v \\ w"),
+      PRED.map((w) => h("th", { class: "col" + (w === sel ? " on" : "") }, h("span", null, w))), h("th", { class: "col" }, h("span", null, "Σ")));
+    const body = HIST.map((v) => h("tr", { class: v === ctx ? "on" : "" },
+      h("th", { class: "row", onclick: () => setCtx(v) }, v),
+      PRED.map((w) => {
+        const n = M.cb(v, w), t = n / maxC * 0.85;
+        const cls = [n ? "" : "z"];
+        if (curB && curB.v === v && curB.w === w) cls.push("cur");
+        else if (v === ctx && w === sel) cls.push("sel");
+        return h("td", { class: cls.join(" "), style: n ? { background: heatColor(t), color: inkOn(t) } : null, title: `${v} → ${w}`, onclick: () => setCtx(v, w) }, String(n));
+      }),
+      h("td", { class: "sum" }, String(M.cv(v)))));
+    clear($("#ng-matrix")).appendChild(h("table", { class: "ngm" }, h("thead", null, head), h("tbody", null, body)));
+    const total = HIST.length * PRED.length;
+    $("#ng-fill").innerHTML = tpl(L.matrix_fill, { a: M.n1pp, b: total, p: pct(M.n1pp / total, 0) });
+  }
+
+  function renderProbs() {
+    $("#ng-probs-title").textContent = tpl(L.probs_title, { v: ctx });
+    $("#ng-formula-title").textContent = tpl(L.formula_title, { v: ctx, w: sel });
+    $("#ng-mass-hint").innerHTML = "";
+    const out = clear($("#ng-probs")), form = clear($("#ng-formula")), mass = clear($("#ng-mass"));
+    if (!M.cv(ctx)) {
+      out.appendChild(h("div", { class: "status note small" }, tpl(L.no_ctx, { v: ctx })));
+      return;
+    }
+    const rows = PRED.map((w, i) => ({ w, i, c: M.cb(ctx, w), p: [M.mle(ctx, w), M.addk(ctx, w, k), M.kn(ctx, w, d)] }))
+      .sort((a, b) => b.c - a.c || M.pcont(b.w) - M.pcont(a.w) || a.i - b.i);
+    const cols = [cssVar(COL.mle), cssVar(COL.add), cssVar(COL.kn)];
+    // seen words, then a few unseen ones (always the selected one), the rest folded into one row
+    const seen = rows.filter((r) => r.c > 0), unseen = rows.filter((r) => r.c === 0);
+    let shownU = unseen.slice(0, 4);
+    const selU = unseen.find((r) => r.w === sel);
+    if (selU && !shownU.includes(selU)) shownU = [...shownU.slice(0, 3), selU];
+    const rest = unseen.filter((r) => !shownU.includes(r));
+    const head = h("tr", null, h("th", null, "w"), h("th", null, "c"), h("th", null, L.m_mle), h("th", null, L.m_add), h("th", null, L.m_kn));
+    const body = [...seen, ...shownU].map((r) => h("tr", { class: r.w === sel ? "sel" : "", onclick: () => { sel = r.w; render(); } },
+      h("td", null, r.w), h("td", null, String(r.c)),
+      r.p.map((p, j) => h("td", { class: "p" + (j === 0 && p === 0 ? " zero" : ""), style: miniBar(p, cols[j]) }, fp(p)))));
+    if (rest.length) {
+      const rs = [0, 1, 2].map((j) => sum(rest.map((r) => r.p[j])));
+      body.push(h("tr", { class: "oth" }, h("td", null, tpl(L.others_unseen, { n: rest.length })), h("td", null, "0"),
+        rs.map((p, j) => h("td", { class: "p", style: miniBar(p, cols[j]) }, fp(p)))));
+    }
+    const sums = [0, 1, 2].map((j) => sum(rows.map((r) => r.p[j])));
+    body.push(h("tr", { class: "tot" }, h("td", null, L.sum_row), h("td", null, String(M.cv(ctx))), sums.map((s) => h("td", null, fp(s)))));
+    out.appendChild(h("div", { class: "scroll-x" }, h("table", { class: "ngp" }, h("thead", null, head), h("tbody", null, body))));
+
+    // formulas with the current numbers substituted
+    const c = M.cb(ctx, sel), n = M.cv(ctx), lam = M.lambda(ctx, d), pc = M.pcont(sel);
+    const part1 = Math.max(c - d, 0) / n;
+    const blocks = [
+      [L.m_mle, `P = c(v w) / c(v) = ${c} / ${n} = <b style="display:inline">${fp(M.mle(ctx, sel))}</b>`],
+      [L.m_add, `P = (c(v w) + k) / (c(v) + k·V)<br>= (${c} + ${fmt(k, 2)}) / (${n} + ${fmt(k, 2)}·${V}) = <b style="display:inline">${fp(M.addk(ctx, sel, k))}</b>`],
+      [L.m_kn, `λ(v) = d·N₁₊(v •) / c(v) = ${fmt(d, 2)}·${M.n1a(ctx)} / ${n} = ${fp(lam)}<br>` +
+        `P_cont(w) = N₁₊(• w) / N₁₊(• •) = ${M.n1b(sel)} / ${M.n1pp} = ${fp(pc)}<br>` +
+        `P = max(${c} − ${fmt(d, 2)}; 0) / ${n} + λ·P_cont<br>= ${fp(part1)} + ${fp(lam)}·${fp(pc)} = <b style="display:inline">${fp(M.kn(ctx, sel, d))}</b>`],
+    ];
+    blocks.forEach(([name, f], j) => form.appendChild(h("div", { style: { borderLeftColor: cols[j] }, html: `<b>${name}</b>${f}` })));
+
+    // probability mass that goes to words never seen after ctx
+    $("#ng-mass-hint").textContent = tpl(L.mass_hint, { v: ctx, n: unseen.length, V });
+    bars(mass, [
+      { label: L.m_mle, value: 0, color: cols[0] },
+      { label: L.m_add, value: sum(unseen.map((r) => r.p[1])), color: cols[1] },
+      { label: L.m_kn, value: sum(unseen.map((r) => r.p[2])), color: cols[2] },
+    ], { max: 1, format: (v) => pct(v, 1) });
+  }
+
+  function render() { renderCorpus(); renderMatrix(); renderProbs(); }
+
+  player("#ng-count-player", {
+    interval: 450,
+    step: () => {
+      if (pos >= T) return false;
+      pos++; cur = pos - 1;
+      M = makeModel(ALL_BIGRAMS.slice(0, pos));
+      // follow the bigram just counted: its context row and its probability
+      ctx = ALL_BIGRAMS[cur].v; sel = ALL_BIGRAMS[cur].w; selEl.value = ctx;
+      if (pos === T) cur = -1;
+      render();
+      return pos < T;
+    },
+    canStep: () => pos < T,
+    reset: () => { pos = 0; cur = -1; M = makeModel([]); render(); },
+  });
+  render();
+})();
+
+/* ---------- Part 2: perplexity of a test sentence ---------- */
+(function perplexity() {
+  let k = 1, d = 0.75;
+  let words = [], oov = [], rows = [], cursor = 0;
+  const NAMES = [L.m_mle, L.m_add, L.m_kn];
+  const inp = $("#pp-input");
+  inp.value = L.tests[0].text;
+
+  const presets = segmented("#pp-presets", {
+    label: L.presets_label, value: 0,
+    options: L.tests.map((t, i) => ({ value: i, label: t.text })),
+    onChange: (i) => { inp.value = L.tests[i].text; parse(); },
+  });
+  const vocab = $("#pp-vocab");
+  WORDS.forEach((w) => vocab.appendChild(h("button", { type: "button", class: "tok", onclick: () => { inp.value = (inp.value.trim() + " " + w).trim(); parse(); } }, w)));
+  button("#pp-edit", L.del_word, () => { inp.value = normalize(inp.value).slice(0, -1).join(" "); parse(); }, "ghost small");
+  button("#pp-edit", L.clear_input, () => { inp.value = ""; parse(); }, "ghost small");
+  inp.addEventListener("input", parse);
+  slider("#pp-k", { label: L.k_label, min: 0, max: 3, step: 0.05, value: k, format: (v) => fmt(v, 2), onInput: (v) => { k = v; compute(); render(); } });
+  slider("#pp-d", { label: L.d_label, min: 0, max: 1, step: 0.05, value: d, format: (v) => fmt(v, 2), onInput: (v) => { d = v; compute(); render(); } });
+  const stack = canvasBox("#pp-stack", { height: 132, draw: drawStack, label: L.stack_title });
+  const chart = canvasBox("#pp-chart", { height: 190, draw: drawChart, label: L.chart_k_title });
+  legend("#pp-legend", [{ label: L.m_add, color: cssVar(COL.add) }, { label: L.m_kn, color: cssVar(COL.kn) }, { label: L.m_mle, color: cssVar(COL.mle) }]);
+
+  function normalize(s) {
+    return s.toLowerCase().replace(/([og])['`‘’ʼ]/g, "$1ʻ").split(/[^\p{L}ʻ]+/u).filter(Boolean);
+  }
+  function probsFor(v, w, kk = k) { return [FULL.mle(v, w), FULL.addk(v, w, kk), FULL.kn(v, w, d)]; }
+  function parse() {
+    words = normalize(inp.value);
+    oov = [...new Set(words.filter((w) => !WORDS.includes(w)))];
+    const idx = L.tests.findIndex((t) => t.text === words.join(" "));
+    presets.set(idx);
+    compute();
+    cursor = rows.length;
+    render();
+  }
+  function compute() {
+    rows = [];
+    if (oov.length || !words.length) return;
+    const t = [BOS, ...words, EOS];
+    for (let i = 1; i < t.length; i++) rows.push({ v: t[i - 1], w: t[i], c: FULL.cb(t[i - 1], t[i]), p: probsFor(t[i - 1], t[i]) });
+  }
+  // perplexity of model j over the first n rows (or all rows for a given k)
+  function pp(j, n = cursor, list = rows) {
+    if (!n) return { s: NaN, pp: NaN };
+    const s = sum(list.slice(0, n).map((r) => log2(r.p[j])));
+    return { s, pp: Math.pow(2, -s / n) };
+  }
+
+  function render() {
+    const msg = $("#pp-msg");
+    msg.className = "status small";
+    const lines = [];
+    if (oov.length) { msg.classList.add("bad"); lines.push(tpl(L.oov, { s: oov.map(esc).join(", ") })); }
+    else if (!words.length) { msg.classList.add("bad"); lines.push(L.empty_input); }
+    else {
+      msg.classList.add("note");
+      if (cursor === 0) lines.push(L.pp_start);
+      else if (cursor < rows.length) { const r = rows[cursor - 1]; lines.push(tpl(L.pp_step, { i: cursor, n: rows.length, v: esc(r.v), w: esc(r.w) })); }
+      else lines.push(L.pp_done);
+      const z = rows.slice(0, cursor).find((r) => r.c === 0);
+      if (z) lines.push(tpl(L.pp_inf, { b: esc(z.v + " " + z.w) }));
+    }
+    msg.innerHTML = lines.join("<br>");
+
+    // per-token table
+    const tbl = clear($("#pp-table"));
+    if (rows.length) {
+      const head = h("tr", null, h("th", null, L.col_bigram), h("th", null, "c"), NAMES.map((n, j) => h("th", { style: { color: cssVar([COL.mle, COL.add, COL.kn][j]) } }, n)));
+      const body = rows.map((r, i) => h("tr", { class: i === cursor - 1 ? "cur" : i >= cursor ? "fut" : "" },
+        h("td", { class: r.c ? "" : "unseen" }, `${r.v} → ${r.w}`), h("td", null, String(r.c)),
+        r.p.map((p) => h("td", { class: p === 0 ? "inf" : "" }, fp(p), h("span", { class: "lg" }, fmt(log2(p), 2))))));
+      tbl.appendChild(h("table", { class: "ngpp" }, h("thead", null, head), h("tbody", null, body)));
+    }
+
+    // perplexity readouts
+    const vals = clear($("#pp-vals"));
+    NAMES.forEach((name, j) => {
+      const r = rows.length ? pp(j) : { s: NaN, pp: NaN };
+      const label = j === 1 ? `${name} (k = ${fmt(k, 2)})` : j === 2 ? `${name} (d = ${fmt(d, 2)})` : name;
+      vals.appendChild(h("div", { class: "pp-row" },
+        h("span", { class: "nm", style: { color: cssVar([COL.mle, COL.add, COL.kn][j]) } }, label),
+        h("span", { class: "val" + (r.pp === Infinity ? " inf" : "") }, fmt(r.pp, 2)),
+        h("span", { class: "how" }, tpl(L.pp_formula, { s: fmt(r.s, 2), n: rows.length ? cursor : 0 }))));
+    });
+    stack.redraw(); chart.redraw();
+  }
+
+  function placeholder(ctx, W, H) {
+    ctx.fillStyle = cssVar("--soft"); ctx.fillRect(0, 0, W, H);
+    text(ctx, "—", W / 2, H / 2, { align: "center", size: 18, color: cssVar("--faint") });
+  }
+  function drawStack(ctx, W, H) {
+    if (!rows.length) return placeholder(ctx, W, H);
+    const labW = 92, x0 = labW, x1 = W - 54, rowH = 30, top = 14;
+    const totals = [0, 1, 2].map((j) => sum(rows.map((r) => -log2(r.p[j]))));
+    const max = Math.max(1, ...totals.filter(Number.isFinite));
+    const sc = (x1 - x0) / max;
+    [0, 1, 2].forEach((j) => {
+      const y = top + j * (rowH + 10), col = cssVar([COL.mle, COL.add, COL.kn][j]);
+      text(ctx, NAMES[j], 4, y + rowH / 2, { size: 12.5, weight: 600, color: col });
+      ctx.fillStyle = cssVar("--soft"); ctx.fillRect(x0, y, x1 - x0, rowH);
+      let x = x0, inf = false, acc = 0;
+      for (let i = 0; i < cursor && !inf; i++) {
+        const s = -log2(rows[i].p[j]);
+        if (!Number.isFinite(s)) {
+          ctx.fillStyle = alpha(cssVar("--bad"), 0.85); ctx.fillRect(x, y, x1 - x, rowH);
+          text(ctx, "→ ∞", (x + x1) / 2, y + rowH / 2, { align: "center", size: 13, weight: 700, color: "#fff" });
+          inf = true; break;
+        }
+        const w = s * sc;
+        ctx.fillStyle = alpha(col, i % 2 ? 0.55 : 0.85); ctx.fillRect(x, y, w, rowH);
+        if (i === cursor - 1 && cursor < rows.length) { ctx.strokeStyle = cssVar("--mark"); ctx.lineWidth = 3; ctx.strokeRect(x + 1.5, y + 1.5, Math.max(0, w - 3), rowH - 3); }
+        ctx.font = font(11, 400, true);
+        if (w > ctx.measureText(rows[i].w).width + 6) text(ctx, rows[i].w, x + w / 2, y + rowH / 2, { align: "center", size: 11, color: "#fff", mono: true });
+        x += w; acc += s;
+      }
+      text(ctx, inf ? "∞" : fmt(acc, 1), x1 + 6, y + rowH / 2, { size: 12, weight: 700, color: inf ? cssVar("--bad") : cssVar("--ink") });
+    });
+  }
+
+  function drawChart(ctx, W, H) {
+    if (!rows.length) return placeholder(ctx, W, H);
+    const ks = Array.from({ length: 60 }, (_, i) => 0.05 * (i + 1));
+    const curve = ks.map((kk) => {
+      const list = rows.map((r) => ({ p: [0, FULL.addk(r.v, r.w, kk), 0] }));
+      return pp(1, list.length, list).pp;
+    });
+    const knv = pp(2, rows.length).pp, mlev = pp(0, rows.length).pp;
+    const series = [{ values: curve, color: cssVar(COL.add) }, { values: ks.map(() => knv), color: cssVar(COL.kn), dash: [6, 4] }];
+    if (Number.isFinite(mlev)) series.push({ values: ks.map(() => mlev), color: cssVar(COL.mle), dash: [2, 3] });
+    const mi = Math.round(k / 0.05) - 1;
+    lineChart(ctx, W, H, series, {
+      xLabels: ks.map((x) => "k=" + fmt(x, 2)), yMin: 0, yFmt: (v) => fmt(v, 0),
+      markX: mi >= 0 && mi < ks.length ? mi : null,
+    });
+  }
+
+  player("#pp-player", {
+    interval: 1100,
+    step: () => { if (cursor >= rows.length) return false; cursor++; render(); return cursor < rows.length; },
+    canStep: () => cursor < rows.length,
+    reset: () => { cursor = 0; render(); },
+  });
+  parse();
+})();
+
+/* ---------- Part 3: continuation counts (why Kneser–Ney) ---------- */
+(function continuation() {
+  let A = L.p3_a, B = L.p3_b, ctxW = L.p3_ctxs[0];
+  let events = [], pos = 0, stepped = false;
+  const D = 0.75;
+  const segA = segmented("#kn-a", { label: L.a_label, value: A, options: L.p3_opts.map((w) => ({ value: w, label: w })), onChange: (v) => { if (v === B) { B = A; segB.set(B); } A = v; setup(); } });
+  const segB = segmented("#kn-b", { label: L.b_label, value: B, options: L.p3_opts.map((w) => ({ value: w, label: w })), onChange: (v) => { if (v === A) { A = B; segA.set(A); } B = v; setup(); } });
+  segmented("#kn-ctx", { label: L.ctx3_label, value: ctxW, options: L.p3_ctxs.map((w) => ({ value: w, label: w })), onChange: (v) => { ctxW = v; renderBackoff(); } });
+  const preds = (w) => [...new Set(events.filter((e) => e.w === w).map((e) => e.v))];
+  const graph = canvasBox("#kn-graph", {
+    height: () => 10 + (Math.max(1, preds(A).length) + Math.max(1, preds(B).length)) * 34 + 44 + 30,
+    draw: drawGraph, label: L.graph_title,
+  });
+
+  function partial() {
+    const cnt = new Map();
+    events.slice(0, pos).forEach((e) => cnt.set(e.v + "\u0001" + e.w, (cnt.get(e.v + "\u0001" + e.w) || 0) + 1));
+    const c = (v, w) => cnt.get(v + "\u0001" + w) || 0;
+    const cw = (w) => events.slice(0, pos).filter((e) => e.w === w).length;
+    const n1 = (w) => preds(w).filter((v) => c(v, w) > 0).length;
+    return { c, cw, n1 };
+  }
+
+  function drawGraph(ctx, W, H) {
+    const P = partial(), rowH = 34, ink = cssVar("--ink");
+    const curE = stepped && pos > 0 ? events[pos - 1] : null;
+    let y = 10;
+    [[A, cssVar("--c1")], [B, cssVar("--c2")]].forEach(([w, col]) => {
+      const list = preds(w), n = Math.max(1, list.length), yC = y + (n * rowH) / 2;
+      ctx.font = font(15, 700, true);
+      const tw = ctx.measureText(w).width + 20, tx = W - tw - 4;
+      list.forEach((v, i) => {
+        const m = P.c(v, w);
+        if (!m) return;
+        const py = y + i * rowH + rowH / 2;
+        ctx.font = font(13, 400, true);
+        const pw = ctx.measureText(v).width + 14;
+        const isCur = curE && curE.v === v && curE.w === w;
+        ctx.save();
+        ctx.strokeStyle = isCur ? cssVar("--mark") : alpha(col, 0.55);
+        ctx.lineWidth = Math.min(14, 2 + 3 * (m - 1)) + (isCur ? 2 : 0);
+        ctx.lineCap = "round";
+        const xa = 4 + pw, xb = tx, mx = (xa + xb) / 2;
+        ctx.beginPath(); ctx.moveTo(xa, py); ctx.bezierCurveTo(mx, py, mx, yC, xb, yC); ctx.stroke();
+        ctx.restore();
+        roundRect(ctx, 4, py - 12, pw, 24, 6);
+        ctx.fillStyle = isCur ? cssVar("--mark") : cssVar("--soft"); ctx.fill();
+        ctx.strokeStyle = cssVar("--line"); ctx.lineWidth = 1; ctx.stroke();
+        text(ctx, v, 4 + pw / 2, py, { align: "center", size: 13, mono: true });
+        text(ctx, "×" + m, xa + 8, py - 9, { size: 11.5, weight: 700, color: col });
+      });
+      roundRect(ctx, tx, yC - 15, tw, 30, 8);
+      ctx.fillStyle = col; ctx.fill();
+      text(ctx, w, tx + tw / 2, yC, { align: "center", size: 15, weight: 700, mono: true, color: "#fff" });
+      text(ctx, `c = ${P.cw(w)} · N₁₊ = ${P.n1(w)}`, tx + tw, yC + 27, { align: "right", size: 12, color: ink });
+      y += n * rowH + 44;
+    });
+  }
+
+  function renderNums() {
+    const P = partial(), N = FULL.N, T = FULL.n1pp;
+    const cell = (w, f) => h("td", { class: "num" }, f(w));
+    const rowsDef = [
+      [L.num_c, (w) => String(P.cw(w))],
+      [L.num_puni, (w) => `${P.cw(w)}/${N} = ${fp(P.cw(w) / N)}`],
+      [L.num_n1, (w) => String(P.n1(w))],
+      [L.num_pcont, (w) => `${P.n1(w)}/${T} = ${fp(P.n1(w) / T)}`],
+    ];
+    const head = h("tr", null, h("th", { class: "l" }, ""), h("th", { class: "a", style: { color: cssVar("--c1") } }, A), h("th", { class: "b", style: { color: cssVar("--c2") } }, B));
+    const body = rowsDef.map(([lab, f]) => h("tr", null, h("th", { class: "l" }, lab), cell(A, f), cell(B, f)));
+    clear($("#kn-nums")).appendChild(h("table", { class: "grid kn-nums" }, h("thead", null, head), h("tbody", null, body)));
+    $("#kn-note").innerHTML = tpl(L.nums_note, { n: N, t: T });
+    const msg = $("#kn-msg");
+    if (pos === 0) msg.innerHTML = L.kn_start;
+    else if (pos === events.length && !stepped) msg.innerHTML = tpl(L.kn_done, { a: A, b: B, ca: P.cw(A), na: P.n1(A), cb: P.cw(B), nb: P.n1(B) });
+    else {
+      const e = events[pos - 1];
+      const isNew = !events.slice(0, pos - 1).some((x) => x.v === e.v && x.w === e.w);
+      msg.innerHTML = tpl(isNew ? L.kn_new : L.kn_old, { v: esc(e.v), w: esc(e.w) });
+      if (pos === events.length) msg.innerHTML += "<br>" + tpl(L.kn_done, { a: A, b: B, ca: P.cw(A), na: P.n1(A), cb: P.cw(B), nb: P.n1(B) });
+    }
+  }
+
+  function renderBackoff() {
+    $("#kn-bo-title").textContent = tpl(L.backoff_title, { v: ctxW });
+    const out = clear($("#kn-bo"));
+    const vals = [[FULL.ad(ctxW, A, D), FULL.ad(ctxW, B, D)], [FULL.kn(ctxW, A, D), FULL.kn(ctxW, B, D)]];
+    const max = Math.max(...vals.flat());
+    [L.row_abs, L.row_kn].forEach((lab, i) => {
+      out.appendChild(h("p", { class: "small", style: { margin: i ? "12px 0 4px" : "0 0 4px", fontWeight: 600 } }, lab));
+      const win = vals[i][0] >= vals[i][1] ? 0 : 1;
+      const el = h("div");
+      out.appendChild(el);
+      bars(el, [A, B].map((w, j) => ({ label: (j === win ? "▸ " : "") + w, value: vals[i][j], color: cssVar(j ? "--c2" : "--c1") })), { max, format: (v) => fmt(v, 4), mono: true });
+    });
+    [A, B].filter((w) => FULL.cb(ctxW, w) > 0).forEach((w) => out.appendChild(h("p", { class: "tiny muted", style: { margin: "8px 0 0" } }, tpl(L.seen_note, { v: ctxW, w }))));
+  }
+
+  function render() { renderNums(); graph.redraw(); }
+  function setup() {
+    events = ALL_BIGRAMS.filter((b) => b.w === A || b.w === B);
+    pos = events.length; stepped = false;
+    render(); renderBackoff();
+  }
+  player("#kn-player", {
+    interval: 900,
+    step: () => { if (pos >= events.length) return false; pos++; stepped = true; render(); return pos < events.length; },
+    canStep: () => pos < events.length,
+    reset: () => { pos = 0; stepped = false; render(); },
+  });
+  setup();
+})();
+
+/* ---------- Part 4: sampling sentences word by word ---------- */
+(function generation() {
+  let method = 2, T = 0.7;
+  const R = rng(4);
+  let sent = [BOS], last = null, done = false, tooLong = false;
+  const history = [];
+  const MAXLEN = 12;
+  segmented("#gen-method", { label: L.method_label, value: method, options: [{ value: 0, label: L.g_mle }, { value: 1, label: L.g_add }, { value: 2, label: L.g_kn }], onChange: (v) => { method = v; changed(); } });
+  slider("#gen-temp", { label: L.temp_label, min: 0.1, max: 2, step: 0.1, value: T, format: (v) => fmt(v, 1), onInput: (v) => { T = v; changed(); } });
+  const wheel = canvasBox("#gen-roulette", { height: 74, draw: drawRoulette, label: L.roulette_title });
+  legend("#gen-legend", [{ label: L.leg_seen, color: cssVar("--c1") }, { label: L.leg_unseen, color: cssVar("--c5") }]);
+
+  function dist(v) {
+    const p = PRED.map((w) => (method === 0 ? FULL.mle(v, w) : method === 1 ? FULL.addk(v, w, 1) : FULL.kn(v, w, 0.75)));
+    const q = p.map((x) => (x > 0 ? Math.pow(x, 1 / T) : 0));
+    const s = sum(q);
+    const qq = q.map((x) => x / s);
+    const order = qq.map((_, i) => i).sort((a, b) => qq[b] - qq[a] || a - b);
+    return { v, q: qq, order };
+  }
+  // the distribution on display: the one just sampled from, or the next one
+  function shown() { return last || dist(done ? BOS : sent[sent.length - 1]); }
+  function changed() { last = null; if (done) resetSent(); else render(); }
+  function resetSent() { sent = [BOS]; last = null; done = false; tooLong = false; render(); }
+
+  function drawRoulette(ctx, W, H) {
+    const s = shown(), x0 = 6, x1 = W - 6, y0 = 26, y1 = 62;
+    let acc = 0;
+    s.order.forEach((i, j) => {
+      const p = s.q[i];
+      if (p <= 0) return;
+      const a = x0 + acc * (x1 - x0), b = x0 + (acc + p) * (x1 - x0);
+      acc += p;
+      const seen = FULL.cb(s.v, PRED[i]) > 0;
+      ctx.fillStyle = alpha(cssVar(seen ? "--c1" : "--c5"), j % 2 ? 0.6 : 0.9);
+      ctx.fillRect(a, y0, b - a, y1 - y0);
+      ctx.font = font(12, 600, true);
+      if (b - a > ctx.measureText(PRED[i]).width + 8) text(ctx, PRED[i], (a + b) / 2, (y0 + y1) / 2, { align: "center", size: 12, weight: 600, mono: true, color: "#fff" });
+      if (last && i === last.idx) { ctx.strokeStyle = cssVar("--ink"); ctx.lineWidth = 3; ctx.strokeRect(a + 1.5, y0 - 1.5, Math.max(2, b - a - 3), y1 - y0 + 3); }
+    });
+    if (last) {
+      const x = x0 + last.r * (x1 - x0);
+      ctx.fillStyle = cssVar("--ink");
+      ctx.beginPath(); ctx.moveTo(x, y0 - 2); ctx.lineTo(x - 7, y0 - 14); ctx.lineTo(x + 7, y0 - 14); ctx.closePath(); ctx.fill();
+      text(ctx, "r = " + fmt(last.r, 2), clamp(x, 40, W - 40), 7, { align: "center", size: 12, weight: 700 });
+    }
+  }
+
+  function render() {
+    tokens("#gen-sent", sent.map((w, i) => ({
+      text: w,
+      cls: [i > 0 && FULL.cb(sent[i - 1], w) === 0 ? "unseen" : "", i > 0 && i === sent.length - 1 ? "last" : ""].join(" "),
+    })));
+    const s = shown();
+    $("#gen-dist-title").textContent = tpl(L.dist_title, { v: s.v, t: fmt(T, 1) });
+    const top = s.order.slice(0, 8).filter((i) => s.q[i] > 0);
+    const rest = s.order.slice(8).filter((i) => s.q[i] > 0);
+    const items = top.map((i) => ({ label: PRED[i], value: s.q[i], color: cssVar(FULL.cb(s.v, PRED[i]) > 0 ? "--c1" : "--c5") }));
+    if (rest.length) items.push({ label: tpl(L.others, { n: rest.length }), value: sum(rest.map((i) => s.q[i])), color: cssVar("--faint") });
+    bars("#gen-dist", items, { max: 1, format: (v) => fmt(v, 3), mono: true });
+    if (last) {
+      const k = top.indexOf(last.idx);
+      const el = $$("#gen-dist .bar")[k >= 0 ? k : items.length - 1];
+      if (el) el.classList.add("chosen");
+    }
+    const lines = [];
+    if (!last) lines.push(L.gen_start);
+    else lines.push(tpl(L.gen_step, { r: fmt(last.r, 3), w: esc(PRED[last.idx]), p: fmt(last.q[last.idx], 3) }));
+    if (done) lines.push(tooLong ? L.gen_long : L.gen_end);
+    $("#gen-msg").innerHTML = lines.join("<br>");
+    const hist = clear($("#gen-hist"));
+    if (!history.length) hist.appendChild(h("p", { class: "small muted", style: { margin: 0 } }, L.history_empty));
+    history.slice(0, 8).forEach((e) => hist.appendChild(h("div", null,
+      h("span", { class: "mono" }, e.text), h("span", { class: "tag" + (e.known ? "" : " new") }, e.known ? L.tag_corpus : L.tag_new))));
+    wheel.redraw();
+  }
+
+  player("#gen-player", {
+    interval: 1200,
+    step: () => {
+      if (done) return false;
+      const s = dist(sent[sent.length - 1]);
+      const r = R();
+      let acc = 0, idx = s.order[s.order.length - 1];
+      for (const i of s.order) { acc += s.q[i]; if (r < acc) { idx = i; break; } }
+      last = { ...s, r, idx };
+      sent.push(PRED[idx]);
+      if (PRED[idx] === EOS || sent.length > MAXLEN) {
+        done = true; tooLong = PRED[idx] !== EOS;
+        const words = sent.filter((w) => w !== BOS && w !== EOS).join(" ");
+        history.unshift({ text: words, known: L.corpus.includes(words) });
+      }
+      render();
+      return !done;
+    },
+    canStep: () => !done,
+    reset: resetSent,
+  });
+  render();
+})();
+
+</script>
+</body>
+</html>
