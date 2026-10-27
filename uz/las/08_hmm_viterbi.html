@@ -1,0 +1,1526 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>8. Yashirin Markov modeli va Viterbi algoritmi</title>
+<meta name="description" content="Ketma-ketliklarni belgilash (Sequence Labeling), yashirin Markov modellari (HMM) va Viterbi algoritmi">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=PT+Mono&display=swap" rel="stylesheet">
+<style>
+/* NLP labs: shared style. Light theme only (labs are often projected in class). */
+:root {
+  color-scheme: light;
+  --paper: #EDF1F6;
+  --panel: #FFFFFF;
+  --soft: #F5F7FA;
+  --ink: #1C2A43;
+  --muted: #56637C;
+  --faint: #8C97AB;
+  --line: #D2D9E4;
+  --pen: #2B55C9;
+  --pen-dark: #1F3F9A;
+  --mark: #FFD84D;
+  --mark-soft: #FFF2B8;
+  --good: #1A8F5F;
+  --good-soft: #DDF3E8;
+  --bad: #C2413A;
+  --bad-soft: #FBE3E1;
+  --c1: #2B55C9;
+  --c2: #D04A55;
+  --c3: #17907E;
+  --c4: #9157BF;
+  --c5: #DB8F1F;
+  --c6: #5B7A2A;
+  --c7: #C1508F;
+  --c8: #5E6B85;
+  --font: "Golos Text", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --mono: "PT Mono", Consolas, "Liberation Mono", "Courier New", monospace;
+  --r: 10px;
+  --r-sm: 5px;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.55 var(--font);
+}
+a { color: var(--pen); }
+a:hover { color: var(--pen-dark); }
+:focus-visible { outline: 3px solid var(--mark); outline-offset: 2px; border-radius: 3px; }
+img, svg, canvas { max-width: 100%; }
+
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+
+/* top navigation */
+.topnav { background: var(--ink); color: #fff; font-size: 14px; }
+.topnav .wrap { display: flex; align-items: center; gap: 12px; min-height: 46px; flex-wrap: wrap; }
+.topnav a { color: #fff; text-decoration: none; padding: 6px 10px; border-radius: var(--r-sm); }
+.topnav a:hover { background: rgba(255,255,255,.12); color: #fff; }
+.topnav .course { font-weight: 600; margin-right: auto; }
+.topnav .pager { display: flex; gap: 4px; }
+.topnav .disabled { opacity: .35; pointer-events: none; }
+
+/* header */
+.lab-head { padding: 28px 0 8px; }
+.lab-no { margin: 0 0 6px; color: var(--muted); font-size: 15px; }
+.lab-head h1 { margin: 0; font-size: clamp(28px, 4.2vw, 42px); line-height: 1.12; font-weight: 700; letter-spacing: -.01em; max-width: 26ch; }
+.lab-head .lead { margin: 14px 0 0; font-size: 18px; max-width: 70ch; color: var(--ink); }
+.lab-head .topic { margin: 12px 0 0; font-size: 14px; color: var(--muted); max-width: 90ch; }
+
+/* sections and the highlighter heading: the one decorative motif */
+.part { margin: 34px 0 0; }
+.part > h2, .notes h2 {
+  font-size: 23px; line-height: 1.25; margin: 0 0 6px; font-weight: 700;
+  display: inline;
+  background: linear-gradient(transparent 58%, var(--mark) 58%, var(--mark) 92%, transparent 92%);
+  box-decoration-break: clone; -webkit-box-decoration-break: clone;
+  padding: 0 3px;
+}
+.part > .hint, .part > p.intro { margin: 10px 0 14px; color: var(--muted); max-width: 75ch; }
+.part > h2 + .stage { margin-top: 16px; }
+
+/* stage: visual on the left, controls and readouts on the right */
+.stage { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.stage.even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.stage.single { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 900px) { .stage, .stage.even { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; min-width: 0; }
+.panel + .panel { margin-top: 16px; }
+.stage > .panel + .panel { margin-top: 0; }
+.panel h3 { margin: 0 0 10px; font-size: 16px; font-weight: 600; }
+.panel h3 + .muted { margin-top: -6px; }
+.col > .panel + .panel { margin-top: 16px; }
+.stage > .panel + .panel { margin-top: 0; }
+
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+.tiny { font-size: 12.5px; }
+.mono { font-family: var(--mono); }
+.center { text-align: center; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row + .row { margin-top: 10px; }
+.grow { flex: 1 1 auto; }
+.spacer { height: 10px; }
+
+/* controls */
+.btn {
+  font: inherit; font-size: 15px; font-weight: 500;
+  border: 1px solid var(--pen); background: var(--pen); color: #fff;
+  border-radius: 999px; padding: 7px 16px; cursor: pointer; line-height: 1.3;
+  min-height: 36px; touch-action: manipulation;
+}
+.btn:hover { background: var(--pen-dark); border-color: var(--pen-dark); }
+.btn.ghost { background: transparent; color: var(--pen); }
+.btn.ghost:hover { background: #E6ECFA; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.small { font-size: 14px; padding: 5px 12px; min-height: 32px; }
+
+.player { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.player .speed { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.player .speed input { width: 110px; }
+
+.ctl { margin: 0 0 14px; }
+.panel > .ctl:last-child, .panel > div:last-child > .ctl:last-child { margin-bottom: 0; }
+.ctl label, .ctl .lbl { display: flex; justify-content: space-between; gap: 8px; font-size: 14.5px; margin-bottom: 4px; }
+.ctl .val { font-family: var(--mono); font-weight: 700; color: var(--pen); white-space: nowrap; }
+input[type=range] { width: 100%; accent-color: var(--pen); margin: 0; height: 26px; }
+
+.seg { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
+.seg button { font: inherit; font-size: 14px; border: 1px solid #B8C6EA; background: var(--panel); color: var(--pen); padding: 5px 12px; cursor: pointer; min-height: 34px; border-radius: 999px; }
+.seg button:hover { border-color: var(--pen); }
+.seg button[aria-pressed=true] { background: var(--pen); color: #fff; border-color: var(--pen); }
+
+input[type=text], textarea, select {
+  font: inherit; font-size: 15px; color: var(--ink); background: #fff;
+  border: 1px solid var(--line); border-radius: var(--r-sm); padding: 7px 10px; width: 100%; max-width: 100%;
+}
+textarea { min-height: 76px; resize: vertical; }
+input[type=text]:focus, textarea:focus, select:focus { border-color: var(--pen); outline: none; box-shadow: 0 0 0 3px #D7E1FA; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 14.5px; cursor: pointer; margin: 6px 0; }
+.check input { width: 17px; height: 17px; accent-color: var(--pen); }
+
+/* tokens: strings of text are the material of this course */
+.tokens { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tok {
+  font-family: var(--mono); font-size: 15px; line-height: 1.2;
+  border: 1px solid var(--line); background: var(--soft); border-radius: var(--r-sm);
+  padding: 4px 7px; white-space: pre; display: inline-flex; flex-direction: column; align-items: center;
+}
+.tok .sub { font-family: var(--font); font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.tok.hl { background: var(--mark-soft); border-color: #E8C33A; }
+.tok.on { background: var(--pen); color: #fff; border-color: var(--pen); }
+.tok.on .sub { color: #DCE4FA; }
+button.tok { cursor: pointer; font-family: var(--mono); color: var(--ink); }
+.morph { font-family: var(--mono); }
+.morph .b { color: var(--faint); padding: 0 1px; }
+
+mark, .hl-text { background: var(--mark-soft); color: inherit; border-radius: 3px; padding: 0 2px; }
+
+/* readouts */
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 14.5px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-family: var(--mono); font-weight: 700; text-align: right; }
+.big-num { font-size: 30px; font-weight: 700; line-height: 1.1; }
+.big-num small { font-size: 15px; font-weight: 400; color: var(--muted); margin-left: 6px; }
+
+.bars { display: grid; gap: 6px; }
+.bar { display: grid; grid-template-columns: minmax(70px, 34%) 1fr auto; gap: 8px; align-items: center; font-size: 14px; }
+.bar .lab { overflow-wrap: anywhere; line-height: 1.3; }
+.bar .track { background: var(--soft); border: 1px solid var(--line); border-radius: 4px; height: 16px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--pen); border-radius: 3px 0 0 3px; transition: width .35s ease; }
+.bar .num { font-family: var(--mono); font-size: 13px; min-width: 46px; text-align: right; }
+
+table.grid { border-collapse: collapse; font-size: 14px; width: 100%; }
+table.grid th, table.grid td { border: 1px solid var(--line); padding: 5px 7px; text-align: center; }
+table.grid th { background: var(--soft); font-weight: 600; }
+table.grid td.l, table.grid th.l { text-align: left; }
+table.grid td.num { font-family: var(--mono); }
+table.grid tr.sel td { background: var(--mark-soft); }
+.scroll-x { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+.status { border-radius: var(--r-sm); padding: 8px 12px; font-size: 14.5px; background: var(--soft); border: 1px solid var(--line); }
+.status.good { background: var(--good-soft); border-color: #A9DCC2; }
+.status.bad { background: var(--bad-soft); border-color: #F0B7B2; }
+.status.note { background: var(--mark-soft); border-color: #E8C33A; }
+
+canvas.viz { display: block; width: 100%; touch-action: none; border-radius: var(--r-sm); }
+.viz-wrap { position: relative; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; font-size: 13px; padding: 4px 8px; border-radius: 4px; white-space: nowrap; transform: translate(-50%, -120%); }
+
+/* notes: theory, experiments, quiz */
+.notes { margin: 44px 0 0; }
+.notes > section { margin: 0 0 34px; }
+.notes .text { margin-top: 14px; max-width: 76ch; }
+.notes .text p { margin: 0 0 12px; }
+.notes .text code, .notes li code { font-family: var(--mono); background: var(--soft); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; font-size: 14.5px; }
+.formula { font-family: var(--mono); background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--pen); border-radius: var(--r-sm); padding: 10px 14px; margin: 10px 0 14px; overflow-x: auto; white-space: pre-wrap; }
+ol.exp { margin: 14px 0 0; padding-left: 26px; max-width: 76ch; }
+ol.exp li { margin: 0 0 10px; padding-left: 4px; }
+
+.quiz { display: grid; gap: 14px; margin-top: 16px; max-width: 820px; }
+.quiz .q { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
+.quiz .q p { margin: 0 0 10px; font-weight: 600; }
+.quiz .opts { display: grid; gap: 6px; }
+.quiz .opt { font: inherit; text-align: left; background: var(--soft); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 12px; cursor: pointer; color: var(--ink); }
+.quiz .opt:hover { border-color: var(--pen); }
+.quiz .opt.right { background: var(--good-soft); border-color: var(--good); }
+.quiz .opt.wrong { background: var(--bad-soft); border-color: var(--bad); }
+.quiz .fb { margin-top: 10px; font-size: 14.5px; }
+.quiz .fb b { margin-right: 4px; }
+.quiz-score { font-weight: 600; margin-top: 4px; }
+
+.practice { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--mark); border-radius: var(--r); padding: 16px 18px; max-width: 820px; }
+.practice p { margin: 0 0 12px; }
+.practice a.btn { text-decoration: none; display: inline-block; }
+
+footer { margin: 50px 0 0; padding: 22px 0 40px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+
+@media (max-width: 600px) {
+  body { font-size: 15.5px; }
+  .lab-head .lead { font-size: 16.5px; }
+  .panel { padding: 13px; }
+  .part > h2, .notes h2 { font-size: 21px; }
+  .bar { grid-template-columns: minmax(60px, 38%) 1fr auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+</style>
+</head>
+<body>
+<nav class="topnav" aria-label="Mundarija"><div class="wrap">
+  <a class="course" href="../index.html">Mundarija</a>
+  <span class="pager">
+    <a href="07_classification_sentiment.html" class="" rel="prev">‹ Orqaga</a>
+    <a href="09_ner_bio_crf.html" class="" rel="next">Keyingi ›</a>
+  </span>
+</div></nav>
+<div class="wrap">
+<header class="lab-head">
+  <p class="lab-no">18 ta laboratoriyadan 8-si</p>
+  <h1>Yashirin Markov modeli va Viterbi algoritmi</h1>
+  <p class="lead">Kichik belgilangan korpus boʻyicha HMM jadvallari qanday hisoblanadi, Viterbi gapning eng yaxshi belgilanishini qadamma-qadam qanday topadi va tegni ochkoʻz tanlash nima uchun xato qilishi mumkin.</p>
+  <p class="topic">Kurs mavzusi: Ketma-ketliklarni belgilash (Sequence Labeling), yashirin Markov modellari (HMM) va Viterbi algoritmi</p>
+</header>
+<main id="lab">
+<style>
+.corpus { position: relative; display: grid; gap: 5px; max-height: 780px; overflow-y: auto; padding: 2px 4px 2px 0; }
+@media (max-width: 900px) { .corpus { max-height: 420px; } }
+.corpus .sent { display: flex; flex-wrap: wrap; gap: 4px; align-items: flex-start; padding: 3px 4px; border-radius: var(--r-sm); }
+.corpus .sent.cur { background: var(--soft); }
+.corpus .sent .n { font-size: 12px; color: var(--faint); width: 18px; text-align: right; padding-top: 6px; flex: none; }
+.corpus .tok { font-size: 14px; padding: 3px 6px; transition: opacity .2s, background .2s; }
+.corpus .tok.dim { opacity: .35; }
+.corpus .tok.hl { box-shadow: 0 0 0 2px var(--mark); }
+table.mt { border-collapse: collapse; font-size: 13.5px; width: 100%; }
+table.mt th, table.mt td { border: 1px solid var(--line); padding: 4px 6px; text-align: center; white-space: nowrap; }
+table.mt th { background: var(--soft); font-weight: 600; font-size: 12.5px; }
+table.mt th.l { text-align: left; font-family: var(--mono); font-weight: 600; }
+table.mt td { font-family: var(--mono); cursor: pointer; min-width: 46px; transition: background .25s; }
+table.mt td.flash { outline: 3px solid var(--mark); outline-offset: -3px; }
+table.mt td.pick { box-shadow: inset 0 0 0 2px var(--ink); }
+table.mt tr.other th.l { font-family: var(--font); font-style: italic; font-weight: 400; color: var(--muted); }
+.formula.live { font-size: 14px; margin: 10px 0 0; }
+.trellis-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 6px 0 4px; border: 1px solid var(--line); border-radius: var(--r-sm); background: #fff; }
+.trellis-scroll canvas.viz { touch-action: pan-x pan-y; cursor: pointer; }
+.trellis-inner { display: flex; align-items: flex-start; }
+.trellis-inner .cv { flex: 1 1 auto; min-width: 0; }
+.rowlab { position: sticky; left: 0; z-index: 2; flex: none; background: #fff; border-right: 1px solid var(--line); box-sizing: border-box; padding-left: 6px; }
+.rowlab div { display: flex; align-items: center; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+.scroll-hint { display: none; font-size: 12.5px; color: var(--faint); margin: 0 0 4px; }
+@media (max-width: 700px) { .scroll-hint { display: block; } }
+table.calc { font-size: 13.5px; margin: 8px 0; }
+table.calc td, table.calc th { padding: 4px 6px; white-space: nowrap; }
+@media (max-width: 600px) { table.calc { font-size: 12.5px; } table.calc td, table.calc th { padding: 3px 4px; } }
+table.calc tr.best td { background: var(--mark-soft); font-weight: 700; }
+table.calc tr.zero td { color: var(--faint); }
+.readout p { margin: 0 0 8px; font-size: 14.5px; }
+.readout .zeros { color: var(--muted); font-size: 13.5px; }
+.ctlrow { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: flex-end; }
+.ctlrow .ctl { margin: 0; }
+table.cmp td .f { display: block; font-family: var(--mono); font-size: 12px; color: var(--muted); font-weight: 400; }
+table.cmp td b { font-family: var(--mono); }
+table.cmp tr.tot td { font-weight: 700; border-top: 2px solid var(--ink); }
+#g-bars { margin-top: 10px; }
+#v-path .tok .sub { color: rgba(255,255,255,.9); font-weight: 700; }
+#g-bars .bar .lab { font-family: var(--mono); font-size: 13px; }
+</style>
+
+<section class="part" id="p1">
+  <h2>Belgilangan korpusdan HMM jadvallariga</h2>
+  <p class="intro">Model oddiy sanash orqali oʻrganadi. «Boshlash»ni bosing: har qadamda korpusdan bitta soʻz olinadi va ikki hisoblagichga bir qoʻshiladi. Formulani koʻrish uchun jadval katakchasini bosing.</p>
+  <div class="stage even">
+    <div class="col">
+      <div class="panel">
+        <h3>Belgilangan korpus</h3>
+        <p class="small muted" id="c-stat"></p>
+        <div id="c-player"></div>
+        <div class="spacer"></div>
+        <div class="row"><span id="c-all"></span><span id="c-show"></span></div>
+        <div class="spacer"></div>
+        <div class="status note small" id="c-msg"></div>
+        <div class="spacer"></div>
+        <div class="corpus" id="c-corpus"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <h3>Oʻtishlar: P(teg | oldingi teg)</h3>
+        <p class="small muted">Qator — oldingi teg, ustun — keyingi teg. Ehtimollarning har bir qatori yigʻindisi 1 ga teng.</p>
+        <div class="scroll-x" id="c-trans"></div>
+      </div>
+      <div class="panel">
+        <h3>Chiqish: P(soʻz | teg)</h3>
+        <p class="small muted">Quyidagi misollardagi soʻzlar koʻrsatilgan, qolganlari «boshqalar» qatoriga yigʻilgan. Har bir ustun yigʻindisi 1 ga teng.</p>
+        <div class="scroll-x" id="c-emis"></div>
+        <div class="formula live" id="c-formula"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="part" id="p2">
+  <h2>Panjarada Viterbi algoritmi</h2>
+  <p class="intro">Panjara qatorlari — teglar, ustunlari — soʻzlar. Har qadam bitta katakchani toʻldiradi: oldingi ustundan eng yaxshi yoʻlni olamiz, oʻtishga va chiqishga koʻpaytiramiz. Oxirida yoʻl strelkalar boʻyicha oʻngdan chapga tiklanadi.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <div id="v-pick"></div>
+        <div class="ctl"><label for="v-own"><span>Yoki korpus soʻzlaridan oʻz gapingiz</span></label>
+          <input type="text" id="v-own" autocomplete="off" spellcheck="false" placeholder="masalan: men yangi koʻylak oldim"></div>
+        <p class="small muted" id="v-note" style="margin:0 0 6px"></p>
+        <p class="scroll-hint">Panjarani barmoq bilan yon tomonga surish mumkin.</p>
+        <div class="trellis-scroll" id="v-scroll"><div id="v-canvas"></div></div>
+        <div id="v-legend"></div>
+        <div class="spacer"></div>
+        <div class="ctlrow"><div id="v-player"></div><div id="v-mode"></div></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <h3>Nima boʻlyapti</h3>
+        <div class="readout" id="v-readout"></div>
+      </div>
+      <div class="panel">
+        <h3>Eng yaxshi yoʻl</h3>
+        <div id="v-path"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="part" id="p3">
+  <h2>Ochkoʻz dekoder va Viterbi</h2>
+  <p class="intro">Ochkoʻz (greedy) dekoder har bir soʻz uchun hozir eng yaxshi boʻlgan tegni tanlaydi va orqaga qaytmaydi. Qadamma-qadam yurib, tuzoqni toping. Slayderlar model ehtimollarini oʻzgartiradi.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <p class="scroll-hint">Panjarani barmoq bilan yon tomonga surish mumkin.</p>
+        <div class="trellis-scroll" id="g-scroll"><div id="g-canvas"></div></div>
+        <div id="g-legend"></div>
+        <div class="spacer"></div>
+        <div id="g-player"></div>
+        <div class="spacer"></div>
+        <div class="status note small" id="g-status"></div>
+        <div id="g-bars"></div>
+      </div>
+      <div class="panel">
+        <p class="small" id="g-note" style="margin:0"></p>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <h3>Ikki yoʻlning koʻpaytuvchilari</h3>
+        <div id="g-cmp"></div>
+      </div>
+      <div class="panel">
+        <h3>Model parametrlari</h3>
+        <p class="small muted">Oʻsha qatordagi (yoki oʻsha tegdagi) boshqa sonlar yigʻindi 1 boʻlib qolishi uchun masshtablanadi. Oʻzgarishlar faqat shu qismda amal qiladi.</p>
+        <div id="g-params"></div>
+        <div id="g-reset"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div class="notes">
+  <section><h2>Bu qanday ishlaydi</h2><div class="text">
+<p><b>Ketma-ketliklarni belgilash</b> (sequence labeling) — gapdagi har bir soʻzga belgi (teg) qoʻyish masalasi: soʻz turkumi (POS-tegging), nomlangan obyekt turi (NER, 9-mavzu), dialogdagi slot (15-mavzu). Qiyinchilik shundaki, bitta soʻz shakli turli teglarga ega boʻlishi mumkin: «yoz» soʻzi «issiq yoz keldi» gapida ot, «xat yoz» birikmasida esa feʼl. Tanlovni kontekst, yaʼni qoʻshni teglar koʻrsatadi.</p>
+<p><b>Yashirin Markov modeli (HMM)</b> gap qanday «hosil boʻlishi» mumkinligini tasvirlaydi: teg tanlanadi, u boʻyicha soʻz, keyingi teg faqat oldingi tegga bogʻliq va hokazo. Teglar yashirin, soʻzlar kuzatiladi. Modelni ikki jadval belgilaydi:</p>
+<ul>
+<li><b>oʻtish ehtimollari</b> P(tᵢ | tᵢ₋₁): qaysi tegdan keyin qaysi teg keladi, boshlanish &lt;s&gt; va tugash &lt;/s&gt; holatlari bilan birga;</li>
+<li><b>chiqish (emissiya) ehtimollari</b> P(wᵢ | tᵢ): berilgan tegda soʻzning ehtimoli.</li>
+</ul>
+<p>Ikkala jadval belgilangan korpusdan sanash orqali baholanadi (maksimal haqiqatga oʻxshashlik usuli):</p>
+<div class="formula">P(tⱼ | tᵢ) = C(tᵢ → tⱼ) / C(tᵢ → ·)        P(w | t) = C(t, w) / C(t)</div>
+<p>Gap va uning belgilanishining birgalikdagi ehtimoli barcha koʻpaytuvchilarning koʻpaytmasiga teng:</p>
+<div class="formula">P(w, t) = Π P(tᵢ | tᵢ₋₁) · P(wᵢ | tᵢ) · P(&lt;/s&gt; | tₙ)</div>
+<p>Bizga eng katta ehtimolli belgilash kerak. Barcha variantlarni sanab chiqib boʻlmaydi: 5 ta teg va 20 ta soʻzda ular 5²⁰ ≈ 10¹⁴ ta. <b>Viterbi algoritmi</b> masalani dinamik dasturlash bilan yechadi. Panjara (trellis) katakchasi v_t(j) t-soʻzda j tegi bilan tugaydigan eng yaxshi yoʻlning ehtimolini saqlaydi:</p>
+<div class="formula">v_t(j) = max_i [ v_{t−1}(i) · P(j | i) ] · P(w_t | j)</div>
+<p>Maksimum bilan birga orqaga koʻrsatkich ham eslab qolinadi: eng yaxshi yoʻl qaysi katakchadan kelgan. Oxirgi soʻzdan keyin &lt;/s&gt; ga oʻtish hisobga olinadi, eng yaxshi katakcha tanlanadi va yoʻl koʻrsatkichlar boʻyicha oʻngdan chapga tiklanadi. Ish Kⁿ oʻrniga O(n·K²) amal oladi. Amalda ehtimollarni koʻpaytirish oʻrniga logarifmlar qoʻshiladi, aks holda sonlar juda tez kichrayib ketadi («ln p» tugmasi).</p>
+<p><b>Ochkoʻz (greedy) dekoder</b> chapdan oʻngga har bir soʻz uchun eng yaxshi tegni tanlaydi va qarorlarini qayta koʻrmaydi. U tezroq, lekin tuzoqqa tushishi mumkin: hozir foydali teg keyingi davomni noqulay qiladi. Viterbi barcha yoʻllarni birdaniga hisobga oladi va har doim global maksimumni topadi.</p>
+<p>HMM cheklovlari: teg faqat oldingi tegga, soʻz faqat oʻz tegiga bogʻliq, qoʻshimcha yoki bosh harf kabi belgilarni qoʻshib boʻlmaydi. Notanish soʻz 0 ehtimol oladi, agglyutinativ oʻzbek tilida esa bu ayniqsa koʻp uchraydi (kitob, kitobni, kitobimdan…). Shuning uchun silliqlash (4-mavzu), belgilarga asoslangan modellar — CRF (9-mavzu) va neyron tarmoqlar kerak.</p></div></section>
+  <section><h2>Tajribalar</h2><ol class="exp"><li>Birinchi qismda «Boshlash»ni bosing va oʻtishlar jadvalidagi OT qatorini kuzating. Otdan keyin qaysi teg eng koʻp keladi? OT → FEʼL katakchasini bosib, formulani tekshiring.</li>
+<li>Ikkinchi qismda «bu xatni yoz» va «bu yoz issiq boʻldi» gaplarini «Qadam» tugmasi bilan oʻting. Nima uchun bir xil «yoz» soʻzi turli teglar oldi? Buni qaysi oʻtish hal qildi?</li>
+<li>«Katakchalardagi sonlar»ni «ln p» ga oʻtkazing. Koʻpaytma qanday qilib yigʻindiga aylandi? Nima uchun haqiqiy teggerlar logarifmlarda hisoblaydi?</li>
+<li>«men yangi koʻylak oldim» gapini kiriting, keyin oxiriga korpusda yoʻq soʻz qoʻshing (masalan, «kitoblarimizni»). Shu soʻzning ustuni va yakuniy ehtimol bilan nima boʻldi?</li>
+<li>Uchinchi qismda «Boshlash»ni bosing. Ochkoʻz dekoder qaysi soʻzda notoʻgʻri teg tanlaydi va nima uchun keyin uni tuzata olmaydi? Jadvalda ikki yoʻlning koʻpaytuvchilarini solishtiring.</li>
+<li>P(FEʼL | SIFAT) slayderini oʻngga suring. Taxminan qaysi qiymatdan boshlab yoʻllar bir xil boʻladi? P(koʻk | SIFAT) qanday boʻlganda ochkoʻz dekoder oʻzi toʻgʻri tegni tanlaydi?</li></ol></section>
+  <section><h2>Oʻzingizni tekshiring</h2><div class="quiz" id="quiz"></div></section>
+  <section><h2>Amaliy mashgʻulot</h2>
+    <div class="practice" style="margin-top:14px"><p>Xuddi shu algoritm haqiqiy Python kodida. Daftar Google Colabʼda ochiladi, hech narsa oʻrnatish shart emas.</p><a class="btn" id="colab" href="../notebooks/08_hmm_viterbi.ipynb">Amaliy mashgʻulotni yuklab olish (.ipynb)</a></div>
+  </section>
+</div>
+<footer>«NLP algoritmlari» kursining virtual laboratoriyasi. Brauzerda ishlaydi, oʻrnatish va internet talab qilinmaydi. <a href="../../ru/labs/08_hmm_viterbi.html" lang="ru">Русский</a></footer>
+</div>
+<script src="../../config.js"></script>
+<script>
+const LANG = "uz";
+const META = {"n":8,"slug":"08_hmm_viterbi","total":18};
+const UI = {"toc": "Mundarija",
+"prev": "Orqaga",
+"next": "Keyingi",
+"labOf": (n, total) => `${total} ta laboratoriyadan ${n}-si`,
+"topic": "Kurs mavzusi",
+"play": "Boshlash",
+"pause": "Toʻxtatish",
+"step": "Qadam",
+"reset": "Boshidan",
+"speed": "Tezlik",
+"how": "Bu qanday ishlaydi",
+"experiments": "Tajribalar",
+"quiz": "Oʻzingizni tekshiring",
+"correct": "Toʻgʻri.",
+"wrong": "Unchalik emas.",
+"tryAgain": "Boshqa variantni tanlab koʻring.",
+"score": (a, b) => `Toʻgʻri javoblar: ${b} tadan ${a} ta`,
+"colab": "Amaliy mashgʻulotni Colabʼda ochish",
+"nbDownload": "Amaliy mashgʻulotni yuklab olish (.ipynb)",
+"practice": "Amaliy mashgʻulot",
+"practiceText": "Xuddi shu algoritm haqiqiy Python kodida. Daftar Google Colabʼda ochiladi, hech narsa oʻrnatish shart emas.",
+"langName": "Oʻzbekcha",
+"otherLang": "Русский",
+"footer": "«NLP algoritmlari» kursining virtual laboratoriyasi. Brauzerda ishlaydi, oʻrnatish va internet talab qilinmaydi."};
+const L = {"title":"Yashirin Markov modeli va Viterbi algoritmi","lead":"Kichik belgilangan korpus boʻyicha HMM jadvallari qanday hisoblanadi, Viterbi gapning eng yaxshi belgilanishini qadamma-qadam qanday topadi va tegni ochkoʻz tanlash nima uchun xato qilishi mumkin.","tags":[{"id":"OT","name":"ot"},{"id":"FEʼL","name":"feʼl"},{"id":"SIFAT","name":"sifat"},{"id":"OLMOSH","name":"olmosh"},{"id":"KOʻMAKCHI","name":"koʻmakchi"}],"corpus":["men/OLMOSH koʻk/SIFAT koʻylak/OT kiydim/FEʼL","u/OLMOSH koʻk/SIFAT choynakni/OT sindirdi/FEʼL","onam/OT yangi/SIFAT koʻylak/OT tikdi/FEʼL","dadam/OT koʻk/SIFAT mashina/OT oldi/FEʼL","opam/OT somsaga/OT koʻk/OT soldi/FEʼL","buvim/OT bozorda/OT koʻk/OT sotadi/FEʼL","havo/OT sovuq/SIFAT boʻldi/FEʼL","u/OLMOSH ukasi/OT uchun/KOʻMAKCHI kitob/OT oldi/FEʼL","biz/OLMOSH doʻstlarimiz/OT bilan/KOʻMAKCHI choy/OT ichdik/FEʼL","issiq/SIFAT yoz/OT keldi/FEʼL","sen/OLMOSH ukangga/OT xat/OT yoz/FEʼL","men/OLMOSH yangi/SIFAT kitob/OT oldim/FEʼL","u/OLMOSH bu/OLMOSH xatni/OT oʻqidi/FEʼL","onam/OT bozordan/OT non/OT oldi/FEʼL","yangi/SIFAT maktab/OT ochildi/FEʼL","katta/SIFAT daraxt/OT quladi/FEʼL"],"focus":["bu","xatni","yoz","issiq","boʻldi","men","koʻk","koʻylak","oldim","onam","bozordan","oldi"],"p1_title":"Belgilangan korpusdan HMM jadvallariga","p1_intro":"Model oddiy sanash orqali oʻrganadi. «Boshlash»ni bosing: har qadamda korpusdan bitta soʻz olinadi va ikki hisoblagichga bir qoʻshiladi. Formulani koʻrish uchun jadval katakchasini bosing.","corpus_title":"Belgilangan korpus","corpus_stat":"{n} ta gap, {tok} ta soʻz, {v} ta turli soʻz shakli. Qayta ishlandi: {tok} tadan {done} ta.","all_btn":"Hammasini sanash","show_label":"Koʻrsatish","show_counts":"sonlar","show_probs":"ehtimollar","trans_title":"Oʻtishlar: P(teg | oldingi teg)","trans_hint":"Qator — oldingi teg, ustun — keyingi teg. Ehtimollarning har bir qatori yigʻindisi 1 ga teng.","emis_title":"Chiqish: P(soʻz | teg)","emis_hint":"Quyidagi misollardagi soʻzlar koʻrsatilgan, qolganlari «boshqalar» qatoriga yigʻilgan. Har bir ustun yigʻindisi 1 ga teng.","other_words":"boshqalar","corner_trans":"qayerdan \\ qayerga","corner_emis":"soʻz \\ teg","count_start":"Hisoblagichlar boʻsh. «Qadam» yoki «Boshlash»ni bosing.","count_step":"«{w}»/{t}: oʻtish {a} → {t} +1, chiqish {t} → «{w}» +1{end}.","count_end":", gap oxiri {t} → \u003c/s> +1","count_done":"Butun korpus sanaldi. Son qanday olinganini koʻrish uchun istalgan katakchani bosing.","f_trans":"P({j} | {i}) = C({i} → {j}) / C({i} → ·) = {c} / {n} = {p}","f_emis":"P(«{w}» | {t}) = C({t}, «{w}») / C({t}) = {c} / {n} = {p}","f_other":"P(boshqa soʻzlar | {t}) = {c} / {n} = {p}","f_empty":"Maxraj hozircha 0 ga teng: bunday teg hali uchramagan.","p2_title":"Panjarada Viterbi algoritmi","p2_intro":"Panjara qatorlari — teglar, ustunlari — soʻzlar. Har qadam bitta katakchani toʻldiradi: oldingi ustundan eng yaxshi yoʻlni olamiz, oʻtishga va chiqishga koʻpaytiramiz. Oxirida yoʻl strelkalar boʻyicha oʻngdan chapga tiklanadi.","sent_label":"Gap","own_label":"Yoki korpus soʻzlaridan oʻz gapingiz","own_placeholder":"masalan: men yangi koʻylak oldim","unknown":"{list} soʻzlari korpusda yoʻq: barcha teglar uchun P(soʻz | teg) = 0, butun ustun nolga aylanadi. Haqiqiy teggerlar silliqlashdan foydalanadi (4-mavzu).","too_long":"Birinchi {n} ta soʻz olindi.","nums_label":"Katakchalardagi sonlar","nums_p":"p","nums_log":"ln p","path_count":"Toʻliq sanab chiqish: {N} = {pow} ta yoʻl, ulardan nol boʻlmagani {nz} ta. Viterbi esa atigi {c} ta katakchani toʻldirdi.","brute_ok":"Natija barcha yoʻllarni toʻliq sanab chiqish natijasi bilan bir xil.","brute_bad":"Diqqat: natija toʻliq sanab chiqish bilan mos kelmadi.","readout_title":"Nima boʻlyapti","th_from":"qaysi tegdan","th_prev":"oldingi v","th_trans":"oʻtish","th_res":"natija","v_start":"Panjara boʻsh. «Qadam»ni bosing: birinchi «{w}» soʻzidan boshlaymiz.","v_first":"1-soʻz «{w}», {t} tegi. Yoʻl &lt;s&gt; dan boshlanadi, shuning uchun oldingi ustun yoʻq.","v_cell":"{k}-soʻz «{w}», {t} tegi. Oldingi ustunning qaysi katakchasidan kelish eng yaxshi?","v_res_p":"Eng yaxshi kirish: {i} dan. P(«{w}» | {t}) = {b} chiqishga koʻpaytirib, v = {v} ni olamiz.","v_res_log":"Eng yaxshi kirish: {i} dan. ln P(«{w}» | {t}) = {b} ni qoʻshib, ln v = {v} ni olamiz.","v_zeros":"«{w}» soʻzi korpusda {list} teglari bilan uchramagan: P = 0, bu katakchalar darhol 0 ga teng.","v_zero_col":"«{w}» soʻzi korpusda hech qaysi teg bilan uchramagan: butun ustun 0 ga teng.","v_nopath":"Bu yerga nol boʻlmagan ehtimolli birorta ham yoʻl kelmaydi, shuning uchun v = 0.","v_end_p":"Gap oxiri. Oxirgi ustunning har bir katakchasini P(&lt;/s&gt; | teg) ga koʻpaytiramiz va maksimumni olamiz.","v_end_log":"Gap oxiri. Oxirgi ustunning har bir katakchasiga ln P(&lt;/s&gt; | teg) ni qoʻshamiz va maksimumni olamiz.","v_back":"Orqaga yurish: {k}-soʻz «{w}» {t} tegini oladi. Bu katakchadan strelka chapga, {nt} tegiga olib boradi.","v_back_first":"1-soʻz «{w}» {t} tegini oladi. Yoʻl toʻliq tiklandi.","v_done":"Tayyor. Eng yaxshi belgilash ehtimoli P = {p}. Hisobni yana koʻrish uchun toʻldirilgan katakchani bosing.","v_allzero":"Barcha yoʻllarning ehtimoli 0: gapda notanish soʻz yoki imkonsiz oʻtish bor.","path_title":"Eng yaxshi yoʻl","path_wait":"Orqaga yurishdan keyin paydo boʻladi.","lg_current":"joriy katakcha","lg_path":"eng yaxshi yoʻl","lg_back":"orqaga koʻrsatkich","examples":[{"text":"bu xatni yoz","note":"«yoz» ot ham, feʼl ham boʻladi. Bu yerda «xatni»dan keyin feʼl."},{"text":"bu yoz issiq boʻldi","note":"Bu yerda «yoz» — ot (yil fasli)."},{"text":"men koʻk koʻylak oldim","note":"«koʻk» otdan oldin keldi: sifat (rang)."},{"text":"onam bozordan koʻk oldi","note":"«koʻk» feʼldan oldin keldi: ot (koʻkat)."}],"p3_title":"Ochkoʻz dekoder va Viterbi","p3_intro":"Ochkoʻz (greedy) dekoder har bir soʻz uchun hozir eng yaxshi boʻlgan tegni tanlaydi va orqaga qaytmaydi. Qadamma-qadam yurib, tuzoqni toping. Slayderlar model ehtimollarini oʻzgartiradi.","g_sentence":"onam bozordan koʻk oldi","g_start":"«Qadam»ni bosing: ochkoʻz dekoder birinchi soʻzdan boshlaydi.","g_step":"{k}-soʻz «{w}». Oldin tanlangan teg: {prev}. Har bir teg uchun P(teg | {prev}) × P(«{w}» | teg) ni hisoblab, maksimumni olamiz: \u003cb>{t}\u003c/b>.","g_end":"Ochkoʻz yoʻl qurildi. Keyingi qadam Viterbi yoʻlini koʻrsatadi.","g_final":"Toʻq sariq yoʻl — ochkoʻz, koʻk punktir — Viterbi. Oʻngdagi jadval koʻpaytuvchilarni solishtiradi.","lg_greedy":"ochkoʻz","g_cells":"katakchada: P(teg | oldingi tanlov) × P(soʻz | teg)","g_bars_title":"«{w}» uchun teglar bahosi:","lg_viterbi":"Viterbi","params_title":"Model parametrlari","params_hint":"Oʻsha qatordagi (yoki oʻsha tegdagi) boshqa sonlar yigʻindi 1 boʻlib qolishi uchun masshtablanadi. Oʻzgarishlar faqat shu qismda amal qiladi.","params_reset":"Korpus baholarini qaytarish","cmp_title":"Ikki yoʻlning koʻpaytuvchilari","cmp_wait":"Jadval oxirgi qadamdan keyin paydo boʻladi.","th_word":"soʻz","th_greedy":"ochkoʻz","th_viterbi":"Viterbi","row_end":"oxir &lt;/s&gt;","row_total":"P(yoʻl)","cmp_same":"Yoʻllar bir xil: bu parametrlarda ochkoʻz tanlov global jihatdan ham eng yaxshi boʻldi.","cmp_diff":"Yoʻllar quyidagi soʻzlarga turli teglar beradi: {list}. Viterbi yoʻli {r} marta ehtimolliroq.","scroll_hint":"Panjarani barmoq bilan yon tomonga surish mumkin.","cmp_gzero":"Ochkoʻz yoʻlning ehtimoli 0: u ruxsat etilgan oʻtish yoʻq boshi berk joyga kirib qoldi. Viterbi bundan qochdi.","cmp_allzero":"Bu parametrlarda barcha yoʻllarning ehtimoli 0.","g_note":"\u003cb>Boshlangʻich parametrlardagi tuzoq.\u003c/b> «bozordan» (OT) dan keyin «koʻk»ni sifat deb olish mahalliy jihatdan foydaliroq: P(SIFAT | OT) × P(koʻk | SIFAT) = {p0} × {p1}, bu esa P(OT | OT) × P(koʻk | OT) = {p2} × {p3} dan katta. Lekin oʻzbek tilida sifat otdan oldin keladi, bu yerda esa undan keyin darhol feʼl turibdi: SIFAT → FEʼL oʻtishi korpusda kam uchraydi ({p4}), OT → FEʼL esa tez-tez ({p5}). Viterbi ikkala koʻpaytuvchini birdaniga koʻradi.","g_note_vals":[["a","OT","SIFAT"],["b","SIFAT","koʻk"],["a","OT","OT"],["b","OT","koʻk"],["a","SIFAT","FEʼL"],["a","OT","FEʼL"]],"g_params":[{"a":["SIFAT","FEʼL"]},{"a":["OT","OT"]},{"b":["SIFAT","koʻk"]}],"theory":"\n\u003cp>\u003cb>Ketma-ketliklarni belgilash\u003c/b> (sequence labeling) — gapdagi har bir soʻzga belgi (teg) qoʻyish masalasi: soʻz turkumi (POS-tegging), nomlangan obyekt turi (NER, 9-mavzu), dialogdagi slot (15-mavzu). Qiyinchilik shundaki, bitta soʻz shakli turli teglarga ega boʻlishi mumkin: «yoz» soʻzi «issiq yoz keldi» gapida ot, «xat yoz» birikmasida esa feʼl. Tanlovni kontekst, yaʼni qoʻshni teglar koʻrsatadi.\u003c/p>\n\u003cp>\u003cb>Yashirin Markov modeli (HMM)\u003c/b> gap qanday «hosil boʻlishi» mumkinligini tasvirlaydi: teg tanlanadi, u boʻyicha soʻz, keyingi teg faqat oldingi tegga bogʻliq va hokazo. Teglar yashirin, soʻzlar kuzatiladi. Modelni ikki jadval belgilaydi:\u003c/p>\n\u003cul>\n\u003cli>\u003cb>oʻtish ehtimollari\u003c/b> P(tᵢ | tᵢ₋₁): qaysi tegdan keyin qaysi teg keladi, boshlanish &lt;s&gt; va tugash &lt;/s&gt; holatlari bilan birga;\u003c/li>\n\u003cli>\u003cb>chiqish (emissiya) ehtimollari\u003c/b> P(wᵢ | tᵢ): berilgan tegda soʻzning ehtimoli.\u003c/li>\n\u003c/ul>\n\u003cp>Ikkala jadval belgilangan korpusdan sanash orqali baholanadi (maksimal haqiqatga oʻxshashlik usuli):\u003c/p>\n\u003cdiv class=\"formula\">P(tⱼ | tᵢ) = C(tᵢ → tⱼ) / C(tᵢ → ·)        P(w | t) = C(t, w) / C(t)\u003c/div>\n\u003cp>Gap va uning belgilanishining birgalikdagi ehtimoli barcha koʻpaytuvchilarning koʻpaytmasiga teng:\u003c/p>\n\u003cdiv class=\"formula\">P(w, t) = Π P(tᵢ | tᵢ₋₁) · P(wᵢ | tᵢ) · P(&lt;/s&gt; | tₙ)\u003c/div>\n\u003cp>Bizga eng katta ehtimolli belgilash kerak. Barcha variantlarni sanab chiqib boʻlmaydi: 5 ta teg va 20 ta soʻzda ular 5²⁰ ≈ 10¹⁴ ta. \u003cb>Viterbi algoritmi\u003c/b> masalani dinamik dasturlash bilan yechadi. Panjara (trellis) katakchasi v_t(j) t-soʻzda j tegi bilan tugaydigan eng yaxshi yoʻlning ehtimolini saqlaydi:\u003c/p>\n\u003cdiv class=\"formula\">v_t(j) = max_i [ v_{t−1}(i) · P(j | i) ] · P(w_t | j)\u003c/div>\n\u003cp>Maksimum bilan birga orqaga koʻrsatkich ham eslab qolinadi: eng yaxshi yoʻl qaysi katakchadan kelgan. Oxirgi soʻzdan keyin &lt;/s&gt; ga oʻtish hisobga olinadi, eng yaxshi katakcha tanlanadi va yoʻl koʻrsatkichlar boʻyicha oʻngdan chapga tiklanadi. Ish Kⁿ oʻrniga O(n·K²) amal oladi. Amalda ehtimollarni koʻpaytirish oʻrniga logarifmlar qoʻshiladi, aks holda sonlar juda tez kichrayib ketadi («ln p» tugmasi).\u003c/p>\n\u003cp>\u003cb>Ochkoʻz (greedy) dekoder\u003c/b> chapdan oʻngga har bir soʻz uchun eng yaxshi tegni tanlaydi va qarorlarini qayta koʻrmaydi. U tezroq, lekin tuzoqqa tushishi mumkin: hozir foydali teg keyingi davomni noqulay qiladi. Viterbi barcha yoʻllarni birdaniga hisobga oladi va har doim global maksimumni topadi.\u003c/p>\n\u003cp>HMM cheklovlari: teg faqat oldingi tegga, soʻz faqat oʻz tegiga bogʻliq, qoʻshimcha yoki bosh harf kabi belgilarni qoʻshib boʻlmaydi. Notanish soʻz 0 ehtimol oladi, agglyutinativ oʻzbek tilida esa bu ayniqsa koʻp uchraydi (kitob, kitobni, kitobimdan…). Shuning uchun silliqlash (4-mavzu), belgilarga asoslangan modellar — CRF (9-mavzu) va neyron tarmoqlar kerak.\u003c/p>","experiments":["Birinchi qismda «Boshlash»ni bosing va oʻtishlar jadvalidagi OT qatorini kuzating. Otdan keyin qaysi teg eng koʻp keladi? OT → FEʼL katakchasini bosib, formulani tekshiring.","Ikkinchi qismda «bu xatni yoz» va «bu yoz issiq boʻldi» gaplarini «Qadam» tugmasi bilan oʻting. Nima uchun bir xil «yoz» soʻzi turli teglar oldi? Buni qaysi oʻtish hal qildi?","«Katakchalardagi sonlar»ni «ln p» ga oʻtkazing. Koʻpaytma qanday qilib yigʻindiga aylandi? Nima uchun haqiqiy teggerlar logarifmlarda hisoblaydi?","«men yangi koʻylak oldim» gapini kiriting, keyin oxiriga korpusda yoʻq soʻz qoʻshing (masalan, «kitoblarimizni»). Shu soʻzning ustuni va yakuniy ehtimol bilan nima boʻldi?","Uchinchi qismda «Boshlash»ni bosing. Ochkoʻz dekoder qaysi soʻzda notoʻgʻri teg tanlaydi va nima uchun keyin uni tuzata olmaydi? Jadvalda ikki yoʻlning koʻpaytuvchilarini solishtiring.","P(FEʼL | SIFAT) slayderini oʻngga suring. Taxminan qaysi qiymatdan boshlab yoʻllar bir xil boʻladi? P(koʻk | SIFAT) qanday boʻlganda ochkoʻz dekoder oʻzi toʻgʻri tegni tanlaydi?"],"quiz":[{"q":"Viterbi panjarasining v_t(j) katakchasi nimani saqlaydi?","a":["Barcha belgilashlar boʻyicha t-soʻzning j tegiga ega boʻlish ehtimolini","t-soʻzda j tegi bilan tugaydigan eng yaxshi yoʻlning ehtimolini","t tegidan j tegiga oʻtish ehtimolini","j tegi korpusda necha marta uchraganini"],"correct":1,"why":"Viterbi katakchaga olib keladigan yoʻllar boʻyicha maksimumni oladi va eng yaxshisi qayerdan kelganini eslab qoladi. Maksimum oʻrniga barcha yoʻllar yigʻindisi — bu boshqa algoritm, forward.","hint":"Formulani eslang: unda oldingi ustun boʻyicha max bor."},{"q":"Korpusda FEʼL tegi 16 marta uchragan, shundan 1 marta «yoz» soʻzi sifatida. «yoz» soʻzi jami 2 marta uchragan. P(yoz | FEʼL) nimaga teng?","a":["1/16 ≈ 0,063","1/2 = 0,5","16/62 ≈ 0,258","2/62 ≈ 0,032"],"correct":0,"why":"Chiqish ehtimoli teg uchrashlari soniga boʻlinadi: C(FEʼL, yoz) / C(FEʼL) = 1/16. Buni birinchi qismdagi chiqish jadvalida tekshirish mumkin. 1/2 esa teskari ehtimol P(FEʼL | yoz), HMM undan foydalanmaydi.","hint":"Maxrajda C(soʻz) emas, C(teg) turadi."},{"q":"Nima uchun ochkoʻz dekoder Viterbi toʻgʻri topgan joyda xato qilishi mumkin?","a":["U oʻtish ehtimollaridan foydalanmaydi","U hozir eng yaxshi tegni tanlaydi va keyingi soʻz bu tanlovni noqulay qilganda uni qayta koʻra olmaydi","U barcha yoʻllarni sanab chiqadi va adashib ketadi","U gapni oʻngdan chapga oʻqiydi"],"correct":1,"why":"Ochkoʻz dekoder faqat allaqachon tanlangan tegdan oʻtishni hisobga oladi. Viterbi har bir tegga eng yaxshi yoʻlni saqlaydi, shuning uchun mahalliy yutqazgan variant keyinroq gʻolib boʻlishi mumkin."},{"q":"n ta soʻzli gap va K ta teg uchun Viterbi algoritmiga nechta amal kerak?","a":["Kⁿ tartibida","n·K² tartibida","n + K tartibida","n²·K tartibida"],"correct":1,"why":"n·K ta katakchaning har biri uchun oldingi ustundagi K ta katakcha boʻyicha maksimum olinadi. Toʻliq sanab chiqish Kⁿ ta yoʻlni talab qilardi."}]};
+</script>
+<script>
+/* NLP labs: shared helpers. Globals provided by the build before this file: LANG, UI, L, META. */
+"use strict";
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+
+/* h("div", {class: "x", onclick: fn, style: {...}}, child, [children], "text") */
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  if (props) {
+    for (const [k, v] of Object.entries(props)) {
+      if (v == null || v === false) continue;
+      if (k === "class") el.className = v;
+      else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
+      else if (k === "html") el.innerHTML = v;
+      else if (k === "text") el.textContent = v;
+      else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
+      else if (k in el && typeof v !== "string") el[k] = v;
+      else el.setAttribute(k, v === true ? "" : v);
+    }
+  }
+  const add = (c) => {
+    if (c == null || c === false) return;
+    if (Array.isArray(c)) c.forEach(add);
+    else el.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
+  };
+  kids.forEach(add);
+  return el;
+}
+function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
+function mount(target) { return typeof target === "string" ? $(target) : target; }
+
+/* numbers */
+function fmt(x, d = 2) {
+  if (x == null || Number.isNaN(x)) return "–";
+  if (!Number.isFinite(x)) return x > 0 ? "∞" : "−∞";
+  return Number(x).toFixed(d).replace(".", ",").replace("-", "−");
+}
+function pct(x, d = 0) { return fmt(100 * x, d) + "%"; }
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const sum = (a) => a.reduce((s, x) => s + x, 0);
+const argmax = (a) => a.reduce((bi, x, i) => (x > a[bi] ? i : bi), 0);
+function softmax(arr, T = 1) {
+  const m = Math.max(...arr.map((x) => x / T));
+  const e = arr.map((x) => Math.exp(x / T - m));
+  const s = sum(e);
+  return e.map((x) => x / s);
+}
+function dot(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; }
+function norm(a) { return Math.sqrt(dot(a, a)); }
+function cosine(a, b) { const n = norm(a) * norm(b); return n ? dot(a, b) / n : 0; }
+/* deterministic random numbers: const r = rng(42); r() in [0,1) */
+function rng(seed = 1) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function sample(probs, r = Math.random) {
+  let x = r() * sum(probs);
+  for (let i = 0; i < probs.length; i++) { x -= probs[i]; if (x <= 0) return i; }
+  return probs.length - 1;
+}
+
+/* colors */
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+const PALETTE = ["--c1", "--c2", "--c3", "--c4", "--c5", "--c6", "--c7", "--c8"];
+function color(i) { return cssVar(PALETTE[((i % PALETTE.length) + PALETTE.length) % PALETTE.length]); }
+function hexToRgb(hex) {
+  const m = hex.replace("#", "");
+  const n = parseInt(m.length === 3 ? m.split("").map((c) => c + c).join("") : m, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function alpha(hex, a) { const [r, g, b] = hexToRgb(hex); return `rgba(${r},${g},${b},${a})`; }
+/* white -> pen blue scale for heatmaps, t in [0,1] */
+function heatColor(t, base = "--pen") {
+  const [r, g, b] = hexToRgb(cssVar(base));
+  t = clamp(t, 0, 1);
+  return `rgb(${Math.round(lerp(255, r, t))},${Math.round(lerp(255, g, t))},${Math.round(lerp(255, b, t))})`;
+}
+function inkOn(t) { return t > 0.55 ? "#fff" : cssVar("--ink"); }
+
+/* controls ---------------------------------------------------------------- */
+function slider(parent, o) {
+  const fmtv = o.format || ((v) => String(v));
+  const val = h("span", { class: "val" }, fmtv(o.value));
+  const input = h("input", { type: "range", min: o.min, max: o.max, step: o.step ?? 1, value: o.value, "aria-label": o.label });
+  const box = h("div", { class: "ctl" }, h("label", null, h("span", null, o.label), val), input);
+  input.addEventListener("input", () => {
+    const v = parseFloat(input.value);
+    val.textContent = fmtv(v);
+    o.onInput && o.onInput(v);
+  });
+  mount(parent).appendChild(box);
+  return {
+    el: box, input,
+    get value() { return parseFloat(input.value); },
+    set value(v) { input.value = v; val.textContent = fmtv(parseFloat(input.value)); },
+  };
+}
+
+function segmented(parent, o) {
+  let current = o.value;
+  const btns = o.options.map((opt) =>
+    h("button", { type: "button", "aria-pressed": String(opt.value === current), onclick: () => api.set(opt.value, true) }, opt.label));
+  const seg = h("div", { class: "seg", role: "group", "aria-label": o.label || "" }, btns);
+  const box = h("div", { class: "ctl" }, o.label ? h("div", { class: "lbl" }, h("span", null, o.label)) : null, seg);
+  const api = {
+    el: box,
+    get value() { return current; },
+    set(v, fire) {
+      current = v;
+      btns.forEach((b, i) => b.setAttribute("aria-pressed", String(o.options[i].value === v)));
+      if (fire && o.onChange) o.onChange(v);
+    },
+  };
+  mount(parent).appendChild(box);
+  return api;
+}
+
+function button(parent, label, onClick, variant = "") {
+  const b = h("button", { type: "button", class: "btn " + variant, onclick: onClick }, label);
+  mount(parent).appendChild(b);
+  return b;
+}
+
+function checkbox(parent, label, checked, onChange) {
+  const input = h("input", { type: "checkbox", checked: !!checked });
+  input.addEventListener("change", () => onChange && onChange(input.checked));
+  const box = h("label", { class: "check" }, input, h("span", null, label));
+  mount(parent).appendChild(box);
+  return input;
+}
+
+/* Play / Pause / Step / Reset with a speed slider.
+   o.step() advances one step and returns false when the process is finished.
+   o.reset() restores the initial state. o.interval: base delay in ms. */
+function player(parent, o) {
+  let timer = null;
+  let speed = o.speed ?? 3;
+  const delay = () => (o.interval ?? 700) * Math.pow(0.6, speed - 3);
+  const playBtn = h("button", { type: "button", class: "btn", onclick: () => (timer ? stop() : start()) }, UI.play);
+  const stepBtn = h("button", { type: "button", class: "btn ghost", onclick: () => { stop(); doStep(); } }, UI.step);
+  const resetBtn = h("button", { type: "button", class: "btn ghost", onclick: () => { stop(); o.reset(); } }, UI.reset);
+  const sp = h("input", { type: "range", min: 1, max: 5, step: 1, value: speed, "aria-label": UI.speed });
+  sp.addEventListener("input", () => { speed = +sp.value; if (timer) { stop(); start(); } });
+  const box = h("div", { class: "player" }, playBtn, stepBtn, resetBtn, o.noSpeed ? null : h("span", { class: "speed" }, UI.speed, sp));
+  mount(parent).appendChild(box);
+  function doStep() { const more = o.step(); if (more === false) stop(); return more; }
+  function start() {
+    if (o.canStep && !o.canStep()) o.reset();
+    playBtn.textContent = UI.pause;
+    timer = setInterval(() => { if (doStep() === false) stop(); }, delay());
+    o.onPlay && o.onPlay();
+  }
+  function stop() { if (timer) clearInterval(timer); timer = null; playBtn.textContent = UI.play; }
+  return { el: box, start, stop, get playing() { return !!timer; } };
+}
+
+/* Responsive HiDPI canvas.
+   o.height (px) or o.aspect (h/w); o.draw(ctx, w, h); pointer callbacks get {x, y} in CSS pixels. */
+function canvasBox(parent, o) {
+  const cv = h("canvas", { class: "viz", role: "img", "aria-label": o.label || "" });
+  const wrap = h("div", { class: "viz-wrap" }, cv);
+  mount(parent).appendChild(wrap);
+  const ctx = cv.getContext("2d");
+  let W = 0, H = 0;
+  function size() {
+    const w = Math.max(10, wrap.clientWidth);
+    const hh = o.height ? (typeof o.height === "function" ? o.height(w) : o.height) : Math.round(w * (o.aspect || 0.6));
+    const dpr = window.devicePixelRatio || 1;
+    if (w !== W || hh !== H || cv.width !== Math.round(w * dpr)) {
+      W = w; H = hh;
+      cv.width = Math.round(w * dpr); cv.height = Math.round(hh * dpr);
+      cv.style.height = hh + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+  }
+  function redraw() { size(); ctx.clearRect(0, 0, W, H); o.draw && o.draw(ctx, W, H); }
+  const pos = (e) => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  let down = false;
+  cv.addEventListener("pointerdown", (e) => { down = true; try { cv.setPointerCapture(e.pointerId); } catch (_) {} o.onDown && o.onDown(pos(e), e); });
+  cv.addEventListener("pointermove", (e) => { if (down) o.onDrag && o.onDrag(pos(e), e); else o.onHover && o.onHover(pos(e), e); });
+  cv.addEventListener("pointerup", (e) => { down = false; o.onUp && o.onUp(pos(e), e); });
+  cv.addEventListener("pointerleave", () => { if (!down && o.onLeave) o.onLeave(); });
+  if (window.ResizeObserver) new ResizeObserver(() => redraw()).observe(wrap);
+  else window.addEventListener("resize", redraw);
+  requestAnimationFrame(redraw);
+  return { canvas: cv, wrap, ctx, redraw, get w() { return W; }, get h() { return H; } };
+}
+
+/* canvas text helpers */
+function font(px, weight = 400, mono = false) { return `${weight} ${px}px ${mono ? cssVar("--mono") : cssVar("--font")}`; }
+function text(ctx, s, x, y, o = {}) {
+  ctx.save();
+  ctx.font = font(o.size || 13, o.weight || 400, o.mono);
+  ctx.fillStyle = o.color || cssVar("--ink");
+  ctx.textAlign = o.align || "left";
+  ctx.textBaseline = o.base || "middle";
+  if (o.bg) {
+    const m = ctx.measureText(s), pad = 3, tw = m.width, th = (o.size || 13) + 4;
+    let bx = x - (o.align === "center" ? tw / 2 : o.align === "right" ? tw : 0);
+    ctx.fillStyle = o.bg; ctx.fillRect(bx - pad, y - th / 2, tw + 2 * pad, th);
+    ctx.fillStyle = o.color || cssVar("--ink");
+  }
+  ctx.fillText(s, x, y);
+  ctx.restore();
+}
+function roundRect(ctx, x, y, w, hh, r) {
+  r = Math.min(r, w / 2, hh / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + hh, r); ctx.arcTo(x + w, y + hh, x, y + hh, r);
+  ctx.arcTo(x, y + hh, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function arrow(ctx, x1, y1, x2, y2, o = {}) {
+  ctx.save();
+  ctx.strokeStyle = ctx.fillStyle = o.color || cssVar("--ink");
+  ctx.lineWidth = o.width || 1.5;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  const a = Math.atan2(y2 - y1, x2 - x1), s = o.head || 8;
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - s * Math.cos(a - 0.4), y2 - s * Math.sin(a - 0.4));
+  ctx.lineTo(x2 - s * Math.cos(a + 0.4), y2 - s * Math.sin(a + 0.4));
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+/* Simple line chart on a canvas. series: [{values:[...], color, label, dash}] ; o: {xLabels, yMin, yMax, yFmt, title, markX} */
+function lineChart(ctx, W, H, series, o = {}) {
+  const pad = { l: 44, r: 12, t: o.title ? 24 : 10, b: 26 };
+  const n = Math.max(1, ...series.map((s) => s.values.length));
+  const all = series.flatMap((s) => s.values.filter((v) => Number.isFinite(v)));
+  let y0 = o.yMin ?? Math.min(0, ...all), y1 = o.yMax ?? Math.max(1e-9, ...all);
+  if (y1 === y0) y1 = y0 + 1;
+  const X = (i) => pad.l + (n === 1 ? 0 : (i / (n - 1)) * (W - pad.l - pad.r));
+  const Y = (v) => H - pad.b - ((v - y0) / (y1 - y0)) * (H - pad.t - pad.b);
+  ctx.save();
+  ctx.strokeStyle = cssVar("--line"); ctx.lineWidth = 1;
+  for (let k = 0; k <= 4; k++) {
+    const v = y0 + (k / 4) * (y1 - y0), y = Y(v);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+    text(ctx, (o.yFmt || ((x) => fmt(x, 2)))(v), pad.l - 6, y, { align: "right", size: 11, color: cssVar("--muted") });
+  }
+  if (o.title) text(ctx, o.title, pad.l, 10, { size: 12.5, weight: 600, color: cssVar("--muted") });
+  const labels = o.xLabels || [];
+  const every = Math.ceil(labels.length / Math.max(1, Math.floor((W - pad.l) / 46)));
+  labels.forEach((lab, i) => { if (i % every === 0) text(ctx, String(lab), X(i), H - pad.b + 13, { align: "center", size: 11, color: cssVar("--muted") }); });
+  if (o.markX != null) {
+    ctx.strokeStyle = cssVar("--mark"); ctx.lineWidth = 6; ctx.globalAlpha = 0.7;
+    ctx.beginPath(); ctx.moveTo(X(o.markX), pad.t); ctx.lineTo(X(o.markX), H - pad.b); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  for (const s of series) {
+    ctx.strokeStyle = s.color || cssVar("--pen"); ctx.lineWidth = s.width || 2; ctx.setLineDash(s.dash || []);
+    ctx.beginPath();
+    let started = false;
+    s.values.forEach((v, i) => { if (!Number.isFinite(v)) return; if (!started) { ctx.moveTo(X(i), Y(v)); started = true; } else ctx.lineTo(X(i), Y(v)); });
+    ctx.stroke(); ctx.setLineDash([]);
+    if (s.dots) s.values.forEach((v, i) => { if (Number.isFinite(v)) { ctx.fillStyle = s.color || cssVar("--pen"); ctx.beginPath(); ctx.arc(X(i), Y(v), 3, 0, 7); ctx.fill(); } });
+  }
+  ctx.restore();
+  return { X, Y };
+}
+
+/* DOM widgets ------------------------------------------------------------- */
+/* items: [{label, value, color, note}] ; o: {max, format} */
+function bars(parent, items, o = {}) {
+  const el = clear(mount(parent));
+  el.classList.add("bars");
+  const max = o.max ?? Math.max(1e-9, ...items.map((i) => Math.abs(i.value)));
+  for (const it of items) {
+    const w = clamp(Math.abs(it.value) / max, 0, 1) * 100;
+    el.appendChild(h("div", { class: "bar", title: it.note || "" },
+      h("span", { class: "lab" + (o.mono ? " mono" : "") }, it.label),
+      h("span", { class: "track" }, h("span", { class: "fill", style: { width: w + "%", display: "block", background: it.color || cssVar("--pen") } })),
+      h("span", { class: "num" }, (o.format || ((v) => fmt(v, 2)))(it.value))));
+  }
+  return el;
+}
+
+/* tokens: array of strings or {text, sub, cls, title, onclick} */
+function tokens(parent, toks, o = {}) {
+  const el = clear(mount(parent));
+  el.classList.add("tokens");
+  toks.forEach((t, i) => {
+    const d = typeof t === "string" ? { text: t } : t;
+    const tag = d.onclick ? "button" : "span";
+    const attrs = { class: "tok " + (d.cls || ""), title: d.title || null, type: d.onclick ? "button" : null, onclick: d.onclick || null };
+    if (d.color) attrs.style = { background: d.color, borderColor: d.color, color: d.ink || "#fff" };
+    el.appendChild(h(tag, attrs, d.text, d.sub != null ? h("span", { class: "sub" }, d.sub) : null));
+  });
+  return el;
+}
+
+/* heatmap table. matrix[r][c]; o: {format, max, min, rowHead, colHead, highlight:(r,c)=>bool} */
+function heatTable(parent, rows, cols, matrix, o = {}) {
+  const el = clear(mount(parent));
+  const flat = matrix.flat().filter(Number.isFinite);
+  const mx = o.max ?? Math.max(...flat), mn = o.min ?? Math.min(0, ...flat);
+  const t = (v) => (mx === mn ? 0 : (v - mn) / (mx - mn));
+  const head = h("tr", null, h("th", { class: "l" }, o.corner || ""), cols.map((c) => h("th", null, c)));
+  const body = rows.map((r, i) => h("tr", null, h("th", { class: "l" }, r), cols.map((_, j) => {
+    const v = matrix[i][j];
+    const tv = Number.isFinite(v) ? t(v) : 0;
+    const style = { background: o.plain ? "" : heatColor(tv * 0.85), color: o.plain ? "" : inkOn(tv * 0.85) };
+    if (o.highlight && o.highlight(i, j)) { style.outline = "3px solid " + cssVar("--mark"); style.outlineOffset = "-3px"; }
+    return h("td", { class: "num", style }, (o.format || ((x) => fmt(x, 2)))(v));
+  })));
+  el.appendChild(h("div", { class: "scroll-x" }, h("table", { class: "grid" }, h("thead", null, head), h("tbody", null, body))));
+  return el;
+}
+
+function legend(parent, items) {
+  const el = clear(mount(parent));
+  el.classList.add("legend");
+  items.forEach((it) => el.appendChild(h("span", null, h("i", { style: { background: it.color } }), it.label)));
+  return el;
+}
+
+/* page sections built from L.theory, L.experiments, L.quiz ----------------- */
+function renderNotes() {
+  const q = $("#quiz");
+  if (!q || !Array.isArray(L.quiz)) return;
+  let right = 0, answered = 0;
+  const score = h("p", { class: "quiz-score" });
+  const upd = () => { score.textContent = answered ? UI.score(right, L.quiz.length) : ""; };
+  L.quiz.forEach((item, qi) => {
+    const fb = h("div", { class: "fb", "aria-live": "polite" });
+    let done = false;
+    const opts = item.a.map((txt, ai) => h("button", {
+      type: "button", class: "opt", html: txt,
+      onclick: (e) => {
+        const ok = ai === item.correct;
+        e.currentTarget.classList.add(ok ? "right" : "wrong");
+        clear(fb).appendChild(h("span", { html: `<b>${ok ? UI.correct : UI.wrong}</b>` + (ok ? (item.why || "") : (item.hint || UI.tryAgain)) }));
+        if (!done) { done = true; answered++; if (ok) right++; upd(); }
+      },
+    }));
+    q.appendChild(h("div", { class: "q" }, h("p", { html: `${qi + 1}. ${item.q}` }), h("div", { class: "opts" }, opts), fb));
+  });
+  q.appendChild(score);
+}
+
+/* Colab link: on *.github.io the repository and the folder are read from the address;
+   elsewhere config.js (window.NLP_LABS = {repo, branch, folder}) is used; otherwise the .ipynb is offered as a download. */
+function colabTarget(lang, slug) {
+  const cfg = window.NLP_LABS || {};
+  const branch = cfg.branch || "main";
+  let repo = cfg.repo || "", folder = (cfg.folder || "").replace(/^\/+|\/+$/g, "");
+  if (!repo && /\.github\.io$/.test(location.hostname)) {
+    const user = location.hostname.replace(/\.github\.io$/, "");
+    const seg = location.pathname.split("/").filter(Boolean);
+    const li = seg.findIndex((x) => x === "ru" || x === "uz");
+    const before = li >= 0 ? seg.slice(0, li) : [];
+    // project site: user.github.io/<repo>/…  ;  user site: user.github.io/…
+    if (before.length && before[0] !== user + ".github.io") { repo = `${user}/${before[0]}`; folder = before.slice(1).join("/"); }
+    else { repo = `${user}/${location.hostname}`; folder = before.join("/"); }
+  }
+  if (!repo) return null;
+  const nb = (folder ? folder + "/" : "") + `${lang}/notebooks/${slug}.ipynb`;
+  return `https://colab.research.google.com/github/${repo}/blob/${branch}/${nb}`;
+}
+
+function setupPractice() {
+  const a = $("#colab");
+  if (!a) return;
+  const url = colabTarget(LANG, META.slug);
+  if (url) {
+    a.href = url;
+    a.textContent = UI.colab;
+    a.target = "_blank"; a.rel = "noopener";
+  } else {
+    a.href = `../notebooks/${META.slug}.ipynb`;
+    a.textContent = UI.nbDownload;
+    a.setAttribute("download", "");
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => { renderNotes(); setupPractice(); });
+
+</script>
+<script>
+/* Lab 8: sequence labeling with an HMM: counting the tables, the Viterbi trellis, greedy vs Viterbi. */
+
+const TAGS = L.tags.map((t) => t.id);
+const K = TAGS.length;              // number of real tags
+const S = K;                        // row index of <s> in the transition table
+const E = K;                        // column index of </s> in the transition table
+const TAG_VARS = ["--c1", "--c2", "--c3", "--c4", "--c6"];
+const tagColor = (j) => cssVar(TAG_VARS[j % TAG_VARS.length]);
+const tagName = (i, isCol) => (i === K ? (isCol ? "</s>" : "<s>") : TAGS[i]);
+const tpl = (s, o) => s.replace(/\{(\w+)\}/g, (m, k) => (o[k] != null ? o[k] : m));
+
+/* number formatting: probabilities can get very small */
+const SUP = { "-": "⁻", 0: "⁰", 1: "¹", 2: "²", 3: "³", 4: "⁴", 5: "⁵", 6: "⁶", 7: "⁷", 8: "⁸", 9: "⁹" };
+function num(x) {
+  if (!(x > 0)) return "0";
+  if (x >= 0.01) return fmt(x, 3);
+  if (x >= 0.001) return fmt(x, 4);
+  let e = Math.floor(Math.log10(x)), m = x / Math.pow(10, e);
+  if (m >= 9.995) { m /= 10; e++; }
+  return fmt(m, 2) + "·10" + String(e).split("").map((c) => SUP[c]).join("");
+}
+const lnum = (x) => (x > 0 ? fmt(Math.log(x), 2) : "−∞");
+
+/* ---------- corpus and model ---------- */
+const SENTS = L.corpus.map((line) => line.trim().split(/\s+/).map((x) => {
+  const i = x.lastIndexOf("/");
+  return { w: x.slice(0, i), t: TAGS.indexOf(x.slice(i + 1)) };
+}));
+const FLAT = [];
+SENTS.forEach((s, si) => s.forEach((tok, ti) => FLAT.push({ si, ti, w: tok.w, t: tok.t })));
+const VOCAB = Array.from(new Set(FLAT.map((x) => x.w)));
+
+// counts after the first `upto` tokens of the corpus
+function countModel(upto = FLAT.length) {
+  const A = Array.from({ length: K + 1 }, () => new Array(K + 1).fill(0));
+  const B = {};
+  const T = new Array(K).fill(0);
+  for (let k = 0; k < upto; k++) {
+    const { si, ti, w, t } = FLAT[k];
+    const prev = ti === 0 ? S : SENTS[si][ti - 1].t;
+    A[prev][t]++; T[t]++;
+    (B[w] = B[w] || new Array(K).fill(0))[t]++;
+    if (ti === SENTS[si].length - 1) A[t][E]++;
+  }
+  return { A, B, T };
+}
+function toProbs(c) {
+  const a = c.A.map((row) => { const s = sum(row); return row.map((x) => (s ? x / s : 0)); });
+  const b = {};
+  for (const w in c.B) b[w] = c.B[w].map((x, j) => (c.T[j] ? x / c.T[j] : 0));
+  return { a, b };
+}
+const emit = (M, w, j) => (M.b[w] ? M.b[w][j] : 0);
+
+function viterbi(M, ws) {
+  const n = ws.length, v = [], bp = [];
+  for (let t = 0; t < n; t++) {
+    v.push([]); bp.push([]);
+    for (let j = 0; j < K; j++) {
+      const b = emit(M, ws[t], j);
+      if (t === 0) { v[t][j] = M.a[S][j] * b; bp[t][j] = -1; continue; }
+      let best = 0, bi = -1;
+      for (let i = 0; i < K; i++) { const c = v[t - 1][i] * M.a[i][j]; if (c > best) { best = c; bi = i; } }
+      v[t][j] = best * b; bp[t][j] = bi;
+    }
+  }
+  const fin = v[n - 1].map((x, j) => x * M.a[j][E]);
+  const path = new Array(n);
+  path[n - 1] = argmax(fin);
+  const p = fin[path[n - 1]];
+  for (let t = n - 1; t > 0; t--) path[t - 1] = p > 0 ? bp[t][path[t]] : 0;
+  return { v, bp, fin, p, path };
+}
+
+// exhaustive search over all K^n tag sequences (used as an on-page check)
+function brute(M, ws) {
+  const n = ws.length, path = new Array(n);
+  let best = -1, bestPath = null, nz = 0;
+  (function rec(t, prev, p) {
+    if (t === n) { p *= M.a[prev][E]; if (p > 0) nz++; if (p > best) { best = p; bestPath = path.slice(); } return; }
+    for (let j = 0; j < K; j++) { path[t] = j; rec(t + 1, j, p * M.a[prev][j] * emit(M, ws[t], j)); }
+  })(0, S, 1);
+  return { p: best, path: bestPath, nz, N: Math.pow(K, n) };
+}
+
+function greedy(M, ws) {
+  let prev = S;
+  const path = [], scores = [];
+  ws.forEach((w) => {
+    const sc = TAGS.map((_, j) => M.a[prev][j] * emit(M, w, j));
+    const j = argmax(sc);
+    path.push(j); scores.push(sc); prev = j;
+  });
+  return { path, scores };
+}
+function pathFactors(M, ws, path) {
+  let prev = S, p = 1;
+  const f = ws.map((w, t) => { const a = M.a[prev][path[t]], b = emit(M, w, path[t]); prev = path[t]; p *= a * b; return { a, b }; });
+  const end = M.a[prev][E];
+  return { f, end, p: p * end };
+}
+
+/* ---------- trellis drawing shared by parts 2 and 3 ---------- */
+function trellisView(host, scrollBox, getSpec, onPick) {
+  const ROW_H = 44, ROW_GAP = 10, HEAD = 46, GAP = 22, MIN_CELL = 74, MAX_CELL = 128, S_W = 44, E_W = 46;
+  const H = HEAD + K * (ROW_H + ROW_GAP) + 2;
+  const mctx = document.createElement("canvas").getContext("2d");
+  mctx.font = font(12.5, 700);
+  const labelW = Math.ceil(Math.max(...TAGS.map((t) => mctx.measureText(t).width))) + 14;
+  // tag labels live in a sticky HTML column so they stay visible while the trellis scrolls sideways
+  const root = mount(host);
+  root.classList.add("trellis-inner");
+  const labels = h("div", { class: "rowlab", style: { width: labelW + "px", paddingTop: HEAD + "px" } },
+    TAGS.map((tg, j) => h("div", { style: { height: ROW_H + "px", marginBottom: ROW_GAP + "px", color: tagColor(j) } }, tg)));
+  const cvHost = h("div", { class: "cv" });
+  root.append(labels, cvHost);
+  const needW = (n) => labelW + S_W + E_W + n * (MIN_CELL + GAP) + 4;
+
+  function layout(W, n) {
+    const fixed = S_W + E_W + 4;
+    const cw = clamp((W - fixed) / Math.max(1, n) - GAP, MIN_CELL, MAX_CELL);
+    const used = fixed + n * (cw + GAP);
+    const ox = Math.max(0, (W - used) / 2);
+    const colX = (t) => ox + S_W + GAP / 2 + t * (cw + GAP);
+    const rowY = (j) => HEAD + j * (ROW_H + ROW_GAP);
+    const midY = HEAD + (K * (ROW_H + ROW_GAP) - ROW_GAP) / 2;
+    return { cw, colX, rowY, midY, ox, sx: ox + 18, ex: colX(n - 1) + cw + GAP / 2 + 18 };
+  }
+  const cy = (Ly, j) => Ly.rowY(j) + ROW_H / 2;
+  const leftOf = (Ly, t, j) => [Ly.colX(t), cy(Ly, j)];
+  const rightOf = (Ly, t, j) => [Ly.colX(t) + Ly.cw, cy(Ly, j)];
+
+  function fitText(ctx, s, x, y, max, o) {
+    let size = o.size;
+    ctx.font = font(size, o.weight || 400, o.mono);
+    while (size > 9 && ctx.measureText(s).width > max) { size -= 0.5; ctx.font = font(size, o.weight || 400, o.mono); }
+    text(ctx, s, x, y, Object.assign({}, o, { size }));
+  }
+  function node(ctx, x, y, label) {
+    ctx.fillStyle = cssVar("--soft"); ctx.strokeStyle = cssVar("--faint"); ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(x, y, 15, 0, 7); ctx.fill(); ctx.stroke();
+    text(ctx, label, x, y, { size: 10.5, align: "center", mono: true, color: cssVar("--muted") });
+  }
+  function seg(ctx, p1, p2, o) {
+    ctx.save();
+    ctx.strokeStyle = o.color; ctx.lineWidth = o.width || 1.2; ctx.setLineDash(o.dash || []);
+    ctx.globalAlpha = o.alpha ?? 1;
+    if (o.head) { ctx.setLineDash([]); arrow(ctx, p1[0], p1[1], p2[0], p2[1], { color: o.color, width: o.width, head: o.head }); }
+    else { ctx.beginPath(); ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  function draw(ctx, W) {
+    const sp = getSpec();
+    const n = sp.words.length;
+    const Ly = layout(W, n);
+    const startP = [Ly.sx + 15, Ly.midY], endP = [Ly.ex - 15, Ly.midY];
+    // column headers
+    sp.words.forEach((w, t) => {
+      const x = Ly.colX(t) + Ly.cw / 2;
+      if (sp.curCol === t) { ctx.fillStyle = cssVar("--mark-soft"); roundRect(ctx, Ly.colX(t) - 5, 1, Ly.cw + 10, HEAD - 6, 5); ctx.fill(); }
+      text(ctx, String(t + 1), x, 11, { size: 10.5, align: "center", color: cssVar("--faint") });
+      fitText(ctx, w, x, 28, Ly.cw + 8, { size: 14, weight: 700, mono: true, align: "center" });
+    });
+    node(ctx, Ly.sx, Ly.midY, "<s>");
+    node(ctx, Ly.ex, Ly.midY, "</s>");
+    // thin back pointers
+    const faint = cssVar("--faint");
+    (sp.back || []).forEach(({ t, j, i }) => {
+      const a = leftOf(Ly, t, j);
+      seg(ctx, a, t === 0 ? startP : rightOf(Ly, t - 1, i), { color: faint, width: 1.2, head: 6, alpha: 0.8 });
+    });
+    // candidate edges into the current cell
+    if (sp.cand) {
+      const { t, j, list } = sp.cand;
+      const to = leftOf(Ly, t, j);
+      list.filter((c) => !c.win).forEach((c) => seg(ctx, rightOf(Ly, t - 1, c.i), to, { color: c.zero ? cssVar("--line") : cssVar("--muted"), width: 1.2, dash: [4, 4] }));
+      list.filter((c) => c.win).forEach((c) => seg(ctx, rightOf(Ly, t - 1, c.i), to, { color: cssVar("--pen"), width: 2.6, head: 9 }));
+    }
+    if (sp.endLines) sp.endLines.forEach((e) => seg(ctx, rightOf(Ly, n - 1, e.j), endP,
+      e.win ? { color: cssVar("--pen"), width: 2.6, head: 9 } : { color: e.zero ? cssVar("--line") : cssVar("--muted"), width: 1.2, dash: [4, 4] }));
+    // highlighted paths
+    (sp.paths || []).forEach((p) => {
+      const off = p.offset || 0, o = { color: p.color, width: p.width, dash: p.dash };
+      const from = p.from ?? 0, to = p.to ?? n - 1;
+      const sh = (pt) => [pt[0], pt[1] + off];
+      if (p.start && from === 0) seg(ctx, sh(startP), sh(leftOf(Ly, 0, p.tags[0])), o);
+      for (let t = Math.max(1, from); t <= to; t++) seg(ctx, sh(rightOf(Ly, t - 1, p.tags[t - 1])), sh(leftOf(Ly, t, p.tags[t])), o);
+      if (p.end && to === n - 1) seg(ctx, sh(rightOf(Ly, n - 1, p.tags[n - 1])), sh(endP), o);
+    });
+    // cells
+    for (let t = 0; t < n; t++) for (let j = 0; j < K; j++) {
+      const x = Ly.colX(t), y = Ly.rowY(j), c = sp.cells[t] && sp.cells[t][j];
+      roundRect(ctx, x, y, Ly.cw, ROW_H, 6);
+      ctx.fillStyle = c ? c.bg : "#fff"; ctx.fill();
+      ctx.save(); ctx.strokeStyle = cssVar("--line"); ctx.lineWidth = 1; if (!c) ctx.setLineDash([3, 3]); ctx.stroke(); ctx.restore();
+      text(ctx, TAGS[j], x + 5, y + 9, { size: 9.5, color: cssVar("--faint") });
+      if (c) fitText(ctx, c.text, x + Ly.cw / 2, y + 28, Ly.cw - 8, { size: 13.5, weight: 700, mono: true, align: "center", color: c.ink || cssVar("--ink") });
+      (c && c.rings || []).forEach((r, k) => {
+        const ins = 1 + k * 3.5;
+        ctx.save(); roundRect(ctx, x + ins, y + ins, Ly.cw - 2 * ins, ROW_H - 2 * ins, 5);
+        ctx.strokeStyle = r.color; ctx.lineWidth = r.width || 2.5; ctx.setLineDash(r.dash || []); ctx.stroke(); ctx.restore();
+      });
+    }
+    if (sp.cur) {
+      const x = Ly.colX(sp.cur.t), y = Ly.rowY(sp.cur.j);
+      ctx.save(); roundRect(ctx, x - 2.5, y - 2.5, Ly.cw + 5, ROW_H + 5, 8);
+      ctx.strokeStyle = cssVar("--mark"); ctx.lineWidth = 4; ctx.stroke(); ctx.restore();
+    }
+  }
+
+  const box = canvasBox(cvHost, {
+    height: H, label: L.p2_title,
+    draw: (ctx, W) => draw(ctx, W),
+    onDown: (p) => {
+      if (!onPick) return;
+      const n = getSpec().words.length, Ly = layout(box.w, n);
+      for (let t = 0; t < n; t++) for (let j = 0; j < K; j++) {
+        const x = Ly.colX(t), y = Ly.rowY(j);
+        if (p.x >= x && p.x <= x + Ly.cw && p.y >= y && p.y <= y + ROW_H) { onPick(t, j); return; }
+      }
+    },
+  });
+  return {
+    redraw: box.redraw,
+    setN(n) { root.style.minWidth = needW(n) + "px"; box.redraw(); },
+    // scroll the container so that column t (and a bit of the previous one) is visible
+    show(t) {
+      const sc = $(scrollBox);
+      if (sc.scrollWidth <= sc.clientWidth + 1 || t == null) return;
+      const Ly = layout(box.w, getSpec().words.length);
+      const x0 = Ly.colX(t) - (t > 0 ? Ly.cw * 0.6 : 60), x1 = labelW + Ly.colX(t) + Ly.cw + 26;
+      let left = sc.scrollLeft;
+      if (x1 > left + sc.clientWidth) left = x1 - sc.clientWidth;
+      if (x0 < left) left = x0;
+      sc.scrollLeft = Math.max(0, left);
+    },
+  };
+}
+
+/* ---------- Part 1: counting the HMM tables from a tagged corpus ---------- */
+(function counting() {
+  const FOCUS = L.focus;
+  let done = FLAT.length;          // tokens processed
+  let mode = "c";                  // "c" counts, "p" probabilities
+  let pick = { kind: "a", i: 0, j: 1 };
+  let last = -1;                   // index of the token processed by the last step
+
+  player("#c-player", {
+    interval: 650,
+    step: () => { if (done >= FLAT.length) return false; last = done; done++; render(); return done < FLAT.length; },
+    canStep: () => done < FLAT.length,
+    reset: () => { done = 0; last = -1; render(); },
+  });
+  segmented("#c-show", { label: L.show_label, value: mode,
+    options: [{ value: "c", label: L.show_counts }, { value: "p", label: L.show_probs }],
+    onChange: (v) => { mode = v; render(); } });
+  button("#c-all", L.all_btn, () => { done = FLAT.length; last = -1; render(); }, "ghost small");
+
+  const rowOf = (w) => { const r = FOCUS.indexOf(w); return r < 0 ? FOCUS.length : r; };
+
+  // which processed tokens produced the picked count
+  function contributes(k) {
+    const { si, ti, w, t } = FLAT[k];
+    const prev = ti === 0 ? S : SENTS[si][ti - 1].t;
+    if (pick.kind === "a") {
+      if (pick.j === E) return ti === SENTS[si].length - 1 && t === pick.i;
+      return t === pick.j && prev === pick.i;
+    }
+    return t === pick.j && rowOf(w) === pick.r;
+  }
+
+  function cellStyle(v, max) {
+    const tt = max > 0 ? v / max : 0;
+    return { background: heatColor(tt * 0.8), color: inkOn(tt * 0.8) };
+  }
+
+  function render() {
+    const C = countModel(done);
+    const P = toProbs(C);
+    const flash = new Set();
+    if (last >= 0) {
+      const { si, ti, w, t } = FLAT[last];
+      flash.add(`a${ti === 0 ? S : SENTS[si][ti - 1].t},${t}`);
+      flash.add(`b${rowOf(w)},${t}`);
+      if (ti === SENTS[si].length - 1) flash.add(`a${t},${E}`);
+    }
+    // status line and message
+    $("#c-stat").textContent = tpl(L.corpus_stat, { n: SENTS.length, tok: FLAT.length, v: VOCAB.length, done });
+    let msg;
+    if (done === 0) msg = L.count_start;
+    else if (last >= 0) {
+      const { si, ti, w, t } = FLAT[last];
+      const end = ti === SENTS[si].length - 1 ? tpl(L.count_end, { t: TAGS[t] }) : "";
+      msg = tpl(L.count_step, { w, t: TAGS[t], a: ti === 0 ? "<s>" : TAGS[SENTS[si][ti - 1].t], end });
+    } else msg = L.count_done;
+    $("#c-msg").textContent = msg;
+
+    // corpus
+    const box = $("#c-corpus");
+    const keepScroll = box.scrollTop;
+    clear(box);
+    let k = 0, curRow = null;
+    SENTS.forEach((s, si) => {
+      const row = h("div", { class: "sent" + (last >= 0 && FLAT[last].si === si ? " cur" : "") }, h("span", { class: "n" }, String(si + 1)));
+      s.forEach((tok) => {
+        const cls = ["tok"];
+        if (k >= done) cls.push("dim");
+        if (k === last || (k < done && last < 0 && contributes(k))) cls.push("hl");
+        row.appendChild(h("span", { class: cls.join(" ") }, tok.w, h("span", { class: "sub", style: { color: tagColor(tok.t), fontWeight: 700 } }, TAGS[tok.t])));
+        k++;
+      });
+      if (last >= 0 && FLAT[last].si === si) curRow = row;
+      box.appendChild(row);
+    });
+    box.scrollTop = keepScroll;
+    if (curRow && (curRow.offsetTop < box.scrollTop || curRow.offsetTop + curRow.offsetHeight > box.scrollTop + box.clientHeight)) {
+      box.scrollTop = Math.max(0, curRow.offsetTop - box.clientHeight / 3);
+    }
+
+    // transition table
+    const maxA = Math.max(1, ...C.A.flat());
+    const thead = h("tr", null, h("th", null, L.corner_trans), TAGS.map((tg) => h("th", null, tg)), h("th", null, "</s>"));
+    const rowsA = [S, ...TAGS.map((_, i) => i)].map((i) => h("tr", null, h("th", { class: "l" }, tagName(i, false)),
+      [...TAGS.map((_, j) => j), E].map((j) => {
+        if (i === S && j === E) return h("td", { style: { cursor: "default", color: cssVar("--faint") } }, "–");
+        const c = C.A[i][j], rs = sum(C.A[i]);
+        const st = mode === "c" ? cellStyle(c, maxA) : cellStyle(P.a[i][j], 1);
+        const cls = (flash.has(`a${i},${j}`) ? "flash" : "") + (pick.kind === "a" && pick.i === i && pick.j === j ? " pick" : "");
+        return h("td", { class: cls, style: st, onclick: () => { pick = { kind: "a", i, j }; last = -1; render(); } },
+          mode === "c" ? String(c) : rs ? fmt(P.a[i][j], 3) : "–");
+      })));
+    clear($("#c-trans")).appendChild(h("table", { class: "mt" }, h("thead", null, thead), h("tbody", null, rowsA)));
+
+    // emission table: focus words + one row for all other words
+    const rowsCounts = FOCUS.map((w) => TAGS.map((_, j) => (C.B[w] ? C.B[w][j] : 0)));
+    rowsCounts.push(TAGS.map((_, j) => C.T[j] - sum(rowsCounts.map((r) => r[j]))));
+    const maxB = Math.max(1, ...rowsCounts.flat());
+    const theadB = h("tr", null, h("th", null, L.corner_emis), TAGS.map((tg) => h("th", null, tg)));
+    const rowsB = rowsCounts.map((r, ri) => h("tr", { class: ri === FOCUS.length ? "other" : "" },
+      h("th", { class: "l" }, ri === FOCUS.length ? L.other_words : FOCUS[ri]),
+      r.map((c, j) => {
+        const p = C.T[j] ? c / C.T[j] : 0;
+        const st = mode === "c" ? cellStyle(c, maxB) : cellStyle(p, 1);
+        const cls = (flash.has(`b${ri},${j}`) ? "flash" : "") + (pick.kind === "b" && pick.r === ri && pick.j === j ? " pick" : "");
+        return h("td", { class: cls, style: st, onclick: () => { pick = { kind: "b", r: ri, j }; last = -1; render(); } },
+          mode === "c" ? String(c) : C.T[j] ? fmt(p, 3) : "–");
+      })));
+    clear($("#c-emis")).appendChild(h("table", { class: "mt" }, h("thead", null, theadB), h("tbody", null, rowsB)));
+
+    // formula for the picked cell
+    let f;
+    if (pick.kind === "a") {
+      const c = C.A[pick.i][pick.j], nn = sum(C.A[pick.i]);
+      f = nn ? tpl(L.f_trans, { i: tagName(pick.i, false), j: tagName(pick.j, true), c, n: nn, p: fmt(c / nn, 3) }) : L.f_empty;
+    } else {
+      const c = rowsCounts[pick.r][pick.j], nn = C.T[pick.j];
+      const o = { w: FOCUS[pick.r], t: TAGS[pick.j], c, n: nn, p: nn ? fmt(c / nn, 3) : "" };
+      f = !nn ? L.f_empty : pick.r === FOCUS.length ? tpl(L.f_other, o) : tpl(L.f_emis, o);
+    }
+    $("#c-formula").textContent = f;
+  }
+  render();
+})();
+
+/* ---------- Part 2: Viterbi on the trellis ---------- */
+const MODEL = toProbs(countModel());
+const MAX_WORDS = 7;
+
+function normWord(s) {
+  return s.toLowerCase()
+    .replace(/^[^\p{L}\p{M}'`‘’]+|[^\p{L}\p{M}'`‘’]+$/gu, "")
+    .replace(/([og])['`‘’]/g, "$1ʻ")
+    .replace(/['`‘’]/g, "ʼ");
+}
+
+(function viterbiPart() {
+  const M = MODEL;
+  let words = [], R = null, BF = null, steps = [], pos = 0, inspect = null, log = false, exIdx = 0;
+
+  const pick = segmented("#v-pick", { label: L.sent_label, value: 0,
+    options: L.examples.map((e, i) => ({ value: i, label: e.text })),
+    onChange: (v) => { exIdx = v; $("#v-own").value = ""; setWords(L.examples[v].text.split(" ")); } });
+  $("#v-own").addEventListener("input", (e) => {
+    const ws = e.target.value.split(/\s+/).map(normWord).filter(Boolean);
+    if (!ws.length) { pick.set(exIdx); setWords(L.examples[exIdx].text.split(" ")); return; }
+    pick.set(-1);
+    setWords(ws);
+  });
+
+  const view = trellisView("#v-canvas", "#v-scroll", spec, (t, j) => {
+    const st = stateAt(pos);
+    if (!st.filled[t][j]) return;
+    inspect = { t, j }; render(false);
+  });
+  legend("#v-legend", [{ label: L.lg_current, color: cssVar("--mark") }, { label: L.lg_path, color: cssVar("--pen") }, { label: L.lg_back, color: cssVar("--faint") }]);
+
+  player("#v-player", {
+    interval: 1000,
+    step: () => { if (pos >= steps.length) return false; pos++; inspect = null; render(true); return pos < steps.length; },
+    canStep: () => pos < steps.length,
+    reset: () => { pos = 0; inspect = null; render(true); },
+  });
+  segmented("#v-mode", { label: L.nums_label, value: "p",
+    options: [{ value: "p", label: L.nums_p }, { value: "log", label: L.nums_log }],
+    onChange: (v) => { log = v === "log"; render(false); } });
+
+  function setWords(ws) {
+    let note = "";
+    if (ws.length > MAX_WORDS) { ws = ws.slice(0, MAX_WORDS); note = tpl(L.too_long, { n: MAX_WORDS }) + " "; }
+    words = ws;
+    const unk = words.filter((w) => !M.b[w]);
+    const ex = L.examples.find((e) => e.text === words.join(" "));
+    if (unk.length) note += tpl(L.unknown, { list: unk.map((w) => "«" + w + "»").join(", ") });
+    else if (ex) note += ex.note;
+    $("#v-note").textContent = note;
+    R = viterbi(M, words);
+    BF = brute(M, words);
+    steps = [];
+    words.forEach((w, t) => {
+      const nz = [], zeros = [];
+      TAGS.forEach((_, j) => (emit(M, w, j) > 0 ? nz : zeros).push(j));
+      if (!nz.length) steps.push({ type: "zerocol", t });
+      else nz.forEach((j, k) => steps.push({ type: "cell", t, j, zeros: k === 0 ? zeros : [] }));
+    });
+    steps.push({ type: "end" });
+    if (R.p > 0) for (let t = words.length - 1; t >= 0; t--) steps.push({ type: "back", t });
+    else steps.push({ type: "allzero" });
+    pos = 0; inspect = null;
+    view.setN(words.length);
+    render(true);
+  }
+
+  // display state after the first p steps
+  function stateAt(p) {
+    const n = words.length;
+    const filled = words.map(() => new Array(K).fill(false));
+    let endShown = false, revealed = n;
+    for (let k = 0; k < p; k++) {
+      const s = steps[k];
+      if (s.type === "cell") { filled[s.t][s.j] = true; s.zeros.forEach((j) => (filled[s.t][j] = true)); }
+      if (s.type === "zerocol") filled[s.t].fill(true);
+      if (s.type === "end") endShown = true;
+      if (s.type === "back") revealed = s.t;
+    }
+    return { filled, endShown, revealed, step: p > 0 ? steps[p - 1] : null };
+  }
+
+  function focusCell(st) {
+    if (inspect) return inspect;
+    if (st.step && st.step.type === "cell") return { t: st.step.t, j: st.step.j };
+    return null;
+  }
+
+  function spec() {
+    const st = stateAt(pos), n = words.length;
+    const cells = [], back = [];
+    for (let t = 0; t < n; t++) {
+      const colMax = Math.max(0, ...R.v[t].filter((_, j) => st.filled[t][j]));
+      cells.push(TAGS.map((_, j) => {
+        if (!st.filled[t][j]) return null;
+        const x = R.v[t][j];
+        if (x > 0) back.push({ t, j, i: t ? R.bp[t][j] : -1 });
+        const onPath = R.p > 0 && st.revealed <= t && R.path[t] === j;
+        return {
+          text: log ? lnum(x) : num(x),
+          bg: x > 0 ? heatColor(0.1 + 0.38 * (colMax > 0 ? x / colMax : 0)) : cssVar("--soft"),
+          ink: x > 0 ? cssVar("--ink") : cssVar("--faint"),
+          rings: onPath ? [{ color: cssVar("--pen"), width: 3 }] : [],
+        };
+      }));
+    }
+    const fc = focusCell(st);
+    let cand = null;
+    if (fc && fc.t > 0) {
+      cand = { t: fc.t, j: fc.j, list: TAGS.map((_, i) => {
+        const c = R.v[fc.t - 1][i] * M.a[i][fc.j];
+        return { i, zero: !(c > 0), win: c > 0 && R.bp[fc.t][fc.j] === i };
+      }) };
+    }
+    const showEnd = st.endShown && !inspect;
+    const endLines = showEnd ? TAGS.map((_, j) => ({ j, zero: !(R.fin[j] > 0), win: R.p > 0 && j === R.path[n - 1] && st.revealed > n - 1 })) : null;
+    const paths = R.p > 0 && st.revealed < n ? [{ tags: R.path, from: st.revealed, start: true, end: true, color: cssVar("--pen"), width: 3.5 }] : [];
+    let curCol = fc ? fc.t : null;
+    if (!fc && st.step && st.step.type === "zerocol") curCol = st.step.t;
+    if (!fc && st.step && st.step.type === "back") curCol = st.step.t;
+    if (!fc && pos === 0) curCol = 0;
+    return { words, cells, back, cand, endLines, paths, cur: fc, curCol };
+  }
+
+  /* readout helpers */
+  const V = (x) => (log ? lnum(x) : num(x));
+  const op = () => (log ? "+" : "×");
+  function calcTable(head, rows, bestIdx) {
+    return h("div", { class: "scroll-x" }, h("table", { class: "grid calc" },
+      h("thead", null, h("tr", null, head.map((x) => h("th", null, x)))),
+      h("tbody", null, rows.map((r, k) => h("tr", { class: k === bestIdx ? "best" : r.zero ? "zero" : "" }, r.cells.map((c, ci) => h("td", { class: ci ? "num" : "l" }, c)))))));
+  }
+  function cellReadout(box, t, j) {
+    const w = words[t], tg = TAGS[j], b = emit(M, w, j), x = R.v[t][j];
+    if (t === 0) {
+      const a = M.a[S][j];
+      box.appendChild(h("p", { html: tpl(L.v_first, { w, t: tg }) }));
+      box.appendChild(h("div", { class: "formula live" }, log
+        ? `ln v = ln P(${tg} | <s>) + ln P(«${w}» | ${tg}) = ${lnum(a)} + ${lnum(b)} = ${lnum(x)}`
+        : `v = P(${tg} | <s>) × P(«${w}» | ${tg}) = ${num(a)} × ${num(b)} = ${num(x)}`));
+      return;
+    }
+    box.appendChild(h("p", { html: tpl(L.v_cell, { k: t + 1, w, t: tg }) }));
+    const pre = log ? "ln " : "";
+    const rows = TAGS.map((_, i) => {
+      const vp = R.v[t - 1][i], a = M.a[i][j], c = vp * a;
+      return { zero: !(c > 0), cells: [TAGS[i] + " → " + tg, V(vp), op() + " " + V(a), "= " + V(c)] };
+    });
+    const bi = R.bp[t][j];
+    box.appendChild(calcTable([L.th_from, pre + L.th_prev, pre + L.th_trans, pre + L.th_res], rows, bi >= 0 ? bi : -1));
+    if (bi < 0) box.appendChild(h("p", { html: L.v_nopath }));
+    else if (!(b > 0)) box.appendChild(h("p", { html: tpl(L.v_zeros, { w, list: tg }) }));
+    else box.appendChild(h("p", { html: tpl(log ? L.v_res_log : L.v_res_p, { i: TAGS[bi], w, t: tg, b: V(b), v: V(x) }) }));
+  }
+
+  function render(follow) {
+    const st = stateAt(pos), box = clear($("#v-readout")), s = st.step, n = words.length;
+    if (inspect) cellReadout(box, inspect.t, inspect.j);
+    else if (!s) box.appendChild(h("p", { html: tpl(L.v_start, { w: words[0] }) }));
+    else if (s.type === "cell") {
+      if (s.zeros.length) box.appendChild(h("p", { class: "zeros", html: tpl(L.v_zeros, { w: words[s.t], list: s.zeros.map((j) => TAGS[j]).join(", ") }) }));
+      cellReadout(box, s.t, s.j);
+    } else if (s.type === "zerocol") box.appendChild(h("p", { html: tpl(L.v_zero_col, { w: words[s.t] }) }));
+    else if (s.type === "end") {
+      box.appendChild(h("p", { html: log ? L.v_end_log : L.v_end_p }));
+      const pre = log ? "ln " : "";
+      const rows = TAGS.map((_, j) => ({ zero: !(R.fin[j] > 0), cells: [TAGS[j] + " → </s>", V(R.v[n - 1][j]), op() + " " + V(M.a[j][E]), "= " + V(R.fin[j])] }));
+      box.appendChild(calcTable([L.th_from, pre + L.th_prev, pre + L.th_trans, pre + L.th_res], rows, R.p > 0 ? R.path[n - 1] : -1));
+    } else if (s.type === "back") {
+      const t = s.t;
+      box.appendChild(h("p", { html: t > 0
+        ? tpl(L.v_back, { k: t + 1, w: words[t], t: TAGS[R.path[t]], nt: TAGS[R.path[t - 1]] })
+        : tpl(L.v_back_first, { w: words[0], t: TAGS[R.path[0]] }) }));
+      if (t === 0) box.appendChild(h("p", { html: tpl(L.v_done, { p: num(R.p) }) }));
+    } else if (s.type === "allzero") box.appendChild(h("p", { html: L.v_allzero }));
+
+    // best path panel
+    const pb = clear($("#v-path"));
+    if (R.p > 0 && st.revealed === 0) {
+      tokens(pb, words.map((w, t) => ({ text: w, sub: TAGS[R.path[t]], color: tagColor(R.path[t]) })));
+      const same = BF.path && BF.path.join() === R.path.join() && Math.abs(BF.p - R.p) <= 1e-12 * R.p;
+      pb.appendChild(h("p", { class: "big-num", style: { margin: "12px 0 6px", fontSize: "24px" } }, "P = " + num(R.p), h("small", null, "ln P = " + lnum(R.p))));
+      pb.appendChild(h("p", { class: "small", style: { margin: "0 0 4px" } }, tpl(L.path_count, { N: K + String(n).split("").map((c) => SUP[c]).join(""), pow: BF.N, nz: BF.nz, c: n * K })));
+      pb.appendChild(h("p", { class: "small " + (same ? "muted" : ""), style: { margin: 0, color: same ? "" : cssVar("--bad") } }, same ? tpl(L.brute_ok, { N: BF.N }) : L.brute_bad));
+    } else if (pos === steps.length && R.p === 0) pb.appendChild(h("p", { class: "small muted", style: { margin: 0 } }, L.v_allzero.replace(/&lt;/g, "<").replace(/&gt;/g, ">")));
+    else pb.appendChild(h("p", { class: "small muted", style: { margin: 0 } }, L.path_wait));
+
+    view.redraw();
+    if (follow) { const sp = spec(); view.show(sp.curCol != null ? sp.curCol : st.endShown ? n - 1 : 0); }
+  }
+
+  setWords(L.examples[0].text.split(" "));
+})();
+
+/* ---------- Part 3: greedy decoding vs Viterbi, with editable parameters ---------- */
+(function greedyPart() {
+  const base = MODEL;
+  const clone = (m) => ({ a: m.a.map((r) => r.slice()), b: Object.fromEntries(Object.entries(m.b).map(([w, r]) => [w, r.slice()])) });
+  let M = clone(base);
+  const words = L.g_sentence.split(" ");
+  const n = words.length;
+  let pos = 0, G, Vt, PG, PV;
+  const ORANGE = cssVar("--c5");
+
+  function recompute() { G = greedy(M, words); Vt = viterbi(M, words); PG = pathFactors(M, words, G.path); PV = pathFactors(M, words, Vt.path); }
+
+  // static explanation with numbers from the corpus model
+  const ti = (s) => TAGS.indexOf(s);
+  $("#g-note").innerHTML = tpl(L.g_note, Object.fromEntries(L.g_note_vals.map((v, k) => [
+    "p" + k, fmt(v[0] === "a" ? base.a[ti(v[1])][ti(v[2])] : emit(base, v[2], ti(v[1])), 3)])));
+
+  const view = trellisView("#g-canvas", "#g-scroll", spec, null);
+  legend("#g-legend", [{ label: L.lg_greedy, color: ORANGE }, { label: L.lg_viterbi, color: cssVar("--pen") }, { label: L.g_cells, color: cssVar("--line") }]);
+
+  function spec() {
+    const shown = Math.min(pos, n);
+    const cells = words.map((_, t) => (t < shown ? TAGS.map((_, j) => {
+      const x = G.scores[t][j], chosen = G.path[t] === j;
+      const rings = [];
+      if (chosen) rings.push({ color: ORANGE, width: 3 });
+      if (pos > n && Vt.p > 0 && Vt.path[t] === j) rings.push({ color: cssVar("--pen"), width: 2.5, dash: [5, 3] });
+      return { text: num(x), bg: chosen ? alpha(ORANGE, 0.18) : x > 0 ? cssVar("--soft") : "#fff", ink: x > 0 ? cssVar("--ink") : cssVar("--faint"), rings };
+    }) : null));
+    const paths = [];
+    if (shown > 0) paths.push({ tags: G.path, to: shown - 1, start: true, end: pos > n, color: ORANGE, width: 3.5, offset: -2 });
+    if (pos > n && Vt.p > 0) paths.push({ tags: Vt.path, start: true, end: true, color: cssVar("--pen"), width: 2.5, dash: [7, 5], offset: 3 });
+    return { words, cells, paths, curCol: pos >= 1 && pos <= n ? pos - 1 : null };
+  }
+
+  function render(follow) {
+    const st = $("#g-status");
+    if (pos === 0) st.innerHTML = L.g_start;
+    else if (pos <= n) {
+      const t = pos - 1;
+      st.innerHTML = tpl(L.g_step, { k: pos, w: words[t], prev: t ? TAGS[G.path[t - 1]] : "&lt;s&gt;", t: TAGS[G.path[t]] }) + (pos === n ? " " + L.g_end : "");
+    } else st.innerHTML = L.g_final;
+    const gb = clear($("#g-bars"));
+    if (pos >= 1 && pos <= n) {
+      const t = pos - 1;
+      gb.appendChild(h("p", { class: "small muted", style: { margin: "10px 0 6px" } }, tpl(L.g_bars_title, { w: words[t] })));
+      const host = h("div");
+      gb.appendChild(host);
+      const mx = Math.max(...G.scores[t]);
+      bars(host, TAGS.map((tg, j) => ({ label: tg, value: G.scores[t][j], color: j === G.path[t] && mx > 0 ? ORANGE : cssVar("--faint") })), { format: num, max: mx > 0 ? mx : 1 });
+    }
+    renderCmp();
+    view.redraw();
+    if (follow) view.show(pos >= 1 && pos <= n ? pos - 1 : pos > n ? n - 1 : 0);
+  }
+
+  function renderCmp() {
+    const box = clear($("#g-cmp"));
+    if (pos <= n) { box.appendChild(h("p", { class: "small muted", style: { margin: 0 } }, L.cmp_wait)); return; }
+    const cell = (tag, a, b) => h("td", null, h("b", null, TAGS[tag]), h("span", { class: "f" }, num(a) + " × " + num(b)));
+    const diff = [];
+    const rows = words.map((w, t) => {
+      const d = G.path[t] !== Vt.path[t];
+      if (d) diff.push("«" + w + "»");
+      return h("tr", { class: d ? "sel" : "" }, h("td", { class: "l mono" }, w), cell(G.path[t], PG.f[t].a, PG.f[t].b), cell(Vt.path[t], PV.f[t].a, PV.f[t].b));
+    });
+    rows.push(h("tr", null, h("td", { class: "l", html: L.row_end }), h("td", { class: "num" }, num(PG.end)), h("td", { class: "num" }, num(PV.end))));
+    rows.push(h("tr", { class: "tot" }, h("td", { class: "l" }, L.row_total), h("td", { class: "num" }, num(PG.p)), h("td", { class: "num" }, num(PV.p))));
+    box.appendChild(h("div", { class: "scroll-x" }, h("table", { class: "grid cmp" },
+      h("thead", null, h("tr", null, h("th", { class: "l" }, L.th_word),
+        h("th", { style: { color: ORANGE } }, L.th_greedy), h("th", { style: { color: cssVar("--pen") } }, L.th_viterbi))),
+      h("tbody", null, rows))));
+    let msg, cls = "note";
+    if (!(Vt.p > 0)) { msg = L.cmp_allzero; cls = "bad"; }
+    else if (!diff.length) { msg = L.cmp_same; cls = "good"; }
+    else if (!(PG.p > 0)) { msg = L.cmp_gzero; cls = "bad"; }
+    else msg = tpl(L.cmp_diff, { list: diff.join(", "), r: fmt(PV.p / PG.p, 2) });
+    box.appendChild(h("div", { class: "status small " + cls, style: { marginTop: "10px" }, html: msg }));
+  }
+
+  /* parameter sliders: one transition or emission probability each, the rest rescaled to keep sums at 1 */
+  function setA(i, j, val) {
+    const row = M.a[i], valid = row.map((_, k) => k !== j && !(i === S && k === E));
+    const rest = sum(row.filter((_, k) => valid[k]));
+    row.forEach((x, k) => { if (valid[k]) row[k] = rest > 1e-12 ? (x * (1 - val)) / rest : (1 - val) / valid.filter(Boolean).length; });
+    row[j] = val;
+  }
+  function setB(j, w, val) {
+    const old = emit(M, w, j), rest = 1 - old;
+    for (const x in M.b) if (x !== w) M.b[x][j] = rest > 1e-12 ? (M.b[x][j] * (1 - val)) / rest : 0;
+    M.b[w][j] = val;
+  }
+  const sliders = L.g_params.map((p) => {
+    const isA = !!p.a;
+    const i = ti(isA ? p.a[0] : p.b[0]);
+    const j = isA ? (p.a[1] === "</s>" ? E : ti(p.a[1])) : -1;
+    const w = isA ? null : p.b[1];
+    const get = () => (isA ? M.a[i][j] : emit(M, w, i));
+    const sl = slider("#g-params", {
+      label: isA ? `P(${p.a[1]} | ${p.a[0]})` : `P(${w} | ${p.b[0]})`,
+      min: 0, max: 1, step: 0.001, value: get(), format: (v) => fmt(v, 3),
+      onInput: (v) => { if (isA) setA(i, j, v); else setB(i, w, v); recompute(); pos = n + 1; render(false); },
+    });
+    return { sl, get };
+  });
+  button("#g-reset", L.params_reset, () => { M = clone(base); sliders.forEach((s) => (s.sl.value = s.get())); recompute(); render(false); }, "ghost small");
+
+  player("#g-player", {
+    interval: 1300,
+    step: () => { if (pos > n) return false; pos++; render(true); return pos <= n; },
+    canStep: () => pos <= n,
+    reset: () => { pos = 0; render(true); },
+  });
+
+  recompute();
+  view.setN(n);
+  render(true);
+})();
+
+</script>
+</body>
+</html>

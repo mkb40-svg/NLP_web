@@ -1,0 +1,1059 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1. Koʻp maʼnolilik, kontekst va tillar tipologiyasi</title>
+<meta name="description" content="NLP rivojlanishi va lingvistik tipologiya (kontekst va koʻp maʼnolilik muammosi)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=PT+Mono&display=swap" rel="stylesheet">
+<style>
+/* NLP labs: shared style. Light theme only (labs are often projected in class). */
+:root {
+  color-scheme: light;
+  --paper: #EDF1F6;
+  --panel: #FFFFFF;
+  --soft: #F5F7FA;
+  --ink: #1C2A43;
+  --muted: #56637C;
+  --faint: #8C97AB;
+  --line: #D2D9E4;
+  --pen: #2B55C9;
+  --pen-dark: #1F3F9A;
+  --mark: #FFD84D;
+  --mark-soft: #FFF2B8;
+  --good: #1A8F5F;
+  --good-soft: #DDF3E8;
+  --bad: #C2413A;
+  --bad-soft: #FBE3E1;
+  --c1: #2B55C9;
+  --c2: #D04A55;
+  --c3: #17907E;
+  --c4: #9157BF;
+  --c5: #DB8F1F;
+  --c6: #5B7A2A;
+  --c7: #C1508F;
+  --c8: #5E6B85;
+  --font: "Golos Text", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --mono: "PT Mono", Consolas, "Liberation Mono", "Courier New", monospace;
+  --r: 10px;
+  --r-sm: 5px;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.55 var(--font);
+}
+a { color: var(--pen); }
+a:hover { color: var(--pen-dark); }
+:focus-visible { outline: 3px solid var(--mark); outline-offset: 2px; border-radius: 3px; }
+img, svg, canvas { max-width: 100%; }
+
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+
+/* top navigation */
+.topnav { background: var(--ink); color: #fff; font-size: 14px; }
+.topnav .wrap { display: flex; align-items: center; gap: 12px; min-height: 46px; flex-wrap: wrap; }
+.topnav a { color: #fff; text-decoration: none; padding: 6px 10px; border-radius: var(--r-sm); }
+.topnav a:hover { background: rgba(255,255,255,.12); color: #fff; }
+.topnav .course { font-weight: 600; margin-right: auto; }
+.topnav .pager { display: flex; gap: 4px; }
+.topnav .disabled { opacity: .35; pointer-events: none; }
+
+/* header */
+.lab-head { padding: 28px 0 8px; }
+.lab-no { margin: 0 0 6px; color: var(--muted); font-size: 15px; }
+.lab-head h1 { margin: 0; font-size: clamp(28px, 4.2vw, 42px); line-height: 1.12; font-weight: 700; letter-spacing: -.01em; max-width: 26ch; }
+.lab-head .lead { margin: 14px 0 0; font-size: 18px; max-width: 70ch; color: var(--ink); }
+.lab-head .topic { margin: 12px 0 0; font-size: 14px; color: var(--muted); max-width: 90ch; }
+
+/* sections and the highlighter heading: the one decorative motif */
+.part { margin: 34px 0 0; }
+.part > h2, .notes h2 {
+  font-size: 23px; line-height: 1.25; margin: 0 0 6px; font-weight: 700;
+  display: inline;
+  background: linear-gradient(transparent 58%, var(--mark) 58%, var(--mark) 92%, transparent 92%);
+  box-decoration-break: clone; -webkit-box-decoration-break: clone;
+  padding: 0 3px;
+}
+.part > .hint, .part > p.intro { margin: 10px 0 14px; color: var(--muted); max-width: 75ch; }
+.part > h2 + .stage { margin-top: 16px; }
+
+/* stage: visual on the left, controls and readouts on the right */
+.stage { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.stage.even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.stage.single { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 900px) { .stage, .stage.even { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; min-width: 0; }
+.panel + .panel { margin-top: 16px; }
+.stage > .panel + .panel { margin-top: 0; }
+.panel h3 { margin: 0 0 10px; font-size: 16px; font-weight: 600; }
+.panel h3 + .muted { margin-top: -6px; }
+.col > .panel + .panel { margin-top: 16px; }
+.stage > .panel + .panel { margin-top: 0; }
+
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+.tiny { font-size: 12.5px; }
+.mono { font-family: var(--mono); }
+.center { text-align: center; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row + .row { margin-top: 10px; }
+.grow { flex: 1 1 auto; }
+.spacer { height: 10px; }
+
+/* controls */
+.btn {
+  font: inherit; font-size: 15px; font-weight: 500;
+  border: 1px solid var(--pen); background: var(--pen); color: #fff;
+  border-radius: 999px; padding: 7px 16px; cursor: pointer; line-height: 1.3;
+  min-height: 36px; touch-action: manipulation;
+}
+.btn:hover { background: var(--pen-dark); border-color: var(--pen-dark); }
+.btn.ghost { background: transparent; color: var(--pen); }
+.btn.ghost:hover { background: #E6ECFA; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.small { font-size: 14px; padding: 5px 12px; min-height: 32px; }
+
+.player { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.player .speed { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.player .speed input { width: 110px; }
+
+.ctl { margin: 0 0 14px; }
+.panel > .ctl:last-child, .panel > div:last-child > .ctl:last-child { margin-bottom: 0; }
+.ctl label, .ctl .lbl { display: flex; justify-content: space-between; gap: 8px; font-size: 14.5px; margin-bottom: 4px; }
+.ctl .val { font-family: var(--mono); font-weight: 700; color: var(--pen); white-space: nowrap; }
+input[type=range] { width: 100%; accent-color: var(--pen); margin: 0; height: 26px; }
+
+.seg { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
+.seg button { font: inherit; font-size: 14px; border: 1px solid #B8C6EA; background: var(--panel); color: var(--pen); padding: 5px 12px; cursor: pointer; min-height: 34px; border-radius: 999px; }
+.seg button:hover { border-color: var(--pen); }
+.seg button[aria-pressed=true] { background: var(--pen); color: #fff; border-color: var(--pen); }
+
+input[type=text], textarea, select {
+  font: inherit; font-size: 15px; color: var(--ink); background: #fff;
+  border: 1px solid var(--line); border-radius: var(--r-sm); padding: 7px 10px; width: 100%; max-width: 100%;
+}
+textarea { min-height: 76px; resize: vertical; }
+input[type=text]:focus, textarea:focus, select:focus { border-color: var(--pen); outline: none; box-shadow: 0 0 0 3px #D7E1FA; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 14.5px; cursor: pointer; margin: 6px 0; }
+.check input { width: 17px; height: 17px; accent-color: var(--pen); }
+
+/* tokens: strings of text are the material of this course */
+.tokens { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tok {
+  font-family: var(--mono); font-size: 15px; line-height: 1.2;
+  border: 1px solid var(--line); background: var(--soft); border-radius: var(--r-sm);
+  padding: 4px 7px; white-space: pre; display: inline-flex; flex-direction: column; align-items: center;
+}
+.tok .sub { font-family: var(--font); font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.tok.hl { background: var(--mark-soft); border-color: #E8C33A; }
+.tok.on { background: var(--pen); color: #fff; border-color: var(--pen); }
+.tok.on .sub { color: #DCE4FA; }
+button.tok { cursor: pointer; font-family: var(--mono); color: var(--ink); }
+.morph { font-family: var(--mono); }
+.morph .b { color: var(--faint); padding: 0 1px; }
+
+mark, .hl-text { background: var(--mark-soft); color: inherit; border-radius: 3px; padding: 0 2px; }
+
+/* readouts */
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 14.5px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-family: var(--mono); font-weight: 700; text-align: right; }
+.big-num { font-size: 30px; font-weight: 700; line-height: 1.1; }
+.big-num small { font-size: 15px; font-weight: 400; color: var(--muted); margin-left: 6px; }
+
+.bars { display: grid; gap: 6px; }
+.bar { display: grid; grid-template-columns: minmax(70px, 34%) 1fr auto; gap: 8px; align-items: center; font-size: 14px; }
+.bar .lab { overflow-wrap: anywhere; line-height: 1.3; }
+.bar .track { background: var(--soft); border: 1px solid var(--line); border-radius: 4px; height: 16px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--pen); border-radius: 3px 0 0 3px; transition: width .35s ease; }
+.bar .num { font-family: var(--mono); font-size: 13px; min-width: 46px; text-align: right; }
+
+table.grid { border-collapse: collapse; font-size: 14px; width: 100%; }
+table.grid th, table.grid td { border: 1px solid var(--line); padding: 5px 7px; text-align: center; }
+table.grid th { background: var(--soft); font-weight: 600; }
+table.grid td.l, table.grid th.l { text-align: left; }
+table.grid td.num { font-family: var(--mono); }
+table.grid tr.sel td { background: var(--mark-soft); }
+.scroll-x { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+.status { border-radius: var(--r-sm); padding: 8px 12px; font-size: 14.5px; background: var(--soft); border: 1px solid var(--line); }
+.status.good { background: var(--good-soft); border-color: #A9DCC2; }
+.status.bad { background: var(--bad-soft); border-color: #F0B7B2; }
+.status.note { background: var(--mark-soft); border-color: #E8C33A; }
+
+canvas.viz { display: block; width: 100%; touch-action: none; border-radius: var(--r-sm); }
+.viz-wrap { position: relative; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; font-size: 13px; padding: 4px 8px; border-radius: 4px; white-space: nowrap; transform: translate(-50%, -120%); }
+
+/* notes: theory, experiments, quiz */
+.notes { margin: 44px 0 0; }
+.notes > section { margin: 0 0 34px; }
+.notes .text { margin-top: 14px; max-width: 76ch; }
+.notes .text p { margin: 0 0 12px; }
+.notes .text code, .notes li code { font-family: var(--mono); background: var(--soft); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; font-size: 14.5px; }
+.formula { font-family: var(--mono); background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--pen); border-radius: var(--r-sm); padding: 10px 14px; margin: 10px 0 14px; overflow-x: auto; white-space: pre-wrap; }
+ol.exp { margin: 14px 0 0; padding-left: 26px; max-width: 76ch; }
+ol.exp li { margin: 0 0 10px; padding-left: 4px; }
+
+.quiz { display: grid; gap: 14px; margin-top: 16px; max-width: 820px; }
+.quiz .q { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
+.quiz .q p { margin: 0 0 10px; font-weight: 600; }
+.quiz .opts { display: grid; gap: 6px; }
+.quiz .opt { font: inherit; text-align: left; background: var(--soft); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 12px; cursor: pointer; color: var(--ink); }
+.quiz .opt:hover { border-color: var(--pen); }
+.quiz .opt.right { background: var(--good-soft); border-color: var(--good); }
+.quiz .opt.wrong { background: var(--bad-soft); border-color: var(--bad); }
+.quiz .fb { margin-top: 10px; font-size: 14.5px; }
+.quiz .fb b { margin-right: 4px; }
+.quiz-score { font-weight: 600; margin-top: 4px; }
+
+.practice { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--mark); border-radius: var(--r); padding: 16px 18px; max-width: 820px; }
+.practice p { margin: 0 0 12px; }
+.practice a.btn { text-decoration: none; display: inline-block; }
+
+footer { margin: 50px 0 0; padding: 22px 0 40px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+
+@media (max-width: 600px) {
+  body { font-size: 15.5px; }
+  .lab-head .lead { font-size: 16.5px; }
+  .panel { padding: 13px; }
+  .part > h2, .notes h2 { font-size: 21px; }
+  .bar { grid-template-columns: minmax(60px, 38%) 1fr auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+</style>
+</head>
+<body>
+<nav class="topnav" aria-label="Mundarija"><div class="wrap">
+  <a class="course" href="../index.html">Mundarija</a>
+  <span class="pager">
+    <a href="#" class="disabled" rel="prev">‹ Orqaga</a>
+    <a href="02_normalization_bpe.html" class="" rel="next">Keyingi ›</a>
+  </span>
+</div></nav>
+<div class="wrap">
+<header class="lab-head">
+  <p class="lab-no">18 ta laboratoriyadan 1-si</p>
+  <h1>Koʻp maʼnolilik, kontekst va tillar tipologiyasi</h1>
+  <p class="lead">Nima uchun kompyuterga hatto bitta soʻzni tushunish qiyin, kontekst koʻp maʼnolilikni qanday hal qiladi va oʻzbek tili rus tilidan qanday farq qiladi.</p>
+  <p class="topic">Kurs mavzusi: NLP rivojlanishi va lingvistik tipologiya (kontekst va koʻp maʼnolilik muammosi)</p>
+</header>
+<main id="lab">
+<style>
+.amb-sent { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 12px 0 4px; min-height: 40px; }
+.amb-sent .tok.target { background: var(--mark); border-color: #D9B21E; font-weight: 700; }
+.amb-sent .tok.ctx { background: #E6ECFA; border-color: #B7C6EE; }
+.cue-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.cue-list .tok[aria-pressed=true] { background: var(--pen); color: #fff; border-color: var(--pen); }
+.parse { font-family: var(--mono); font-size: 14px; background: var(--soft); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 6px 9px; margin-top: 10px; overflow-x: auto; white-space: nowrap; }
+.typo-row { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 10px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line); }
+.typo-row:first-child { border-top: 0; padding-top: 0; }
+.typo-row .name b { display: block; }
+.typo-row .name span { font-size: 13px; color: var(--muted); }
+.typo-row .tok { transition: background .2s, border-color .2s; }
+.typo-row .tok.dim { opacity: .35; }
+.typo-row .gap { width: 10px; }
+.typo-row .none { font-size: 13px; color: var(--bad); align-self: center; }
+@media (max-width: 600px) { .typo-row { grid-template-columns: minmax(0, 1fr); gap: 6px; } }
+.word-big { font-family: var(--mono); font-size: clamp(24px, 5vw, 34px); font-weight: 700; margin: 6px 0 10px; word-break: break-all; }
+.word-big .b { color: var(--faint); font-weight: 400; }
+.word-big .m { border-radius: 4px; padding: 0 2px; }
+.era-line { display: flex; gap: 0; overflow-x: auto; padding-bottom: 4px; }
+.era-line button { flex: 1 0 96px; font: inherit; font-size: 14px; text-align: left; background: transparent; border: 0; border-top: 4px solid var(--line); padding: 8px 8px 6px; cursor: pointer; color: var(--muted); }
+.era-line button b { display: block; font-size: 16px; color: var(--ink); font-family: var(--mono); }
+.era-line button[aria-current=true] { border-top-color: var(--pen); color: var(--ink); background: var(--panel); }
+.era-line button.past { border-top-color: #9DB2EA; }
+.era-card h3 { font-size: 20px; margin-bottom: 4px; }
+.era-card .demo { margin-top: 12px; }
+</style>
+
+<section class="part" id="p1">
+  <h2>Koʻp maʼnolilik va kontekst</h2>
+  <p class="intro">Koʻp maʼnoli soʻz yoki iborani tanlang va kontekst soʻzlarini qoʻshing. Har bir soʻz maʼnolar ehtimolini oʻzgartiradi, noaniqlik (entropiya) esa kamayadi yoki ortadi.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <div id="amb-pick"></div>
+        <div class="amb-sent" id="amb-sent"></div>
+        <p class="small muted" id="amb-note"></p>
+        <h3 style="margin-top:14px">Kontekst soʻzlari</h3>
+        <p class="small muted" style="margin:-6px 0 4px">Qoʻshish yoki olib tashlash uchun bosing. «Boshlash» ularni navbat bilan qoʻshadi.</p>
+        <div class="cue-list" id="amb-cues"></div>
+        <div class="spacer"></div>
+        <div id="amb-player"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <h3>Maʼnolar va ularning ehtimoli</h3>
+        <div id="amb-bars"></div>
+        <div id="amb-parse"></div>
+      </div>
+      <div class="panel">
+        <h3>Noaniqlik</h3>
+        <p class="small muted" style="margin:-6px 0 6px">Kontekst har safar oʻzgarganidan keyingi entropiya (bitlarda).</p>
+        <div class="big-num" id="amb-h"></div>
+        <div id="amb-chart"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="part" id="p2">
+  <h2>Bir fikr toʻrt tilda</h2>
+  <p class="intro">«Uylarimizda» rus, oʻzbek, ingliz va xitoy tillarida. Har bir morfema ostida uning maʼnosi yozilgan.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <div id="typo-rows"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <h3>Maʼnolar</h3>
+        <p class="small muted" style="margin:-6px 0 8px">Maʼnoni tanlang va u qayerda ifodalanganini koʻring.</p>
+        <div class="cue-list" id="typo-meanings"></div>
+        <div class="spacer"></div>
+        <div class="status note small" id="typo-expl"></div>
+        <div class="spacer"></div>
+        <div id="typo-player"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="part" id="p3">
+  <h2>Oʻzbek soʻzi konstruktori</h2>
+  <p class="intro">Agglyutinatsiya amalda: oʻzakka navbat bilan koʻplik, egalik va kelishik qoʻshimchalari qoʻshiladi. Qoʻshimcha shaklini oʻzgartiradigan qoidalarni kuzating.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <div id="uz-root"></div>
+        <div id="uz-pl"></div>
+        <div id="uz-poss"></div>
+        <div id="uz-case"></div>
+        <div id="uz-player"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <h3>Soʻz morfemalar boʻyicha</h3>
+        <div class="word-big" id="uz-word"></div>
+        <div id="uz-gloss"></div>
+        <p class="small muted" id="uz-rule" style="margin:10px 0 0"></p>
+      </div>
+      <div class="panel">
+        <h3>Bitta otning nechta shakli bor</h3>
+        <div id="uz-forms"></div>
+        <p class="tiny muted" style="margin:8px 0 0">Bu oʻzbekcha shakllarning faqat bir qismi: yana -dagi, -mi (soʻroq), -chi, kesimlik qoʻshimchalari (uydaman) va boshqalar bor. Bitta otning haqiqiy shakllari yuzlab. Shakllar qancha koʻp boʻlsa, har biri korpusda shuncha kam uchraydi: bu NLP uchun asosiy qiyinchilik (17-mavzu).</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="part" id="p4">
+  <h2>NLP kontekst bilan ishlashni qanday oʻrgandi</h2>
+  <p class="intro">Qoidalardan katta til modellarigacha yetti davr. Har biri uchun: asosiy gʻoya va u koʻp maʼnoli soʻzni qanday hal qilgan boʻlardi.</p>
+  <div class="panel">
+    <div class="era-line" id="era-line" role="tablist"></div>
+    <div class="spacer"></div>
+    <div id="era-player"></div>
+  </div>
+  <div class="stage even" style="margin-top:16px">
+    <div class="panel era-card" id="era-card"></div>
+    <div class="panel">
+      <h3>Koʻp maʼnoli soʻz misolida (shartli)</h3>
+      <div id="era-demo"></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div class="notes">
+  <section><h2>Bu qanday ishlaydi</h2><div class="text">
+<p><b>Koʻp maʼnolilik</b> tabiiy tilning asosiy xususiyati boʻlib, aynan shu sababli NLP rasmiy tillarni qayta ishlashdan murakkabroq. Bir xil belgilar qatori turli darajalarda bir nechta maʼnoga ega boʻlishi mumkin:</p>
+<ul>
+<li><b>leksik</b>: bitta soʻz, bir nechta maʼno (koʻk, ot, yuz);</li>
+<li><b>morfologik</b>: bitta soʻz shakli, bir nechta grammatik tahlil (yoz: yil fasli yoki «yoz!» buyrugʻi);</li>
+<li><b>sintaktik</b>: bir nechta tahlil daraxti (eski kitob javoni: nima eski?);</li>
+<li><b>referensial va pragmatik</b>: «u» kimga ishora qiladi, soʻzlovchi nimani nazarda tutgan.</li>
+</ul>
+<p>Inson koʻp maʼnolilikni kontekst yordamida deyarli sezmasdan hal qiladi. Model ham shuni ehtimollar orqali qiladi: har bir maʼnoning boshlangʻich (apriori) ehtimoli bor, kontekstdagi har bir soʻz esa uni oʻzgartiradi. Noaniqlikning qulay oʻlchovi <b>entropiya</b>:</p>
+<div class="formula">H = −Σ p(i) · log₂ p(i)</div>
+<p>n ta teng ehtimolli maʼnoda H = log₂ n (maksimum), toʻliq ishonchda H = 0. Laboratoriyada kontekstdagi har bir soʻz maʼnoning «ball»iga vazn qoʻshadi, ehtimollar esa softmax funksiyasi orqali olinadi. Haqiqiy klassifikatorlar ham shunday ishlaydi (7- va 9-mavzular), faqat ular vaznlarni korpusdan oʻrganadi.</p>
+<p><b>Tipologiya</b> til grammatik axborotni qayerda saqlashini koʻrsatadi:</p>
+<ul>
+<li><b>flektiv (fuzion)</b> tillarda bitta qoʻshimcha bir vaqtda bir necha maʼnoni bildiradi (ruscha дом-ах: son va kelishik);</li>
+<li><b>agglyutinativ</b> tillarda har bir maʼno alohida qoʻshimcha bilan ifodalanadi, qoʻshimchalar zanjir boʻlib ulanadi (uy-lar-imiz-da; turk, qozoq, fin tillari ham shunday);</li>
+<li><b>analitik</b> tillarda grammatika yordamchi soʻzlar va soʻz tartibi bilan ifodalanadi (ingliz tili);</li>
+<li><b>amorf (ajratuvchi)</b> tillarda soʻzlar deyarli oʻzgarmaydi (xitoy tili).</li>
+</ul>
+<p>NLP uchun bu muhim. Soʻzning shakllari qancha koʻp boʻlsa, lugʻat shuncha katta boʻladi va har bir shakl shuncha kam uchraydi: «uylarimizda» soʻzida oʻqitilgan model «uylaringizdan»ni koʻrmagan. Shu sababli lemmatizatsiya (3-mavzu), BPE yordamida soʻz qismlariga ajratish (2-mavzu) va agglyutinativ tillar uchun maxsus testlar (17-mavzu) kerak.</p>
+<p>NLP tarixi kontekstdan foydalanish usuli qanday oʻzgarganining tarixidir: qoʻlda yozilgan qoidalardan statistika va belgilar orqali vektorlargacha va butun gapni birdaniga hisobga oladigan diqqat mexanizmigacha.</p></div></section>
+  <section><h2>Tajribalar</h2><ol class="exp"><li>«koʻk»ni tanlang va faqat «koʻylak»ni yoqing. Entropiyani eslab qoling. Endi «somsa»ni qoʻshing. Nima uchun kontekst koʻpaygan boʻlsa ham noaniqlik oshdi?</li>
+<li>«yoz» misolida «Boshlash»ni bosing va entropiya grafigini kuzating. Qaysi kontekst soʻzida model otdan feʼlga «oʻtdi»?</li>
+<li>«eski kitob javoni» uchun ikkala tahlil deyarli teng ehtimolli boʻladigan (entropiya taxminan 1 bit) kontekst soʻzlari toʻplamini toping.</li>
+<li>Tipologiya qismida «koʻplik»ni tanlang. Qaysi tilda bu maʼno alohida morfema bilan ifodalangan, qaysi tilda kelishik bilan qoʻshilib ketgan? Qayerda umuman yoʻq?</li>
+<li>Konstruktorda qishloq + -imiz + -ga, keyin terak + -ga ni yigʻing. Qaysi ikki qoida ishladi? Nima uchun «qishloq» qatori boʻyicha oddiy qidiruv «qishlogʻimizga» soʻzini topa olmaydi?</li>
+<li>Tarix lentasini 2013-yilgacha oʻting. Nima uchun word2vec boshqa jihatlardan statistikadan kuchliroq boʻlsa ham, koʻp maʼnolilik uchun «orqaga qadam» boʻldi?</li></ol></section>
+  <section><h2>Oʻzingizni tekshiring</h2><div class="quiz" id="quiz"></div></section>
+  <section><h2>Amaliy mashgʻulot</h2>
+    <div class="practice" style="margin-top:14px"><p>Xuddi shu algoritm haqiqiy Python kodida. Daftar Google Colabʼda ochiladi, hech narsa oʻrnatish shart emas.</p><a class="btn" id="colab" href="../notebooks/01_context_typology.ipynb">Amaliy mashgʻulotni yuklab olish (.ipynb)</a></div>
+  </section>
+</div>
+<footer>«NLP algoritmlari» kursining virtual laboratoriyasi. Brauzerda ishlaydi, oʻrnatish va internet talab qilinmaydi. <a href="../../ru/labs/01_context_typology.html" lang="ru">Русский</a></footer>
+</div>
+<script src="../../config.js"></script>
+<script>
+const LANG = "uz";
+const META = {"n":1,"slug":"01_context_typology","total":18};
+const UI = {"toc": "Mundarija",
+"prev": "Orqaga",
+"next": "Keyingi",
+"labOf": (n, total) => `${total} ta laboratoriyadan ${n}-si`,
+"topic": "Kurs mavzusi",
+"play": "Boshlash",
+"pause": "Toʻxtatish",
+"step": "Qadam",
+"reset": "Boshidan",
+"speed": "Tezlik",
+"how": "Bu qanday ishlaydi",
+"experiments": "Tajribalar",
+"quiz": "Oʻzingizni tekshiring",
+"correct": "Toʻgʻri.",
+"wrong": "Unchalik emas.",
+"tryAgain": "Boshqa variantni tanlab koʻring.",
+"score": (a, b) => `Toʻgʻri javoblar: ${b} tadan ${a} ta`,
+"colab": "Amaliy mashgʻulotni Colabʼda ochish",
+"nbDownload": "Amaliy mashgʻulotni yuklab olish (.ipynb)",
+"practice": "Amaliy mashgʻulot",
+"practiceText": "Xuddi shu algoritm haqiqiy Python kodida. Daftar Google Colabʼda ochiladi, hech narsa oʻrnatish shart emas.",
+"langName": "Oʻzbekcha",
+"otherLang": "Русский",
+"footer": "«NLP algoritmlari» kursining virtual laboratoriyasi. Brauzerda ishlaydi, oʻrnatish va internet talab qilinmaydi."};
+const L = {"title":"Koʻp maʼnolilik, kontekst va tillar tipologiyasi","lead":"Nima uchun kompyuterga hatto bitta soʻzni tushunish qiyin, kontekst koʻp maʼnolilikni qanday hal qiladi va oʻzbek tili rus tilidan qanday farq qiladi.","p1_title":"Koʻp maʼnolilik va kontekst","p1_intro":"Koʻp maʼnoli soʻz yoki iborani tanlang va kontekst soʻzlarini qoʻshing. Har bir soʻz maʼnolar ehtimolini oʻzgartiradi, noaniqlik (entropiya) esa kamayadi yoki ortadi.","pick_label":"Misol","cues_title":"Kontekst soʻzlari","cues_hint":"Qoʻshish yoki olib tashlash uchun bosing. «Boshlash» ularni navbat bilan qoʻshadi.","readings_title":"Maʼnolar va ularning ehtimoli","entropy_title":"Noaniqlik","entropy_hint":"Kontekst har safar oʻzgarganidan keyingi entropiya (bitlarda).","bits":"bit","max_bits":"maksimum","amb":[{"type":"Leksik","word":"koʻk","sentence":["koʻk"],"target":0,"note":"Bitta soʻz, bir nechta maʼno: rang, koʻkat (oʻt, ziravor) yoki osmon (sheʼriy). Maʼnoni faqat kontekst belgilaydi.","readings":[{"label":"rang: moviy","prior":0.7},{"label":"koʻkat: shivit, kashnich","prior":0.3},{"label":"osmon (sheʼriy)","prior":-0.6}],"cues":[{"t":"koʻylak","w":[2.2,-1,-0.8]},{"t":"koʻzlari","w":[1.8,-1.2,-0.4]},{"t":"bozordan bir bogʻ","w":[-0.8,2.4,-1]},{"t":"somsa","w":[-0.6,2.4,-1]},{"t":"bahor","w":[0.2,1,0.3]},{"t":"yulduzlar","w":[0.1,-1.2,2.4]},{"t":"tiniq","w":[1,-0.6,1.2]}],"script":[4,2,3]},{"type":"Sintaktik","word":"eski kitob javoni","sentence":["eski kitob javoni"],"target":0,"note":"Soʻzlar bir maʼnoli, lekin ikki xil tuzilma mumkin: «eski» soʻzi javonga yoki kitoblarga tegishli.","readings":[{"label":"javon eski","prior":0.2,"parse":"[eski [kitob javoni]]"},{"label":"kitoblar eski","prior":0,"parse":"[[eski kitob] javoni]"}],"cues":[{"t":"yogʻochi chirigan","w":[2,-0.4]},{"t":"yangi boʻyalgan","w":[1.6,-0.2]},{"t":"qoʻlyozmalar bilan toʻla","w":[-0.3,1.8]},{"t":"kutubxonaning nodir boʻlimi","w":[-0.2,1.5]},{"t":"buvamdan qolgan","w":[0.5,0.5]}],"script":[4,2,3]},{"type":"Morfologik","word":"yoz","sentence":["yoz"],"target":0,"note":"Bir xil shakl ikki soʻz turkumiga mos keladi: ot (yoz fasli) yoki feʼlning buyruq shakli (yoz!).","readings":[{"label":"ot: yoz fasli","prior":0.5},{"label":"feʼl: yoz! (buyruq)","prior":0}],"cues":[{"t":"issiq","w":[2,-0.5]},{"t":"taʼtil","w":[2.2,-0.8]},{"t":"bu","w":[0.8,0]},{"t":"iltimos","w":[-0.3,1.5]},{"t":"xat","w":[-0.6,2.2]},{"t":"ruchka bilan","w":[-1,2.4]}],"script":[2,3,4]},{"type":"Leksik va morfologik","word":"ot","sentence":["ot"],"target":0,"note":"Uch xil maʼno: hayvon, ism (nom) va «ot!» feʼli (otmoq). Ikkitasi ot, bittasi feʼl.","readings":[{"label":"hayvon: ot","prior":0.6},{"label":"ism, nom","prior":0.3},{"label":"feʼl: ot! (otmoq)","prior":-0.3}],"cues":[{"t":"egar","w":[2.6,-1,-1]},{"t":"chopdi","w":[2,-0.5,-0.5]},{"t":"familiya","w":[-1,2.6,-1]},{"t":"qoʻydi","w":[0.2,2,-0.5]},{"t":"toshni","w":[-1,-1,2.6]},{"t":"uzoqqa","w":[0.4,-1,1.8]}],"script":[5,4]}],"p2_title":"Bir fikr toʻrt tilda","p2_intro":"«Uylarimizda» rus, oʻzbek, ingliz va xitoy tillarida. Har bir morfema ostida uning maʼnosi yozilgan.","meaning_title":"Maʼnolar","meaning_hint":"Maʼnoni tanlang va u qayerda ifodalanganini koʻring.","typo":{"start":"Oʻngdan maʼnoni tanlang: uni har bir tilda qaysi morfemalar ifodalashini koʻrasiz.","meanings":[{"id":"house","label":"«uy» (oʻzak)","expl":"«Uy» oʻzagi har bir tilda bor. Farq unga nima qoʻshilishida."},{"id":"pl","label":"koʻplik","expl":"Koʻplik. Oʻzbek tilida bu alohida \u003cb>-lar\u003c/b> qoʻshimchasi, ingliz tilida \u003cb>-s\u003c/b>. Rus tilida \u003cb>-ах\u003c/b> qoʻshimchasi bir vaqtning oʻzida son va kelishikni bildiradi (fuziya), xitoy tilida esa bu yerda son umuman ifodalanmagan."},{"id":"poss","label":"egalik «bizning»","expl":"Egalik. Oʻzbek tilida bu soʻz ichidagi qoʻshimcha (\u003cb>-imiz\u003c/b>), boshqa tillarda alohida soʻz. Xitoy tilida unga \u003cb>的\u003c/b> yuklamasi qoʻshiladi."},{"id":"loc","label":"joy «-da»","expl":"Joy. Rus va ingliz tillari predlog ishlatadi, oʻzbek tili \u003cb>-da\u003c/b> kelishik qoʻshimchasini, xitoy tili \u003cb>在…里\u003c/b> qurilmasini. Rus tilida joy uch marta ifodalangan: predlog va ikki qoʻshimcha (moslashuv)."}],"rows":[{"name":"Rus tili","type":"flektiv (fuzion)","morphs":[{"t":"в","m":["loc"],"g":"ichida"},{"t":" ","m":[]},{"t":"наш","m":["poss"],"g":"bizning"},{"t":"-их","m":["pl","loc"],"g":"koʻp.+kelishik"},{"t":" ","m":[]},{"t":"дом","m":["house"],"g":"uy"},{"t":"-ах","m":["pl","loc"],"g":"koʻp.+kelishik"}]},{"name":"Oʻzbek tili","type":"agglyutinativ","morphs":[{"t":"uy","m":["house"],"g":"uy"},{"t":"-lar","m":["pl"],"g":"koʻplik"},{"t":"-imiz","m":["poss"],"g":"bizning"},{"t":"-da","m":["loc"],"g":"oʻrin-payt"}]},{"name":"Ingliz tili","type":"analitik","morphs":[{"t":"in","m":["loc"],"g":"ichida"},{"t":" ","m":[]},{"t":"our","m":["poss"],"g":"bizning"},{"t":" ","m":[]},{"t":"house","m":["house"],"g":"uy"},{"t":"-s","m":["pl"],"g":"koʻplik"}]},{"name":"Xitoy tili","type":"amorf (ajratuvchi)","missing":{"pl":"son ifodalanmagan"},"morphs":[{"t":"在 zài","m":["loc"],"g":"joylashgan"},{"t":"我们 wǒmen","m":["poss"],"g":"biz"},{"t":"的 de","m":["poss"],"g":"egalik yuklamasi"},{"t":"房子 fángzi","m":["house"],"g":"uy"},{"t":"里 lǐ","m":["loc"],"g":"ichida"}]}]},"p3_title":"Oʻzbek soʻzi konstruktori","p3_intro":"Agglyutinatsiya amalda: oʻzakka navbat bilan koʻplik, egalik va kelishik qoʻshimchalari qoʻshiladi. Qoʻshimcha shaklini oʻzgartiradigan qoidalarni kuzating.","word_title":"Soʻz morfemalar boʻyicha","forms_title":"Bitta otning nechta shakli bor","forms_note":"Bu oʻzbekcha shakllarning faqat bir qismi: yana -dagi, -mi (soʻroq), -chi, kesimlik qoʻshimchalari (uydaman) va boshqalar bor. Bitta otning haqiqiy shakllari yuzlab. Shakllar qancha koʻp boʻlsa, har biri korpusda shuncha kam uchraydi: bu NLP uchun asosiy qiyinchilik (17-mavzu).","uz":{"root_label":"Oʻzak","pl_label":"Son","poss_label":"Egalik","case_label":"Kelishik","roots":[{"w":"uy","g":"oʻzak"},{"w":"kitob","g":"oʻzak"},{"w":"bola","g":"oʻzak"},{"w":"maktab","g":"oʻzak"},{"w":"qishloq","g":"oʻzak"},{"w":"terak","g":"oʻzak"},{"w":"daftar","g":"oʻzak"}],"plural_g":"koʻplik","poss":[{"s":"-(i)m","v":"m","c":"im","g":"I shaxs birlik"},{"s":"-(i)ng","v":"ng","c":"ing","g":"II shaxs birlik"},{"s":"-(s)i","v":"si","c":"i","g":"III shaxs"},{"s":"-(i)miz","v":"miz","c":"imiz","g":"I shaxs koʻplik"},{"s":"-(i)ngiz","v":"ngiz","c":"ingiz","g":"II shaxs koʻplik"}],"cases":[{"id":"ning","g":"qaratqich (kimning?)"},{"id":"ni","g":"tushum (nimani?)"},{"id":"ga","g":"joʻnalish (qayerga?)"},{"id":"da","g":"oʻrin-payt (qayerda?)"},{"id":"dan","g":"chiqish (qayerdan?)"}],"rule_vowel":"Negiz unli bilan tugaydi, shuning uchun egalik qoʻshimchasi bosh unlisiz qoʻshiladi: \u003cb>-%s\u003c/b>.","rule_kq":"Tovush almashinuvi: unli oldidan oxirgi undosh oʻzgaradi: \u003cb>%a → %b\u003c/b>.","rule_dat":"k va q dan keyin joʻnalish qoʻshimchasi -ga moslashadi: \u003cb>-%s\u003c/b>.","rule_none":"Qoʻshimchalar oʻzgarishsiz qoʻshildi.","forms":[{"label":"Xitoycha 房子","value":1},{"label":"Inglizcha house","value":2},{"label":"Ruscha «дом»","value":12},{"label":"Oʻzbekcha uy (konstruktor)","value":72}]},"p4_title":"NLP kontekst bilan ishlashni qanday oʻrgandi","p4_intro":"Qoidalardan katta til modellarigacha yetti davr. Har biri uchun: asosiy gʻoya va u koʻp maʼnoli soʻzni qanday hal qilgan boʻlardi.","era_demo_title":"Koʻp maʼnoli soʻz misolida (shartli)","era_amb":"Koʻp maʼnolilik qanday hal qilinadi","eras":[{"year":"1954","short":"Qoidalar","name":"Qoidalar va lugʻatlar","ok":false,"idea":"Jorjtaun tajribasi: IBM 701 kompyuteri 60 dan ortiq ruscha gapni ingliz tiliga tarjima qildi. Tizimda taxminan 250 ta soʻz va 6 ta grammatik qoida bor edi, hammasi qoʻlda yozilgan.","amb":"Istisno qoida: «agar yonida X soʻzi boʻlsa, Y maʼnosini tanla». Har bir koʻp maʼnoli soʻz uchun alohida qoidalar kerak, ular minglab.","demo":"\u003cb>koʻk\u003c/b> + «koʻylak» → 17-qoida ishlaydi: «moviy rang».\u003cbr>\u003cb>koʻk\u003c/b> + «somsa» → qoida yoʻq, lugʻatdagi birinchi maʼno tanlanadi: «moviy rang». Xato.","limit":"Zaif tomoni: har qanday yangi kontekst yangi qoidani talab qiladi."},{"year":"1966","short":"Shablonlar","name":"Shablonlar: ELIZA","ok":false,"idea":"Jozef Veyzenbaum dasturi psixoterapevt rolini oʻynardi: gapdan shablon topib, suhbatdosh soʻzlarini tayyor javobga qoʻyardi. Koʻp odamlar dastur ularni tushunadi deb ishongan.","amb":"Hech qanday: dastur maʼno tanlamaydi, faqat soʻzlarning joyini almashtiradi.","demo":"«Men koʻk sotib oldim» → «Nega koʻk sotib olganingiz haqida gapiryapsiz?» Javob maʼnoli eshitiladi, lekin dastur soʻzning maʼnosini bilmaydi va unga bu kerak ham emas.","limit":"Tushunmasdan tushunish illyuziyasi. Bu hodisa hozir ham «ELIZA effekti» deb ataladi."},{"year":"1990-yillar","short":"Statistika","name":"Statistik NLP","ok":true,"idea":"Qoidalar oʻrniga katta korpuslarda chastotalarni sanash: n-gram modellari (4-mavzu), yashirin Markov modellari (8-mavzu), IBM statistik tarjimasi (12-mavzu).","amb":"Korpusda xuddi shunday qoʻshni soʻzlar yonida eng koʻp uchraydigan maʼno tanlanadi.","demo":"P(«koʻkat» | «koʻk», «somsa», «bozor») = 0,74 → «koʻkat». Qoʻshnilar statistikasi koʻpincha toʻgʻri topadi.","limit":"Faqat qoʻshni soʻzlarning tor oynasini koʻradi va korpusda boʻlmagan soʻzlar haqida hech narsa bilmaydi."},{"year":"2000-yillar","short":"ML","name":"Belgilarga asoslangan mashinali oʻqitish","ok":true,"idea":"SVM, logistik regressiya, CRF klassifikatorlari (7- va 9-mavzular). Muhandis belgilarni qoʻlda oʻylab topadi: qoʻshimchalar, qoʻshni soʻzlar, bosh harf.","amb":"Koʻp maʼnolilikni hal qilish tasniflash masalasi sifatida: kontekst belgilari → soʻz maʼnosi.","demo":"belgilar {chap_qoʻshni=«bir bogʻ», gapda=«bozor»} → «koʻkat» sinfi (ishonch 0,8).","limit":"Sifat belgilar qanchalik yaxshi oʻylab topilganiga bogʻliq va har bir til uchun ular qaytadan oʻylab topiladi."},{"year":"2013","short":"Vektorlar","name":"Soʻz vektorlari: word2vec","ok":false,"idea":"Soʻz yuzlab sonlardan iborat vektorga aylanadi, maʼnosi yaqin soʻzlar yaqin vektorlar oladi (5-mavzu). Vektorlar korpusdan oʻzi oʻrganiladi, belgilarni qoʻlda oʻylab topish shart emas.","amb":"Hal qilmaydi: soʻzning barcha maʼnolari uchun bitta vektor. «Koʻk» vektori rang, koʻkat va osmon oʻrtasidagi qandaydir oʻrtacha.","demo":"vektor(«koʻk») «koʻk koʻylak»da ham, «koʻk somsa»da ham bir xil. Eng yaqin soʻzlar: moviy, osmon, shivit, hammasi aralash.","limit":"Statik vektorlar kontekstni koʻrmaydi. Bu cheklovni transformerlar olib tashladi."},{"year":"2017–2018","short":"Transformerlar","name":"Transformerlar va BERT","ok":true,"idea":"Diqqat mexanizmi (attention) har bir soʻzga gapdagi boshqa barcha soʻzlarga «qarash» imkonini beradi (6-mavzu). BERT (2018) soʻz vektorini butun kontekstni hisobga olib quradi.","amb":"«Koʻk» vektori har bir gapda oʻziga xos: «koʻylak» yonida u «moviy»ga, «somsa» yonida «koʻkat»ga yaqin.","demo":"«bozordan bir bogʻ koʻk oldim» → kontekstual vektor «koʻkat»ga yaqin (oʻxshashlik 0,82), «moviy»ga emas (0,19).","limit":"Katta korpuslar va hisoblash resurslari kerak. Matnlari kam tillar (jumladan, oʻzbek tili) uchun modellar kamroq va ular kuchsizroq."},{"year":"2020+","short":"LLM","name":"Katta til modellari","ok":true,"idea":"GPT-3 (2020), ChatGPT (2022) va boshqa modellar ulkan korpuslarda matnni davom ettirishga va koʻrsatma boʻyicha vazifalarni bajarishga oʻrgatilgan (16-mavzu).","amb":"Butun dialog kontekstidan va dunyo haqidagi bilimlardan foydalanadi, oʻzi aniqlashtiruvchi savol bera oladi.","demo":"«Koʻk qayerda arzon?» → «Koʻkat (shivit, kashnich) haqida soʻrayapsizmi? Odatda dehqon bozorida…». Model gap oziq-ovqat haqida ekanini tushunadi.","limit":"Ishonch bilan xato qilishi va faktlarni «toʻqib chiqarishi» mumkin. Koʻp maʼnolilik yoʻqolmadi: u kafolatli emas, ehtimollar asosida hal qilinadi."}],"theory":"\n\u003cp>\u003cb>Koʻp maʼnolilik\u003c/b> tabiiy tilning asosiy xususiyati boʻlib, aynan shu sababli NLP rasmiy tillarni qayta ishlashdan murakkabroq. Bir xil belgilar qatori turli darajalarda bir nechta maʼnoga ega boʻlishi mumkin:\u003c/p>\n\u003cul>\n\u003cli>\u003cb>leksik\u003c/b>: bitta soʻz, bir nechta maʼno (koʻk, ot, yuz);\u003c/li>\n\u003cli>\u003cb>morfologik\u003c/b>: bitta soʻz shakli, bir nechta grammatik tahlil (yoz: yil fasli yoki «yoz!» buyrugʻi);\u003c/li>\n\u003cli>\u003cb>sintaktik\u003c/b>: bir nechta tahlil daraxti (eski kitob javoni: nima eski?);\u003c/li>\n\u003cli>\u003cb>referensial va pragmatik\u003c/b>: «u» kimga ishora qiladi, soʻzlovchi nimani nazarda tutgan.\u003c/li>\n\u003c/ul>\n\u003cp>Inson koʻp maʼnolilikni kontekst yordamida deyarli sezmasdan hal qiladi. Model ham shuni ehtimollar orqali qiladi: har bir maʼnoning boshlangʻich (apriori) ehtimoli bor, kontekstdagi har bir soʻz esa uni oʻzgartiradi. Noaniqlikning qulay oʻlchovi \u003cb>entropiya\u003c/b>:\u003c/p>\n\u003cdiv class=\"formula\">H = −Σ p(i) · log₂ p(i)\u003c/div>\n\u003cp>n ta teng ehtimolli maʼnoda H = log₂ n (maksimum), toʻliq ishonchda H = 0. Laboratoriyada kontekstdagi har bir soʻz maʼnoning «ball»iga vazn qoʻshadi, ehtimollar esa softmax funksiyasi orqali olinadi. Haqiqiy klassifikatorlar ham shunday ishlaydi (7- va 9-mavzular), faqat ular vaznlarni korpusdan oʻrganadi.\u003c/p>\n\u003cp>\u003cb>Tipologiya\u003c/b> til grammatik axborotni qayerda saqlashini koʻrsatadi:\u003c/p>\n\u003cul>\n\u003cli>\u003cb>flektiv (fuzion)\u003c/b> tillarda bitta qoʻshimcha bir vaqtda bir necha maʼnoni bildiradi (ruscha дом-ах: son va kelishik);\u003c/li>\n\u003cli>\u003cb>agglyutinativ\u003c/b> tillarda har bir maʼno alohida qoʻshimcha bilan ifodalanadi, qoʻshimchalar zanjir boʻlib ulanadi (uy-lar-imiz-da; turk, qozoq, fin tillari ham shunday);\u003c/li>\n\u003cli>\u003cb>analitik\u003c/b> tillarda grammatika yordamchi soʻzlar va soʻz tartibi bilan ifodalanadi (ingliz tili);\u003c/li>\n\u003cli>\u003cb>amorf (ajratuvchi)\u003c/b> tillarda soʻzlar deyarli oʻzgarmaydi (xitoy tili).\u003c/li>\n\u003c/ul>\n\u003cp>NLP uchun bu muhim. Soʻzning shakllari qancha koʻp boʻlsa, lugʻat shuncha katta boʻladi va har bir shakl shuncha kam uchraydi: «uylarimizda» soʻzida oʻqitilgan model «uylaringizdan»ni koʻrmagan. Shu sababli lemmatizatsiya (3-mavzu), BPE yordamida soʻz qismlariga ajratish (2-mavzu) va agglyutinativ tillar uchun maxsus testlar (17-mavzu) kerak.\u003c/p>\n\u003cp>NLP tarixi kontekstdan foydalanish usuli qanday oʻzgarganining tarixidir: qoʻlda yozilgan qoidalardan statistika va belgilar orqali vektorlargacha va butun gapni birdaniga hisobga oladigan diqqat mexanizmigacha.\u003c/p>","experiments":["«koʻk»ni tanlang va faqat «koʻylak»ni yoqing. Entropiyani eslab qoling. Endi «somsa»ni qoʻshing. Nima uchun kontekst koʻpaygan boʻlsa ham noaniqlik oshdi?","«yoz» misolida «Boshlash»ni bosing va entropiya grafigini kuzating. Qaysi kontekst soʻzida model otdan feʼlga «oʻtdi»?","«eski kitob javoni» uchun ikkala tahlil deyarli teng ehtimolli boʻladigan (entropiya taxminan 1 bit) kontekst soʻzlari toʻplamini toping.","Tipologiya qismida «koʻplik»ni tanlang. Qaysi tilda bu maʼno alohida morfema bilan ifodalangan, qaysi tilda kelishik bilan qoʻshilib ketgan? Qayerda umuman yoʻq?","Konstruktorda qishloq + -imiz + -ga, keyin terak + -ga ni yigʻing. Qaysi ikki qoida ishladi? Nima uchun «qishloq» qatori boʻyicha oddiy qidiruv «qishlogʻimizga» soʻzini topa olmaydi?","Tarix lentasini 2013-yilgacha oʻting. Nima uchun word2vec boshqa jihatlardan statistikadan kuchliroq boʻlsa ham, koʻp maʼnolilik uchun «orqaga qadam» boʻldi?"],"quiz":[{"q":"«Eski kitob javoni» iborasida qanday koʻp maʼnolilik bor?","a":["Leksik","Sintaktik","Morfologik","Orfografik"],"correct":1,"why":"Soʻzlar bir maʼnoli, ammo ikki xil tahlil daraxti mumkin: «eski» javonga yoki kitoblarga tegishli."},{"q":"4 ta maʼno boʻyicha taqsimot entropiyasi 2 bitga teng. Bu nimani anglatadi?","a":["Model bitta maʼnoga ishonadi","Barcha 4 maʼno teng ehtimolli","Aynan ikkita maʼno toʻgʻri","Kontekst juda koʻp"],"correct":1,"why":"Entropiya maksimumi log₂ 4 = 2 teng ehtimollarda erishiladi: model tanlov haqida hech narsa bilmaydi."},{"q":"Nima uchun oʻzbek tili agglyutinativ tillarga kiradi?","a":["Unda kelishiklar yoʻq","Har bir grammatik maʼno alohida qoʻshimcha bilan ifodalanadi, qoʻshimchalar zanjir boʻlib ulanadi","Bitta qoʻshimcha bir vaqtda son va kelishikni bildiradi","Unda soʻzlar oʻzgarmaydi"],"correct":1,"why":"uy-lar-imiz-da: son, egalik va kelishik uchta alohida qoʻshimcha bilan ifodalangan."},{"q":"Qaysi yondashuv birinchi boʻlib soʻzga turli kontekstlarda turli vektorlar bera boshladi?","a":["word2vec","n-gram modellari","Transformerlar (BERT)","Jorjtaun tajribasi qoidalari"],"correct":2,"why":"word2vec soʻzga bitta vektor beradi, BERT esa soʻz vektorini butun gapni hisobga olib quradi."}]};
+</script>
+<script>
+/* NLP labs: shared helpers. Globals provided by the build before this file: LANG, UI, L, META. */
+"use strict";
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+
+/* h("div", {class: "x", onclick: fn, style: {...}}, child, [children], "text") */
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  if (props) {
+    for (const [k, v] of Object.entries(props)) {
+      if (v == null || v === false) continue;
+      if (k === "class") el.className = v;
+      else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
+      else if (k === "html") el.innerHTML = v;
+      else if (k === "text") el.textContent = v;
+      else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
+      else if (k in el && typeof v !== "string") el[k] = v;
+      else el.setAttribute(k, v === true ? "" : v);
+    }
+  }
+  const add = (c) => {
+    if (c == null || c === false) return;
+    if (Array.isArray(c)) c.forEach(add);
+    else el.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
+  };
+  kids.forEach(add);
+  return el;
+}
+function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
+function mount(target) { return typeof target === "string" ? $(target) : target; }
+
+/* numbers */
+function fmt(x, d = 2) {
+  if (x == null || Number.isNaN(x)) return "–";
+  if (!Number.isFinite(x)) return x > 0 ? "∞" : "−∞";
+  return Number(x).toFixed(d).replace(".", ",").replace("-", "−");
+}
+function pct(x, d = 0) { return fmt(100 * x, d) + "%"; }
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const sum = (a) => a.reduce((s, x) => s + x, 0);
+const argmax = (a) => a.reduce((bi, x, i) => (x > a[bi] ? i : bi), 0);
+function softmax(arr, T = 1) {
+  const m = Math.max(...arr.map((x) => x / T));
+  const e = arr.map((x) => Math.exp(x / T - m));
+  const s = sum(e);
+  return e.map((x) => x / s);
+}
+function dot(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; }
+function norm(a) { return Math.sqrt(dot(a, a)); }
+function cosine(a, b) { const n = norm(a) * norm(b); return n ? dot(a, b) / n : 0; }
+/* deterministic random numbers: const r = rng(42); r() in [0,1) */
+function rng(seed = 1) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function sample(probs, r = Math.random) {
+  let x = r() * sum(probs);
+  for (let i = 0; i < probs.length; i++) { x -= probs[i]; if (x <= 0) return i; }
+  return probs.length - 1;
+}
+
+/* colors */
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+const PALETTE = ["--c1", "--c2", "--c3", "--c4", "--c5", "--c6", "--c7", "--c8"];
+function color(i) { return cssVar(PALETTE[((i % PALETTE.length) + PALETTE.length) % PALETTE.length]); }
+function hexToRgb(hex) {
+  const m = hex.replace("#", "");
+  const n = parseInt(m.length === 3 ? m.split("").map((c) => c + c).join("") : m, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function alpha(hex, a) { const [r, g, b] = hexToRgb(hex); return `rgba(${r},${g},${b},${a})`; }
+/* white -> pen blue scale for heatmaps, t in [0,1] */
+function heatColor(t, base = "--pen") {
+  const [r, g, b] = hexToRgb(cssVar(base));
+  t = clamp(t, 0, 1);
+  return `rgb(${Math.round(lerp(255, r, t))},${Math.round(lerp(255, g, t))},${Math.round(lerp(255, b, t))})`;
+}
+function inkOn(t) { return t > 0.55 ? "#fff" : cssVar("--ink"); }
+
+/* controls ---------------------------------------------------------------- */
+function slider(parent, o) {
+  const fmtv = o.format || ((v) => String(v));
+  const val = h("span", { class: "val" }, fmtv(o.value));
+  const input = h("input", { type: "range", min: o.min, max: o.max, step: o.step ?? 1, value: o.value, "aria-label": o.label });
+  const box = h("div", { class: "ctl" }, h("label", null, h("span", null, o.label), val), input);
+  input.addEventListener("input", () => {
+    const v = parseFloat(input.value);
+    val.textContent = fmtv(v);
+    o.onInput && o.onInput(v);
+  });
+  mount(parent).appendChild(box);
+  return {
+    el: box, input,
+    get value() { return parseFloat(input.value); },
+    set value(v) { input.value = v; val.textContent = fmtv(parseFloat(input.value)); },
+  };
+}
+
+function segmented(parent, o) {
+  let current = o.value;
+  const btns = o.options.map((opt) =>
+    h("button", { type: "button", "aria-pressed": String(opt.value === current), onclick: () => api.set(opt.value, true) }, opt.label));
+  const seg = h("div", { class: "seg", role: "group", "aria-label": o.label || "" }, btns);
+  const box = h("div", { class: "ctl" }, o.label ? h("div", { class: "lbl" }, h("span", null, o.label)) : null, seg);
+  const api = {
+    el: box,
+    get value() { return current; },
+    set(v, fire) {
+      current = v;
+      btns.forEach((b, i) => b.setAttribute("aria-pressed", String(o.options[i].value === v)));
+      if (fire && o.onChange) o.onChange(v);
+    },
+  };
+  mount(parent).appendChild(box);
+  return api;
+}
+
+function button(parent, label, onClick, variant = "") {
+  const b = h("button", { type: "button", class: "btn " + variant, onclick: onClick }, label);
+  mount(parent).appendChild(b);
+  return b;
+}
+
+function checkbox(parent, label, checked, onChange) {
+  const input = h("input", { type: "checkbox", checked: !!checked });
+  input.addEventListener("change", () => onChange && onChange(input.checked));
+  const box = h("label", { class: "check" }, input, h("span", null, label));
+  mount(parent).appendChild(box);
+  return input;
+}
+
+/* Play / Pause / Step / Reset with a speed slider.
+   o.step() advances one step and returns false when the process is finished.
+   o.reset() restores the initial state. o.interval: base delay in ms. */
+function player(parent, o) {
+  let timer = null;
+  let speed = o.speed ?? 3;
+  const delay = () => (o.interval ?? 700) * Math.pow(0.6, speed - 3);
+  const playBtn = h("button", { type: "button", class: "btn", onclick: () => (timer ? stop() : start()) }, UI.play);
+  const stepBtn = h("button", { type: "button", class: "btn ghost", onclick: () => { stop(); doStep(); } }, UI.step);
+  const resetBtn = h("button", { type: "button", class: "btn ghost", onclick: () => { stop(); o.reset(); } }, UI.reset);
+  const sp = h("input", { type: "range", min: 1, max: 5, step: 1, value: speed, "aria-label": UI.speed });
+  sp.addEventListener("input", () => { speed = +sp.value; if (timer) { stop(); start(); } });
+  const box = h("div", { class: "player" }, playBtn, stepBtn, resetBtn, o.noSpeed ? null : h("span", { class: "speed" }, UI.speed, sp));
+  mount(parent).appendChild(box);
+  function doStep() { const more = o.step(); if (more === false) stop(); return more; }
+  function start() {
+    if (o.canStep && !o.canStep()) o.reset();
+    playBtn.textContent = UI.pause;
+    timer = setInterval(() => { if (doStep() === false) stop(); }, delay());
+    o.onPlay && o.onPlay();
+  }
+  function stop() { if (timer) clearInterval(timer); timer = null; playBtn.textContent = UI.play; }
+  return { el: box, start, stop, get playing() { return !!timer; } };
+}
+
+/* Responsive HiDPI canvas.
+   o.height (px) or o.aspect (h/w); o.draw(ctx, w, h); pointer callbacks get {x, y} in CSS pixels. */
+function canvasBox(parent, o) {
+  const cv = h("canvas", { class: "viz", role: "img", "aria-label": o.label || "" });
+  const wrap = h("div", { class: "viz-wrap" }, cv);
+  mount(parent).appendChild(wrap);
+  const ctx = cv.getContext("2d");
+  let W = 0, H = 0;
+  function size() {
+    const w = Math.max(10, wrap.clientWidth);
+    const hh = o.height ? (typeof o.height === "function" ? o.height(w) : o.height) : Math.round(w * (o.aspect || 0.6));
+    const dpr = window.devicePixelRatio || 1;
+    if (w !== W || hh !== H || cv.width !== Math.round(w * dpr)) {
+      W = w; H = hh;
+      cv.width = Math.round(w * dpr); cv.height = Math.round(hh * dpr);
+      cv.style.height = hh + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+  }
+  function redraw() { size(); ctx.clearRect(0, 0, W, H); o.draw && o.draw(ctx, W, H); }
+  const pos = (e) => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  let down = false;
+  cv.addEventListener("pointerdown", (e) => { down = true; try { cv.setPointerCapture(e.pointerId); } catch (_) {} o.onDown && o.onDown(pos(e), e); });
+  cv.addEventListener("pointermove", (e) => { if (down) o.onDrag && o.onDrag(pos(e), e); else o.onHover && o.onHover(pos(e), e); });
+  cv.addEventListener("pointerup", (e) => { down = false; o.onUp && o.onUp(pos(e), e); });
+  cv.addEventListener("pointerleave", () => { if (!down && o.onLeave) o.onLeave(); });
+  if (window.ResizeObserver) new ResizeObserver(() => redraw()).observe(wrap);
+  else window.addEventListener("resize", redraw);
+  requestAnimationFrame(redraw);
+  return { canvas: cv, wrap, ctx, redraw, get w() { return W; }, get h() { return H; } };
+}
+
+/* canvas text helpers */
+function font(px, weight = 400, mono = false) { return `${weight} ${px}px ${mono ? cssVar("--mono") : cssVar("--font")}`; }
+function text(ctx, s, x, y, o = {}) {
+  ctx.save();
+  ctx.font = font(o.size || 13, o.weight || 400, o.mono);
+  ctx.fillStyle = o.color || cssVar("--ink");
+  ctx.textAlign = o.align || "left";
+  ctx.textBaseline = o.base || "middle";
+  if (o.bg) {
+    const m = ctx.measureText(s), pad = 3, tw = m.width, th = (o.size || 13) + 4;
+    let bx = x - (o.align === "center" ? tw / 2 : o.align === "right" ? tw : 0);
+    ctx.fillStyle = o.bg; ctx.fillRect(bx - pad, y - th / 2, tw + 2 * pad, th);
+    ctx.fillStyle = o.color || cssVar("--ink");
+  }
+  ctx.fillText(s, x, y);
+  ctx.restore();
+}
+function roundRect(ctx, x, y, w, hh, r) {
+  r = Math.min(r, w / 2, hh / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + hh, r); ctx.arcTo(x + w, y + hh, x, y + hh, r);
+  ctx.arcTo(x, y + hh, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function arrow(ctx, x1, y1, x2, y2, o = {}) {
+  ctx.save();
+  ctx.strokeStyle = ctx.fillStyle = o.color || cssVar("--ink");
+  ctx.lineWidth = o.width || 1.5;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  const a = Math.atan2(y2 - y1, x2 - x1), s = o.head || 8;
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - s * Math.cos(a - 0.4), y2 - s * Math.sin(a - 0.4));
+  ctx.lineTo(x2 - s * Math.cos(a + 0.4), y2 - s * Math.sin(a + 0.4));
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+/* Simple line chart on a canvas. series: [{values:[...], color, label, dash}] ; o: {xLabels, yMin, yMax, yFmt, title, markX} */
+function lineChart(ctx, W, H, series, o = {}) {
+  const pad = { l: 44, r: 12, t: o.title ? 24 : 10, b: 26 };
+  const n = Math.max(1, ...series.map((s) => s.values.length));
+  const all = series.flatMap((s) => s.values.filter((v) => Number.isFinite(v)));
+  let y0 = o.yMin ?? Math.min(0, ...all), y1 = o.yMax ?? Math.max(1e-9, ...all);
+  if (y1 === y0) y1 = y0 + 1;
+  const X = (i) => pad.l + (n === 1 ? 0 : (i / (n - 1)) * (W - pad.l - pad.r));
+  const Y = (v) => H - pad.b - ((v - y0) / (y1 - y0)) * (H - pad.t - pad.b);
+  ctx.save();
+  ctx.strokeStyle = cssVar("--line"); ctx.lineWidth = 1;
+  for (let k = 0; k <= 4; k++) {
+    const v = y0 + (k / 4) * (y1 - y0), y = Y(v);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+    text(ctx, (o.yFmt || ((x) => fmt(x, 2)))(v), pad.l - 6, y, { align: "right", size: 11, color: cssVar("--muted") });
+  }
+  if (o.title) text(ctx, o.title, pad.l, 10, { size: 12.5, weight: 600, color: cssVar("--muted") });
+  const labels = o.xLabels || [];
+  const every = Math.ceil(labels.length / Math.max(1, Math.floor((W - pad.l) / 46)));
+  labels.forEach((lab, i) => { if (i % every === 0) text(ctx, String(lab), X(i), H - pad.b + 13, { align: "center", size: 11, color: cssVar("--muted") }); });
+  if (o.markX != null) {
+    ctx.strokeStyle = cssVar("--mark"); ctx.lineWidth = 6; ctx.globalAlpha = 0.7;
+    ctx.beginPath(); ctx.moveTo(X(o.markX), pad.t); ctx.lineTo(X(o.markX), H - pad.b); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  for (const s of series) {
+    ctx.strokeStyle = s.color || cssVar("--pen"); ctx.lineWidth = s.width || 2; ctx.setLineDash(s.dash || []);
+    ctx.beginPath();
+    let started = false;
+    s.values.forEach((v, i) => { if (!Number.isFinite(v)) return; if (!started) { ctx.moveTo(X(i), Y(v)); started = true; } else ctx.lineTo(X(i), Y(v)); });
+    ctx.stroke(); ctx.setLineDash([]);
+    if (s.dots) s.values.forEach((v, i) => { if (Number.isFinite(v)) { ctx.fillStyle = s.color || cssVar("--pen"); ctx.beginPath(); ctx.arc(X(i), Y(v), 3, 0, 7); ctx.fill(); } });
+  }
+  ctx.restore();
+  return { X, Y };
+}
+
+/* DOM widgets ------------------------------------------------------------- */
+/* items: [{label, value, color, note}] ; o: {max, format} */
+function bars(parent, items, o = {}) {
+  const el = clear(mount(parent));
+  el.classList.add("bars");
+  const max = o.max ?? Math.max(1e-9, ...items.map((i) => Math.abs(i.value)));
+  for (const it of items) {
+    const w = clamp(Math.abs(it.value) / max, 0, 1) * 100;
+    el.appendChild(h("div", { class: "bar", title: it.note || "" },
+      h("span", { class: "lab" + (o.mono ? " mono" : "") }, it.label),
+      h("span", { class: "track" }, h("span", { class: "fill", style: { width: w + "%", display: "block", background: it.color || cssVar("--pen") } })),
+      h("span", { class: "num" }, (o.format || ((v) => fmt(v, 2)))(it.value))));
+  }
+  return el;
+}
+
+/* tokens: array of strings or {text, sub, cls, title, onclick} */
+function tokens(parent, toks, o = {}) {
+  const el = clear(mount(parent));
+  el.classList.add("tokens");
+  toks.forEach((t, i) => {
+    const d = typeof t === "string" ? { text: t } : t;
+    const tag = d.onclick ? "button" : "span";
+    const attrs = { class: "tok " + (d.cls || ""), title: d.title || null, type: d.onclick ? "button" : null, onclick: d.onclick || null };
+    if (d.color) attrs.style = { background: d.color, borderColor: d.color, color: d.ink || "#fff" };
+    el.appendChild(h(tag, attrs, d.text, d.sub != null ? h("span", { class: "sub" }, d.sub) : null));
+  });
+  return el;
+}
+
+/* heatmap table. matrix[r][c]; o: {format, max, min, rowHead, colHead, highlight:(r,c)=>bool} */
+function heatTable(parent, rows, cols, matrix, o = {}) {
+  const el = clear(mount(parent));
+  const flat = matrix.flat().filter(Number.isFinite);
+  const mx = o.max ?? Math.max(...flat), mn = o.min ?? Math.min(0, ...flat);
+  const t = (v) => (mx === mn ? 0 : (v - mn) / (mx - mn));
+  const head = h("tr", null, h("th", { class: "l" }, o.corner || ""), cols.map((c) => h("th", null, c)));
+  const body = rows.map((r, i) => h("tr", null, h("th", { class: "l" }, r), cols.map((_, j) => {
+    const v = matrix[i][j];
+    const tv = Number.isFinite(v) ? t(v) : 0;
+    const style = { background: o.plain ? "" : heatColor(tv * 0.85), color: o.plain ? "" : inkOn(tv * 0.85) };
+    if (o.highlight && o.highlight(i, j)) { style.outline = "3px solid " + cssVar("--mark"); style.outlineOffset = "-3px"; }
+    return h("td", { class: "num", style }, (o.format || ((x) => fmt(x, 2)))(v));
+  })));
+  el.appendChild(h("div", { class: "scroll-x" }, h("table", { class: "grid" }, h("thead", null, head), h("tbody", null, body))));
+  return el;
+}
+
+function legend(parent, items) {
+  const el = clear(mount(parent));
+  el.classList.add("legend");
+  items.forEach((it) => el.appendChild(h("span", null, h("i", { style: { background: it.color } }), it.label)));
+  return el;
+}
+
+/* page sections built from L.theory, L.experiments, L.quiz ----------------- */
+function renderNotes() {
+  const q = $("#quiz");
+  if (!q || !Array.isArray(L.quiz)) return;
+  let right = 0, answered = 0;
+  const score = h("p", { class: "quiz-score" });
+  const upd = () => { score.textContent = answered ? UI.score(right, L.quiz.length) : ""; };
+  L.quiz.forEach((item, qi) => {
+    const fb = h("div", { class: "fb", "aria-live": "polite" });
+    let done = false;
+    const opts = item.a.map((txt, ai) => h("button", {
+      type: "button", class: "opt", html: txt,
+      onclick: (e) => {
+        const ok = ai === item.correct;
+        e.currentTarget.classList.add(ok ? "right" : "wrong");
+        clear(fb).appendChild(h("span", { html: `<b>${ok ? UI.correct : UI.wrong}</b>` + (ok ? (item.why || "") : (item.hint || UI.tryAgain)) }));
+        if (!done) { done = true; answered++; if (ok) right++; upd(); }
+      },
+    }));
+    q.appendChild(h("div", { class: "q" }, h("p", { html: `${qi + 1}. ${item.q}` }), h("div", { class: "opts" }, opts), fb));
+  });
+  q.appendChild(score);
+}
+
+/* Colab link: on *.github.io the repository and the folder are read from the address;
+   elsewhere config.js (window.NLP_LABS = {repo, branch, folder}) is used; otherwise the .ipynb is offered as a download. */
+function colabTarget(lang, slug) {
+  const cfg = window.NLP_LABS || {};
+  const branch = cfg.branch || "main";
+  let repo = cfg.repo || "", folder = (cfg.folder || "").replace(/^\/+|\/+$/g, "");
+  if (!repo && /\.github\.io$/.test(location.hostname)) {
+    const user = location.hostname.replace(/\.github\.io$/, "");
+    const seg = location.pathname.split("/").filter(Boolean);
+    const li = seg.findIndex((x) => x === "ru" || x === "uz");
+    const before = li >= 0 ? seg.slice(0, li) : [];
+    // project site: user.github.io/<repo>/…  ;  user site: user.github.io/…
+    if (before.length && before[0] !== user + ".github.io") { repo = `${user}/${before[0]}`; folder = before.slice(1).join("/"); }
+    else { repo = `${user}/${location.hostname}`; folder = before.join("/"); }
+  }
+  if (!repo) return null;
+  const nb = (folder ? folder + "/" : "") + `${lang}/notebooks/${slug}.ipynb`;
+  return `https://colab.research.google.com/github/${repo}/blob/${branch}/${nb}`;
+}
+
+function setupPractice() {
+  const a = $("#colab");
+  if (!a) return;
+  const url = colabTarget(LANG, META.slug);
+  if (url) {
+    a.href = url;
+    a.textContent = UI.colab;
+    a.target = "_blank"; a.rel = "noopener";
+  } else {
+    a.href = `../notebooks/${META.slug}.ipynb`;
+    a.textContent = UI.nbDownload;
+    a.setAttribute("download", "");
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => { renderNotes(); setupPractice(); });
+
+</script>
+<script>
+/* Lab 1: ambiguity and context, morphological typology, Uzbek word builder, NLP history. */
+
+/* ---------- Part 1: ambiguity resolved by context ---------- */
+(function ambiguity() {
+  let ex = 0;                 // current example
+  let active = [];            // indices of active context cues, in order of adding
+  let history = [];           // entropy after each change
+
+  const pick = segmented("#amb-pick", {
+    label: L.pick_label,
+    options: L.amb.map((e, i) => ({ value: i, label: `${e.type}: ${e.word}` })),
+    value: 0,
+    onChange: (v) => { ex = v; resetEx(); },
+  });
+
+  const chart = canvasBox("#amb-chart", { height: 130, draw: drawChart, label: L.entropy_title });
+
+  function probs() {
+    const e = L.amb[ex];
+    const logits = e.readings.map((r, k) => r.prior + active.reduce((s, c) => s + e.cues[c].w[k], 0));
+    return softmax(logits);
+  }
+  function entropy(p) { return -p.reduce((s, x) => s + (x > 0 ? x * Math.log2(x) : 0), 0); }
+
+  function render() {
+    const e = L.amb[ex];
+    const p = probs();
+    // sentence with target and context cues
+    const sent = clear($("#amb-sent"));
+    e.sentence.forEach((w, i) => sent.appendChild(h("span", { class: "tok" + (i === e.target ? " target" : "") }, w)));
+    active.forEach((c) => sent.appendChild(h("span", { class: "tok ctx" }, "+ " + e.cues[c].t)));
+    $("#amb-note").innerHTML = e.note;
+    // cue buttons
+    const cl = clear($("#amb-cues"));
+    e.cues.forEach((c, i) => cl.appendChild(h("button", {
+      type: "button", class: "tok", "aria-pressed": String(active.includes(i)),
+      onclick: () => { toggle(i); },
+    }, c.t)));
+    // readings
+    const best = argmax(p);
+    bars("#amb-bars", e.readings.map((r, k) => ({ label: r.label, value: p[k], color: k === best ? cssVar("--pen") : cssVar("--faint") })),
+      { max: 1, format: (v) => pct(v, 0) });
+    $$("#amb-bars .lab").forEach((el, k) => { el.style.whiteSpace = "normal"; el.title = e.readings[k].label; });
+    const parse = clear($("#amb-parse"));
+    if (e.readings[best].parse) parse.appendChild(h("div", { class: "parse" }, e.readings[best].parse));
+    const H = entropy(p);
+    clear($("#amb-h")).append(fmt(H, 2) + " " + L.bits, h("small", null, L.max_bits + " " + fmt(Math.log2(p.length), 2)));
+    chart.redraw();
+  }
+
+  function toggle(i) {
+    const k = active.indexOf(i);
+    if (k >= 0) active.splice(k, 1); else active.push(i);
+    history.push(entropy(probs()));
+    render();
+  }
+
+  function drawChart(ctx, W, H) {
+    const vals = history.length ? history : [entropy(probs())];
+    lineChart(ctx, W, H, [{ values: vals, color: cssVar("--pen"), dots: true }],
+      { yMin: 0, yMax: Math.log2(L.amb[ex].readings.length), xLabels: vals.map((_, i) => i), yFmt: (v) => fmt(v, 1) });
+  }
+
+  function resetEx() { active = []; history = [entropy(probs())]; render(); }
+
+  player("#amb-player", {
+    interval: 1100,
+    step: () => {
+      const e = L.amb[ex];
+      const next = e.script.find((c) => !active.includes(c));
+      if (next == null) return false;
+      toggle(next);
+      return e.script.some((c) => !active.includes(c));
+    },
+    canStep: () => L.amb[ex].script.some((c) => !active.includes(c)),
+    reset: resetEx,
+  });
+
+  resetEx();
+})();
+
+/* ---------- Part 2: the same meaning in four languages ---------- */
+(function typology() {
+  const T = L.typo;
+  let sel = null;
+  const mbox = $("#typo-meanings");
+  T.meanings.forEach((m) => mbox.appendChild(h("button", { type: "button", class: "tok", "aria-pressed": "false", onclick: () => choose(m.id) }, m.label)));
+
+  function render() {
+    const rows = clear($("#typo-rows"));
+    T.rows.forEach((r) => {
+      const toks = r.morphs.map((m) => {
+        if (m.t === " ") return h("span", { class: "gap" });
+        const on = sel && m.m.includes(sel);
+        const multi = on && m.m.filter((x) => x !== "house").length > 1;
+        return h("span", {
+          class: "tok" + (on ? " hl" : "") + (sel && !on ? " dim" : ""),
+          style: multi ? { background: cssVar("--mark"), borderColor: "#C9A10F" } : null,
+        }, m.t, h("span", { class: "sub" }, m.g));
+      });
+      if (sel && r.missing && r.missing[sel]) toks.push(h("span", { class: "none" }, r.missing[sel]));
+      rows.appendChild(h("div", { class: "typo-row" },
+        h("div", { class: "name" }, h("b", null, r.name), h("span", null, r.type)),
+        h("div", { class: "tokens" }, toks)));
+    });
+    $$("#typo-meanings .tok").forEach((b, i) => b.setAttribute("aria-pressed", String(T.meanings[i].id === sel)));
+    $("#typo-expl").innerHTML = sel ? T.meanings.find((m) => m.id === sel).expl : T.start;
+  }
+  function choose(id) { sel = sel === id ? null : id; render(); }
+  let pos = -1;
+  player("#typo-player", {
+    interval: 1800,
+    step: () => { pos = (pos + 1) % T.meanings.length; sel = T.meanings[pos].id; render(); return pos < T.meanings.length - 1; },
+    reset: () => { pos = -1; sel = null; render(); },
+  });
+  render();
+})();
+
+/* ---------- Part 3: Uzbek word builder ---------- */
+(function builder() {
+  const U = L.uz;
+  const st = { root: 0, pl: 0, poss: 0, cas: 0 };
+  const isVowelEnd = (s) => /[aeiou]$/.test(s) || /oʻ$/.test(s);
+
+  const rootSel = segmented("#uz-root", { label: U.root_label, options: U.roots.map((r, i) => ({ value: i, label: r.w })), value: 0, onChange: (v) => { st.root = v; render(); } });
+  const plSel = segmented("#uz-pl", { label: U.pl_label, options: [{ value: 0, label: "—" }, { value: 1, label: "-lar" }], value: 0, onChange: (v) => { st.pl = v; render(); } });
+  const possSel = segmented("#uz-poss", { label: U.poss_label, options: [{ value: 0, label: "—" }].concat(U.poss.map((p, i) => ({ value: i + 1, label: p.s }))), value: 0, onChange: (v) => { st.poss = v; render(); } });
+  const caseSel = segmented("#uz-case", { label: U.case_label, options: [{ value: 0, label: "—" }].concat(U.cases.map((c, i) => ({ value: i + 1, label: "-" + c.id }))), value: 0, onChange: (v) => { st.cas = v; render(); } });
+
+  // returns morphs [{t, g, kind}] and list of applied rules
+  function build() {
+    const rules = [];
+    const root = U.roots[st.root];
+    const morphs = [{ t: root.w, g: root.g, kind: "root" }];
+    const stem = () => morphs.map((m) => m.t).join("");
+    if (st.pl) morphs.push({ t: "lar", g: U.plural_g, kind: "pl" });
+    if (st.poss) {
+      const p = U.poss[st.poss - 1];
+      const v = isVowelEnd(stem());
+      let suf = v ? p.v : p.c;
+      if (!v && !st.pl && /[kq]$/.test(root.w) && root.w.length > 3) {
+        const old = morphs[0].t;
+        morphs[0].t = old.endsWith("k") ? old.slice(0, -1) + "g" : old.slice(0, -1) + "gʻ";
+        rules.push(U.rule_kq.replace("%a", old).replace("%b", morphs[0].t));
+      }
+      if (v) rules.push(U.rule_vowel.replace("%s", suf));
+      morphs.push({ t: suf, g: p.g, kind: "poss" });
+    }
+    if (st.cas) {
+      const c = U.cases[st.cas - 1];
+      let suf = c.id;
+      const s = stem();
+      if (c.id === "ga" && s.endsWith("k")) { suf = "ka"; rules.push(U.rule_dat.replace("%s", "ka")); }
+      else if (c.id === "ga" && s.endsWith("q")) { suf = "qa"; rules.push(U.rule_dat.replace("%s", "qa")); }
+      morphs.push({ t: suf, g: c.g, kind: "case" });
+    }
+    return { morphs, rules };
+  }
+  const KIND_COLOR = { root: "--soft", pl: "--c3", poss: "--c4", cas: "--c5", case: "--c5" };
+  function render() {
+    const { morphs, rules } = build();
+    const w = clear($("#uz-word"));
+    morphs.forEach((m, i) => {
+      if (i) w.appendChild(h("span", { class: "b" }, "·"));
+      w.appendChild(h("span", { class: "m", style: m.kind === "root" ? null : { color: cssVar(KIND_COLOR[m.kind]) } }, m.t));
+    });
+    tokens("#uz-gloss", morphs.map((m) => ({ text: m.t, sub: m.g, cls: m.kind === "root" ? "" : "hl" })));
+    $("#uz-rule").innerHTML = rules.length ? rules.join("<br>") : U.rule_none;
+    rootSel.set(st.root); plSel.set(st.pl); possSel.set(st.poss); caseSel.set(st.cas);
+  }
+  bars("#uz-forms", U.forms.map((f, i) => ({ label: f.label, value: f.value, color: i === U.forms.length - 1 ? cssVar("--pen") : cssVar("--faint") })), { format: (v) => String(v) });
+
+  // animation: build a long word one suffix at a time
+  const r = rng(7);
+  let phase = 0;
+  player("#uz-player", {
+    interval: 1100,
+    step: () => {
+      if (phase === 0) { st.root = Math.floor(r() * U.roots.length); st.pl = 0; st.poss = 0; st.cas = 0; }
+      else if (phase === 1) st.pl = 1;
+      else if (phase === 2) st.poss = 1 + Math.floor(r() * U.poss.length);
+      else if (phase === 3) st.cas = 1 + Math.floor(r() * U.cases.length);
+      phase++;
+      render();
+      return phase < 4;
+    },
+    canStep: () => phase < 4,
+    reset: () => { phase = 0; st.pl = st.poss = st.cas = 0; render(); },
+  });
+  render();
+})();
+
+/* ---------- Part 4: history of NLP ---------- */
+(function history() {
+  let cur = 0;
+  const line = $("#era-line");
+  L.eras.forEach((e, i) => line.appendChild(h("button", { type: "button", role: "tab", onclick: () => { cur = i; render(); } }, h("b", null, e.year), e.short)));
+  function render() {
+    $$("#era-line button").forEach((b, i) => { b.setAttribute("aria-current", String(i === cur)); b.classList.toggle("past", i < cur); });
+    const e = L.eras[cur];
+    const card = clear($("#era-card"));
+    card.appendChild(h("p", { class: "muted small", style: { margin: "0 0 2px" } }, e.year));
+    card.appendChild(h("h3", null, e.name));
+    card.appendChild(h("p", { html: e.idea }));
+    card.appendChild(h("dl", { class: "kv", style: { gridTemplateColumns: "1fr" } },
+      h("dt", null, L.era_amb), h("dd", { style: { fontFamily: "inherit", fontWeight: 400, textAlign: "left" }, html: e.amb })));
+    const demo = clear($("#era-demo"));
+    demo.appendChild(h("div", { class: "status " + (e.ok ? "good" : "bad"), html: e.demo }));
+    demo.appendChild(h("p", { class: "small muted", style: { margin: "10px 0 0" }, html: e.limit }));
+  }
+  player("#era-player", {
+    interval: 2600,
+    step: () => { if (cur >= L.eras.length - 1) return false; cur++; render(); return cur < L.eras.length - 1; },
+    canStep: () => cur < L.eras.length - 1,
+    reset: () => { cur = 0; render(); },
+  });
+  render();
+})();
+
+</script>
+</body>
+</html>
