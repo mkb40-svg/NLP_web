@@ -1,0 +1,1499 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>9. Именованные сущности: BIO-разметка и CRF</title>
+<meta name="description" content="Распознавание именованных сущностей (NER, BIO-разметка и логика модели CRF)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=PT+Mono&display=swap" rel="stylesheet">
+<style>
+/* NLP labs: shared style. Light theme only (labs are often projected in class). */
+:root {
+  color-scheme: light;
+  --paper: #EDF1F6;
+  --panel: #FFFFFF;
+  --soft: #F5F7FA;
+  --ink: #1C2A43;
+  --muted: #56637C;
+  --faint: #8C97AB;
+  --line: #D2D9E4;
+  --pen: #2B55C9;
+  --pen-dark: #1F3F9A;
+  --mark: #FFD84D;
+  --mark-soft: #FFF2B8;
+  --good: #1A8F5F;
+  --good-soft: #DDF3E8;
+  --bad: #C2413A;
+  --bad-soft: #FBE3E1;
+  --c1: #2B55C9;
+  --c2: #D04A55;
+  --c3: #17907E;
+  --c4: #9157BF;
+  --c5: #DB8F1F;
+  --c6: #5B7A2A;
+  --c7: #C1508F;
+  --c8: #5E6B85;
+  --font: "Golos Text", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --mono: "PT Mono", Consolas, "Liberation Mono", "Courier New", monospace;
+  --r: 10px;
+  --r-sm: 5px;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.55 var(--font);
+}
+a { color: var(--pen); }
+a:hover { color: var(--pen-dark); }
+:focus-visible { outline: 3px solid var(--mark); outline-offset: 2px; border-radius: 3px; }
+img, svg, canvas { max-width: 100%; }
+
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+
+/* top navigation */
+.topnav { background: var(--ink); color: #fff; font-size: 14px; }
+.topnav .wrap { display: flex; align-items: center; gap: 12px; min-height: 46px; flex-wrap: wrap; }
+.topnav a { color: #fff; text-decoration: none; padding: 6px 10px; border-radius: var(--r-sm); }
+.topnav a:hover { background: rgba(255,255,255,.12); color: #fff; }
+.topnav .course { font-weight: 600; margin-right: auto; }
+.topnav .pager { display: flex; gap: 4px; }
+.topnav .disabled { opacity: .35; pointer-events: none; }
+
+/* header */
+.lab-head { padding: 28px 0 8px; }
+.lab-no { margin: 0 0 6px; color: var(--muted); font-size: 15px; }
+.lab-head h1 { margin: 0; font-size: clamp(28px, 4.2vw, 42px); line-height: 1.12; font-weight: 700; letter-spacing: -.01em; max-width: 26ch; }
+.lab-head .lead { margin: 14px 0 0; font-size: 18px; max-width: 70ch; color: var(--ink); }
+.lab-head .topic { margin: 12px 0 0; font-size: 14px; color: var(--muted); max-width: 90ch; }
+
+/* sections and the highlighter heading: the one decorative motif */
+.part { margin: 34px 0 0; }
+.part > h2, .notes h2 {
+  font-size: 23px; line-height: 1.25; margin: 0 0 6px; font-weight: 700;
+  display: inline;
+  background: linear-gradient(transparent 58%, var(--mark) 58%, var(--mark) 92%, transparent 92%);
+  box-decoration-break: clone; -webkit-box-decoration-break: clone;
+  padding: 0 3px;
+}
+.part > .hint, .part > p.intro { margin: 10px 0 14px; color: var(--muted); max-width: 75ch; }
+.part > h2 + .stage { margin-top: 16px; }
+
+/* stage: visual on the left, controls and readouts on the right */
+.stage { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.stage.even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.stage.single { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 900px) { .stage, .stage.even { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; min-width: 0; }
+.panel + .panel { margin-top: 16px; }
+.stage > .panel + .panel { margin-top: 0; }
+.panel h3 { margin: 0 0 10px; font-size: 16px; font-weight: 600; }
+.panel h3 + .muted { margin-top: -6px; }
+.col > .panel + .panel { margin-top: 16px; }
+.stage > .panel + .panel { margin-top: 0; }
+
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+.tiny { font-size: 12.5px; }
+.mono { font-family: var(--mono); }
+.center { text-align: center; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row + .row { margin-top: 10px; }
+.grow { flex: 1 1 auto; }
+.spacer { height: 10px; }
+
+/* controls */
+.btn {
+  font: inherit; font-size: 15px; font-weight: 500;
+  border: 1px solid var(--pen); background: var(--pen); color: #fff;
+  border-radius: 999px; padding: 7px 16px; cursor: pointer; line-height: 1.3;
+  min-height: 36px; touch-action: manipulation;
+}
+.btn:hover { background: var(--pen-dark); border-color: var(--pen-dark); }
+.btn.ghost { background: transparent; color: var(--pen); }
+.btn.ghost:hover { background: #E6ECFA; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.small { font-size: 14px; padding: 5px 12px; min-height: 32px; }
+
+.player { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.player .speed { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.player .speed input { width: 110px; }
+
+.ctl { margin: 0 0 14px; }
+.panel > .ctl:last-child, .panel > div:last-child > .ctl:last-child { margin-bottom: 0; }
+.ctl label, .ctl .lbl { display: flex; justify-content: space-between; gap: 8px; font-size: 14.5px; margin-bottom: 4px; }
+.ctl .val { font-family: var(--mono); font-weight: 700; color: var(--pen); white-space: nowrap; }
+input[type=range] { width: 100%; accent-color: var(--pen); margin: 0; height: 26px; }
+
+.seg { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
+.seg button { font: inherit; font-size: 14px; border: 1px solid #B8C6EA; background: var(--panel); color: var(--pen); padding: 5px 12px; cursor: pointer; min-height: 34px; border-radius: 999px; }
+.seg button:hover { border-color: var(--pen); }
+.seg button[aria-pressed=true] { background: var(--pen); color: #fff; border-color: var(--pen); }
+
+input[type=text], textarea, select {
+  font: inherit; font-size: 15px; color: var(--ink); background: #fff;
+  border: 1px solid var(--line); border-radius: var(--r-sm); padding: 7px 10px; width: 100%; max-width: 100%;
+}
+textarea { min-height: 76px; resize: vertical; }
+input[type=text]:focus, textarea:focus, select:focus { border-color: var(--pen); outline: none; box-shadow: 0 0 0 3px #D7E1FA; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 14.5px; cursor: pointer; margin: 6px 0; }
+.check input { width: 17px; height: 17px; accent-color: var(--pen); }
+
+/* tokens: strings of text are the material of this course */
+.tokens { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tok {
+  font-family: var(--mono); font-size: 15px; line-height: 1.2;
+  border: 1px solid var(--line); background: var(--soft); border-radius: var(--r-sm);
+  padding: 4px 7px; white-space: pre; display: inline-flex; flex-direction: column; align-items: center;
+}
+.tok .sub { font-family: var(--font); font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.tok.hl { background: var(--mark-soft); border-color: #E8C33A; }
+.tok.on { background: var(--pen); color: #fff; border-color: var(--pen); }
+.tok.on .sub { color: #DCE4FA; }
+button.tok { cursor: pointer; font-family: var(--mono); color: var(--ink); }
+.morph { font-family: var(--mono); }
+.morph .b { color: var(--faint); padding: 0 1px; }
+
+mark, .hl-text { background: var(--mark-soft); color: inherit; border-radius: 3px; padding: 0 2px; }
+
+/* readouts */
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 14.5px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-family: var(--mono); font-weight: 700; text-align: right; }
+.big-num { font-size: 30px; font-weight: 700; line-height: 1.1; }
+.big-num small { font-size: 15px; font-weight: 400; color: var(--muted); margin-left: 6px; }
+
+.bars { display: grid; gap: 6px; }
+.bar { display: grid; grid-template-columns: minmax(70px, 34%) 1fr auto; gap: 8px; align-items: center; font-size: 14px; }
+.bar .lab { overflow-wrap: anywhere; line-height: 1.3; }
+.bar .track { background: var(--soft); border: 1px solid var(--line); border-radius: 4px; height: 16px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--pen); border-radius: 3px 0 0 3px; transition: width .35s ease; }
+.bar .num { font-family: var(--mono); font-size: 13px; min-width: 46px; text-align: right; }
+
+table.grid { border-collapse: collapse; font-size: 14px; width: 100%; }
+table.grid th, table.grid td { border: 1px solid var(--line); padding: 5px 7px; text-align: center; }
+table.grid th { background: var(--soft); font-weight: 600; }
+table.grid td.l, table.grid th.l { text-align: left; }
+table.grid td.num { font-family: var(--mono); }
+table.grid tr.sel td { background: var(--mark-soft); }
+.scroll-x { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+.status { border-radius: var(--r-sm); padding: 8px 12px; font-size: 14.5px; background: var(--soft); border: 1px solid var(--line); }
+.status.good { background: var(--good-soft); border-color: #A9DCC2; }
+.status.bad { background: var(--bad-soft); border-color: #F0B7B2; }
+.status.note { background: var(--mark-soft); border-color: #E8C33A; }
+
+canvas.viz { display: block; width: 100%; touch-action: none; border-radius: var(--r-sm); }
+.viz-wrap { position: relative; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; font-size: 13px; padding: 4px 8px; border-radius: 4px; white-space: nowrap; transform: translate(-50%, -120%); }
+
+/* notes: theory, experiments, quiz */
+.notes { margin: 44px 0 0; }
+.notes > section { margin: 0 0 34px; }
+.notes .text { margin-top: 14px; max-width: 76ch; }
+.notes .text p { margin: 0 0 12px; }
+.notes .text code, .notes li code { font-family: var(--mono); background: var(--soft); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; font-size: 14.5px; }
+.formula { font-family: var(--mono); background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--pen); border-radius: var(--r-sm); padding: 10px 14px; margin: 10px 0 14px; overflow-x: auto; white-space: pre-wrap; }
+ol.exp { margin: 14px 0 0; padding-left: 26px; max-width: 76ch; }
+ol.exp li { margin: 0 0 10px; padding-left: 4px; }
+
+.quiz { display: grid; gap: 14px; margin-top: 16px; max-width: 820px; }
+.quiz .q { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
+.quiz .q p { margin: 0 0 10px; font-weight: 600; }
+.quiz .opts { display: grid; gap: 6px; }
+.quiz .opt { font: inherit; text-align: left; background: var(--soft); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 12px; cursor: pointer; color: var(--ink); }
+.quiz .opt:hover { border-color: var(--pen); }
+.quiz .opt.right { background: var(--good-soft); border-color: var(--good); }
+.quiz .opt.wrong { background: var(--bad-soft); border-color: var(--bad); }
+.quiz .fb { margin-top: 10px; font-size: 14.5px; }
+.quiz .fb b { margin-right: 4px; }
+.quiz-score { font-weight: 600; margin-top: 4px; }
+
+.practice { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--mark); border-radius: var(--r); padding: 16px 18px; max-width: 820px; }
+.practice p { margin: 0 0 12px; }
+.practice a.btn { text-decoration: none; display: inline-block; }
+
+footer { margin: 50px 0 0; padding: 22px 0 40px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+
+@media (max-width: 600px) {
+  body { font-size: 15.5px; }
+  .lab-head .lead { font-size: 16.5px; }
+  .panel { padding: 13px; }
+  .part > h2, .notes h2 { font-size: 21px; }
+  .bar { grid-template-columns: minmax(60px, 38%) 1fr auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+</style>
+</head>
+<body>
+<nav class="topnav" aria-label="Оглавление"><div class="wrap">
+  <a class="course" href="../index.html">Оглавление</a>
+  <span class="pager">
+    <a href="08_hmm_viterbi.html" class="" rel="prev">‹ Назад</a>
+    <a href="10_syntax_parsing.html" class="" rel="next">Далее ›</a>
+  </span>
+</div></nav>
+<div class="wrap">
+<header class="lab-head">
+  <p class="lab-no">Лаборатория 9 из 18</p>
+  <h1>Именованные сущности: BIO-разметка и CRF</h1>
+  <p class="lead">Как разметить имена, места и организации тегами B, I, O, откуда берутся оценки тегов и почему CRF с алгоритмом Витерби не выдаёт невозможных последовательностей, а независимый классификатор выдаёт.</p>
+  <p class="topic">Тема курса: Распознавание именованных сущностей (NER, BIO-разметка и логика модели CRF)</p>
+</header>
+<main id="lab">
+<style>
+.ner { display: flex; flex-wrap: wrap; row-gap: 16px; align-items: flex-start; margin: 6px 0 4px; }
+.ner .tw { position: relative; padding: 0 4px 20px; }
+.ner .tk { font-family: var(--mono); font-size: 15px; line-height: 1.2; border: 1px solid var(--line); background: var(--soft); border-radius: var(--r-sm);
+  padding: 4px 7px; display: inline-flex; flex-direction: column; align-items: center; color: var(--ink); white-space: pre; }
+.ner button.tk { cursor: pointer; font-family: var(--mono); font-size: 15px; }
+.ner button.tk:hover { border-color: var(--pen); }
+.ner .tk .tg { font-family: var(--font); font-size: 11.5px; font-weight: 700; margin-top: 2px; }
+.ner .tk.sel { outline: 3px solid var(--mark); outline-offset: 1px; }
+.ner .tk.bad { border-color: var(--bad); box-shadow: 0 0 0 2px var(--bad-soft); }
+.ner .tk.bad .tg::after { content: " !"; color: var(--bad); }
+.ner .tk.suf { font-size: 13.5px; }
+.ner .br { position: absolute; left: 0; right: 0; bottom: 7px; height: 8px; border-bottom: 3px solid var(--b); }
+.ner .tw.s .br { left: 4px; border-left: 3px solid var(--b); border-bottom-left-radius: 3px; }
+.ner .tw.e .br { right: 4px; border-right: 3px solid var(--b); border-bottom-right-radius: 3px; }
+.ner .lb { position: absolute; left: 7px; bottom: -9px; font-size: 11.5px; font-weight: 700; color: var(--b); white-space: nowrap; }
+.pal { display: flex; flex-wrap: wrap; gap: 5px; margin: 4px 0 0; }
+.pal button { font: inherit; font-family: var(--mono); font-size: 13px; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line); background: #fff; cursor: pointer; min-height: 32px; }
+.pal button[aria-pressed=true] { color: #fff; }
+.pal .lbl { font-size: 13.5px; color: var(--muted); width: 100%; }
+.span-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.span-list li { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: 14.5px; }
+.span-list .ty { font-size: 12px; font-weight: 700; color: #fff; border-radius: 4px; padding: 1px 6px; }
+.span-list .w { font-family: var(--mono); }
+table.ft { border-collapse: collapse; font-size: 13.5px; width: 100%; }
+table.ft th, table.ft td { border: 1px solid var(--line); padding: 4px 6px; text-align: center; white-space: nowrap; }
+table.ft th { background: var(--soft); font-weight: 600; font-size: 12.5px; }
+table.ft td { font-family: var(--mono); }
+table.ft td.w { text-align: left; font-weight: 700; cursor: pointer; position: sticky; left: 0; z-index: 1; background: #fff; }
+table.ft thead th:first-child { position: sticky; left: 0; z-index: 1; }
+table.ft tr.sel td.w { background: var(--mark-soft); }
+table.ft tr:hover td.w { text-decoration: underline; }
+table.ft td.pick { box-shadow: inset 0 0 0 3px var(--c5); font-weight: 700; }
+table.ft td.w .bang { color: var(--bad); font-weight: 700; margin-left: 4px; }
+table.ft tr.off td { color: var(--faint); text-decoration: line-through; }
+table.ft tr.sum td { font-weight: 700; border-top: 2px solid var(--ink); }
+table.ft td.l { text-align: left; font-family: var(--font); white-space: normal; min-width: 150px; }
+.feats .check { align-items: flex-start; margin: 4px 0; }
+.feats .check input { flex: none; margin-top: 2px; }
+.feats .check span { line-height: 1.35; }
+.feats .check .cnt { color: var(--faint); font-size: 12.5px; margin-left: 4px; }
+.lat-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--line); border-radius: var(--r-sm); background: #fff; margin: 8px 0 4px; }
+.lat-inner { display: flex; align-items: flex-start; }
+.lat-inner .cv { flex: 1 1 auto; min-width: 0; }
+.lat-inner canvas.viz { touch-action: pan-x pan-y; cursor: pointer; }
+.rowlab { position: sticky; left: 0; z-index: 2; flex: none; background: #fff; border-right: 1px solid var(--line); padding-left: 6px; box-sizing: border-box; }
+.rowlab div { display: flex; align-items: center; font-family: var(--mono); font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+.scroll-hint { display: none; font-size: 12.5px; color: var(--faint); margin: 4px 0 0; }
+@media (max-width: 900px) { .scroll-hint { display: block; } }
+table.calc { font-size: 13.5px; }
+table.calc td, table.calc th { padding: 4px 6px; white-space: nowrap; }
+table.calc tr.best td { background: var(--mark-soft); font-weight: 700; }
+table.calc tr.neg td { color: var(--faint); }
+.readout p { margin: 0 0 8px; font-size: 14.5px; }
+table.tm td { font-family: var(--mono); min-width: 44px; }
+table.tm td.ninf { background: #E9ECF1; color: var(--faint); }
+table.tm td.crf { box-shadow: inset 0 0 0 3px var(--pen); font-weight: 700; }
+table.tm td.badt { box-shadow: inset 0 0 0 3px var(--bad); font-weight: 700; }
+table.tm th { font-family: var(--mono); font-size: 12px; }
+.cmp-row { margin: 4px 0 10px; }
+.cmp-row h4 { margin: 0 0 4px; font-size: 14.5px; font-weight: 600; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 1px 7px; }
+.badge.ok { background: var(--good-soft); color: var(--good); }
+.badge.no { background: var(--bad-soft); color: var(--bad); }
+.mini { display: flex; flex-wrap: wrap; gap: 4px; }
+.mini span { font-family: var(--mono); font-size: 12.5px; border-radius: 4px; padding: 2px 5px; border: 1px solid var(--line); background: var(--soft); }
+.mini span.badt { border-color: var(--bad); background: var(--bad-soft); }
+.mini span.diff { outline: 2px solid var(--mark); }
+.ctlrow { display: flex; flex-wrap: wrap; gap: 6px 22px; align-items: flex-end; }
+.ctlrow .ctl { margin: 0; }
+.metric-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 6px 0 10px; }
+.metric-cards div { background: var(--soft); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 10px; }
+.metric-cards b { display: block; font-size: 24px; line-height: 1.15; }
+.metric-cards span { font-size: 13px; color: var(--muted); }
+.fn-list { font-size: 14px; margin: 4px 0 0; }
+.rowtitle { font-size: 13.5px; color: var(--muted); margin: 10px 0 0; }
+</style>
+
+<section class="part" id="p1">
+  <h2>BIO-разметка своими руками</h2>
+  <p class="intro">Нажимайте на слова: тег меняется по кругу O → B-PER → I-PER → B-LOC → I-LOC → B-ORG → I-ORG. Цветные скобки показывают найденные сущности, ошибки BIO подсвечиваются красным. «Пуск» размечает предложение по шагам.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <div id="b-pick"></div>
+        <div class="ner" id="b-toks"></div>
+        <div class="pal" id="b-pal"></div>
+        <div class="spacer"></div>
+        <div class="row"><span id="b-clear"></span><span id="b-split"></span></div>
+        <div class="spacer"></div>
+        <div id="b-player"></div>
+        <div class="spacer"></div>
+        <div class="status note small" id="b-msg"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <h3>Найденные сущности</h3>
+        <ul class="span-list" id="b-spans"></ul>
+        <div class="spacer"></div>
+        <div id="b-valid"></div>
+      </div>
+      <div class="panel">
+        <p class="small" style="margin:0 0 8px"><b>B-X</b> начинает сущность типа X, <b>I-X</b> продолжает её, <b>O</b> — слово вне сущностей. I-X может стоять только после B-X или I-X того же типа.</p>
+        <p class="small muted" style="margin:0" id="b-seg"></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="part" id="p2">
+  <h2>Оценки тегов из признаков</h2>
+  <p class="intro">Каждый признак слова добавляет к каждому тегу свой вес. Сумма весов — оценка тега для слова (эмиссия). Нажмите на строку таблицы, чтобы увидеть, какие признаки сработали. Отключайте признаки и смотрите, как меняются оценки здесь и решение CRF ниже.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <div id="f-pick"></div>
+        <div class="scroll-x" id="f-table"></div>
+        <p class="tiny muted" style="margin:8px 0 10px">Рамка — лучший тег слова для независимого классификатора. Красный «!» — его выбор нарушает BIO.</p>
+        <h3>Независимый классификатор</h3>
+        <div id="f-ind"></div>
+      </div>
+      <div class="panel">
+        <h3 id="f-bd-title"></h3>
+        <div id="f-bd"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel feats">
+        <h3>Признаки</h3>
+        <p class="small muted">Веса заданы вручную так, как их мог бы выучить CRF на корпусе. Это игрушечная модель.</p>
+        <div id="f-feats"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="part" id="p3">
+  <h2>CRF: переходы и декодирование Витерби</h2>
+  <p class="intro">CRF добавляет оценку перехода между соседними тегами и ищет последовательность с наибольшей суммой всех оценок. Нажмите «Шаг»: каждый шаг заполняет один столбец решётки. Переключайте режим переходов.</p>
+  <div class="panel">
+    <div class="ctlrow"><div id="c-pick"></div><div id="c-mode"></div></div>
+    <p class="scroll-hint">Решётку можно прокручивать вбок пальцем.</p>
+    <div class="lat-scroll" id="c-scroll"><div id="c-lat"></div></div>
+    <div id="c-legend"></div>
+    <div class="spacer"></div>
+    <div id="c-player"></div>
+  </div>
+  <div class="stage even" style="margin-top:16px">
+    <div class="col">
+      <div class="panel">
+        <h3>Что происходит</h3>
+        <div class="readout" id="c-readout"></div>
+      </div>
+      <div class="panel">
+        <h3>Оценки переходов</h3>
+        <p class="small muted">Строка — предыдущий тег, столбец — следующий. −∞ запрещает переход: путь через него получает бесконечно плохую оценку. Синяя рамка — переходы пути CRF, красная — запрещённые переходы независимого выбора.</p>
+        <div class="scroll-x" id="c-trans"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <h3>Два ответа и их оценки</h3>
+        <div id="c-cmp"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="part" id="p4">
+  <h2>Как оценить NER: сущности, а не слова</h2>
+  <p class="intro">Сравниваем найденные сущности с эталоном. Сущность засчитывается, только если совпали и границы, и тип. Подробнее о метриках — в теме 18.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <div class="ctlrow"><div id="m-pick"></div><div id="m-src"></div></div>
+        <p class="rowtitle">Эталон</p>
+        <div class="ner" id="m-gold"></div>
+        <p class="rowtitle">Ответ</p>
+        <div class="ner" id="m-pred"></div>
+        <p class="fn-list" id="m-fn"></p>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <div class="metric-cards" id="m-cards"></div>
+        <dl class="kv" id="m-kv"></dl>
+        <div class="formula" id="m-formula" style="font-size:13.5px"></div>
+        <p class="small muted" id="m-acc" style="margin:0"></p>
+      </div>
+      <div class="panel">
+        <h3>Все три предложения вместе</h3>
+        <div class="scroll-x" id="m-all"></div>
+        <p class="tiny muted" style="margin:8px 0 0">Точность (precision) — доля найденных сущностей, которые верны. Полнота (recall) — доля эталонных сущностей, которые найдены.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div class="notes">
+  <section><h2>Как это устроено</h2><div class="text">
+<p><b>Распознавание именованных сущностей</b> (NER) — поиск в тексте имён людей (PER), мест (LOC), организаций (ORG), дат и других объектов. Сущность часто состоит из нескольких слов («Казанский университет»), поэтому NER сводят к разметке последовательности (тема 8) с помощью схемы <b>BIO</b>: B-X — первое слово сущности типа X, I-X — продолжение, O — вне сущностей. Тег B нужен, чтобы различать соседние сущности одного типа. Не всякая цепочка тегов допустима: I-LOC после O или после B-PER не имеет смысла.</p>
+<p><b>Признаки.</b> Классический NER описывает каждое слово набором признаков: заглавная буква, слово из списка имён или мест (газеттир), соседние слова (предлог «в» перед словом), суффиксы, слова-маркеры («университет»). Каждый признак f добавляет к каждому тегу y вес w. Сумма даёт оценку тега:</p>
+<div class="formula">e(yₜ) = Σ_f w(f, yₜ) · f(x, t)</div>
+<p><b>Независимый классификатор</b> (логистическая регрессия) выбирает для каждого слова тег с наибольшей оценкой и не видит соседних тегов. Поэтому он может выдать недопустимую цепочку, например B-LOC, I-ORG.</p>
+<p><b>Линейная цепочка CRF</b> (conditional random field) оценивает всю последовательность сразу: к оценкам слов добавляются оценки переходов T(yₜ₋₁, yₜ) между соседними тегами:</p>
+<div class="formula">score(x, y) = Σₜ [ e(yₜ) + T(yₜ₋₁, yₜ) ]        P(y | x) = exp(score(x, y)) / Z(x)</div>
+<p>Z(x) — сумма exp(score) по всем последовательностям. Её считают алгоритмом forward, а лучшую последовательность ищут <b>алгоритмом Витерби</b>, как в HMM, только оценки складываются, а не перемножаются:</p>
+<div class="formula">δₜ(j) = maxᵢ [ δₜ₋₁(i) + T(i, j) ] + eₜ(j)</div>
+<p>Запрещённым переходам ставят T = −∞, и Витерби никогда не выберет путь через них. Веса признаков и переходов CRF учит по размеченному корпусу, максимизируя log P(y | x). В этой лаборатории веса заданы вручную.</p>
+<p><b>CRF и HMM.</b> HMM — порождающая модель: она описывает, как теги порождают слова, и не умеет учитывать пересекающиеся признаки. CRF — дискриминативная модель: она прямо моделирует P(y | x) и может использовать любые признаки всего предложения. Современные системы заменяют ручные признаки нейросетью (BiLSTM, BERT), но часто оставляют сверху слой CRF.</p>
+<p><b>Оценка.</b> Качество NER считают по сущностям: сущность верна, только если совпали границы и тип. Отсюда точность, полнота и F1 (тема 18).</p></div></section>
+  <section><h2>Эксперименты</h2><ol class="exp"><li>В первой части в предложении про Толстого сделайте «Поляне» тегом I-PER. Что сообщает проверка и почему? Верните I-LOC и сделайте «Толстой» тегом B-PER: проверка ошибок не находит, но сколько теперь персон и верно ли это?</li>
+<li>Во второй части нажмите на строку «Казанском». Какие признаки сработали и почему B-LOC получает больше, чем B-ORG? Отключите признак «заглавное слово после предлога» и посмотрите, что изменилось в таблице.</li>
+<li>В третьей части выберите режим «нет (независимо)». Какой переход в ответе нарушает BIO? Переключите на «только правила BIO»: ответ стал корректным, но верен ли он?</li>
+<li>Включите «правила + веса» и пройдите решётку кнопкой «Шаг». В столбце «Казанском» оценка B-LOC выше, чем B-ORG. Нажмите на клетку I-ORG в последнем столбце: откуда приходит её стрелка? Почему Витерби всё же выбирает B-ORG?</li>
+<li>Во второй части отключите признак «основа из списка мест». Как изменились ответы независимого классификатора и CRF? Какой признак теперь отвечает за «Москвы» в третьем предложении?</li>
+<li>В четвёртой части сравните F1 независимого классификатора и CRF. Затем в первой части уберите тег у «Поляне» (сделайте O) и вернитесь сюда: как изменились точность и полнота вашей разметки?</li></ol></section>
+  <section><h2>Проверь себя</h2><div class="quiz" id="quiz"></div></section>
+  <section><h2>Практикум</h2>
+    <div class="practice" style="margin-top:14px"><p>Тот же алгоритм на настоящем коде Python. Ноутбук открывается в Google Colab, ничего устанавливать не нужно.</p><a class="btn" id="colab" href="../notebooks/09_ner_bio_crf.ipynb">Скачать практикум (.ipynb)</a></div>
+  </section>
+</div>
+<footer>Виртуальная лаборатория курса «Алгоритмы NLP». Работает в браузере, без установки и без интернета. <a href="../../uz/labs/09_ner_bio_crf.html" lang="uz">Oʻzbekcha</a></footer>
+</div>
+<script src="../../config.js"></script>
+<script>
+const LANG = "ru";
+const META = {"n":9,"slug":"09_ner_bio_crf","total":18};
+const UI = {"toc": "Оглавление",
+"prev": "Назад",
+"next": "Далее",
+"labOf": (n, total) => `Лаборатория ${n} из ${total}`,
+"topic": "Тема курса",
+"play": "Пуск",
+"pause": "Пауза",
+"step": "Шаг",
+"reset": "Сначала",
+"speed": "Скорость",
+"how": "Как это устроено",
+"experiments": "Эксперименты",
+"quiz": "Проверь себя",
+"correct": "Верно.",
+"wrong": "Не совсем.",
+"tryAgain": "Попробуйте другой вариант.",
+"score": (a, b) => `Правильных ответов: ${a} из ${b}`,
+"colab": "Открыть практикум в Colab",
+"nbDownload": "Скачать практикум (.ipynb)",
+"practice": "Практикум",
+"practiceText": "Тот же алгоритм на настоящем коде Python. Ноутбук открывается в Google Colab, ничего устанавливать не нужно.",
+"langName": "Русский",
+"otherLang": "Oʻzbekcha",
+"footer": "Виртуальная лаборатория курса «Алгоритмы NLP». Работает в браузере, без установки и без интернета."};
+const L = {"title":"Именованные сущности: BIO-разметка и CRF","lead":"Как разметить имена, места и организации тегами B, I, O, откуда берутся оценки тегов и почему CRF с алгоритмом Витерби не выдаёт невозможных последовательностей, а независимый классификатор выдаёт.","types":[{"id":"PER","name":"персона"},{"id":"LOC","name":"место"},{"id":"ORG","name":"организация"}],"sents":[{"text":"Лев Толстой родился в Ясной Поляне и учился в Казанском университете","gold":"B-PER I-PER O O B-LOC I-LOC O O O B-ORG I-ORG"},{"text":"Анна учится в Самаркандском государственном университете","gold":"B-PER O O B-ORG I-ORG I-ORG"},{"text":"Иван Петров приехал из Москвы в Самарканд","gold":"B-PER I-PER O O B-LOC O B-LOC"}],"crf_default":0,"features":[{"id":"first","rule":"first","list":[],"w":[1.2,0.3,-1,0.3,-1,0.3,-1],"label":"первое слово предложения"},{"id":"cap","rule":"cap","list":[],"w":[-1.5,1,1,1,1,0.8,0.8],"label":"с заглавной буквы (не первое слово)"},{"id":"low","rule":"low","list":[],"w":[2.2,-1,-1,-1,-1,-1,0],"label":"со строчной буквы"},{"id":"name","rule":"name","list":["Лев","Анна","Иван","Мария"],"w":[-0.5,2.2,0.3,-0.5,0,-0.5,0],"label":"есть в списке имён"},{"id":"after_name","rule":"after_name","list":["Лев","Анна","Иван","Мария"],"w":[-0.5,-0.5,2,-0.5,0,-0.5,0],"label":"заглавное слово сразу после имени из списка"},{"id":"place","rule":"place","list":["Москв","Казан","Самарканд","Ташкент","Ясн","Полян"],"w":[-0.5,-0.5,-1,2,1.5,0.8,0.3],"label":"основа из списка мест"},{"id":"loc_cue","rule":"prev_word","list":["в","во","на","из"],"w":[0,-0.5,-0.5,1.8,-0.5,0.4,-0.5],"label":"заглавное слово после предлога"},{"id":"prev_cap","rule":"prev_cap","list":[],"w":[0,0,0.8,0,0.8,0,0.8],"label":"предыдущее слово тоже с заглавной"},{"id":"org_word","rule":"org_word","list":["университет","институт","банк","музе","государствен","националь"],"w":[-0.5,-1,-1,-1,-0.5,0.8,2.4],"label":"слово-маркер организации"},{"id":"before_org","rule":"before_org","list":["университет","институт","банк","музе","государствен","националь"],"w":[-0.4,-0.3,-0.3,0,0,1.6,0.8],"label":"следующее слово — маркер организации"}],"p1_title":"BIO-разметка своими руками","p1_intro":"Нажимайте на слова: тег меняется по кругу O → B-PER → I-PER → B-LOC → I-LOC → B-ORG → I-ORG. Цветные скобки показывают найденные сущности, ошибки BIO подсвечиваются красным. «Пуск» размечает предложение по шагам.","sent_label":"Предложение","bio_legend":"\u003cb>B-X\u003c/b> начинает сущность типа X, \u003cb>I-X\u003c/b> продолжает её, \u003cb>O\u003c/b> — слово вне сущностей. I-X может стоять только после B-X или I-X того же типа.","btn_clear":"Всё в O","pal_label":"Тег выбранного слова:","fires_n":"срабатывает: {n}","scroll_hint":"Решётку можно прокручивать вбок пальцем.","m_all_title":"Все три предложения вместе","m_sys":"разметка","split_label":"Отделять падежные суффиксы","seg_note":"В русском падежное окончание слито со словом: «в Ясной Поляне», «в Казанском университете». В разметку попадает словоформа целиком, а чтобы найти «Ясная Поляна» в базе, нужна лемматизация (тема 3) или сравнение по основе.","split_note":"","spans_title":"Найденные сущности","no_spans":"Сущностей нет: все слова помечены O.","valid_ok":"Последовательность корректна: каждый I-тег продолжает сущность своего типа.","inv_start":"«{w}»: {t} в начале предложения. I-тег не может начинать сущность.","inv_after_o":"«{w}»: {t} после O. Сущности, которую можно продолжить, нет.","inv_type":"«{w}»: {t} после {p}. Тип не совпадает: так нельзя продолжить сущность.","inv_note":"При подсчёте сущностей такой I-тег обычно считают началом новой сущности.","anim_start":"Нажмите «Шаг» или «Пуск»: теги будут ставиться слева направо.","anim_B":"«{w}» начинает сущность «{type}»: \u003cb>{t}\u003c/b>.","anim_I":"«{w}» продолжает ту же сущность «{type}»: \u003cb>{t}\u003c/b>.","anim_O":"«{w}» не входит ни в какую сущность: \u003cb>O\u003c/b>.","anim_done":"Готово: это эталонная разметка. Теперь меняйте теги сами и следите за проверкой.","anim_edit":"Это ваша разметка: проверка и список сущностей обновляются после каждого нажатия. «Пуск» заново покажет эталон по шагам.","p2_title":"Оценки тегов из признаков","p2_intro":"Каждый признак слова добавляет к каждому тегу свой вес. Сумма весов — оценка тега для слова (эмиссия). Нажмите на строку таблицы, чтобы увидеть, какие признаки сработали. Отключайте признаки и смотрите, как меняются оценки здесь и решение CRF ниже.","feats_title":"Признаки","feats_hint":"Веса заданы вручную так, как их мог бы выучить CRF на корпусе. Это игрушечная модель.","corner":"слово \\ тег","table_hint":"Рамка — лучший тег слова для независимого классификатора. Красный «!» — его выбор нарушает BIO.","bd_title":"Почему такие оценки: «{w}»","bd_sum":"сумма = оценка","bd_off":"выкл.","bd_none":"Для этого слова не сработал ни один включённый признак: все оценки равны 0.","ind_title":"Независимый классификатор","ind_ok":"Выбор по каждому слову отдельно даёт корректную BIO-последовательность.","ind_bad":"Выбор по каждому слову отдельно нарушает BIO: {list}.","p3_title":"CRF: переходы и декодирование Витерби","p3_intro":"CRF добавляет оценку перехода между соседними тегами и ищет последовательность с наибольшей суммой всех оценок. Нажмите «Шаг»: каждый шаг заполняет один столбец решётки. Переключайте режим переходов.","mode_label":"Переходы","mode_none":"нет (независимо)","mode_bio":"только правила BIO","mode_full":"правила + веса","trans_title":"Оценки переходов","trans_hint":"Строка — предыдущий тег, столбец — следующий. −∞ запрещает переход: путь через него получает бесконечно плохую оценку. Синяя рамка — переходы пути CRF, красная — запрещённые переходы независимого выбора.","trans_corner":"из \\ в","readout_title":"Что происходит","r_start":"Решётка пуста. Нажмите «Шаг»: заполним столбец слова «{w}».","r_col_first":"Столбец 1 «{w}». Предыдущих слов нет, поэтому δ = переход из &lt;s&gt; + оценка слова.","r_col":"Столбец {k} «{w}». Для каждого тега берём лучшую клетку предыдущего столбца с учётом перехода, затем прибавляем оценку слова.","r_final":"Последний столбец заполнен. Лучшая клетка: {t} с суммой {s}. Идём по стрелкам назад и получаем путь CRF (синий).","r_cell":"Клетка «{w}», {t}. Какой предыдущий тег даёт наибольшую сумму?","r_cell_res":"Лучший вход из {i}: {a}. Прибавляем оценку слова {e} и получаем δ = {d}.","r_cell_first":"Переход из &lt;s&gt;: {a}, оценка слова {e}, δ = {d}.","r_cell_neg":"Все входы запрещены, поэтому δ = −∞.","r_click":"Нажмите на заполненную клетку, чтобы увидеть её расчёт.","th_tag":"тег","th_from":"лучший вход","th_prev":"δ пред. + переход","th_emis":"+ оценка","th_res":"= δ","th_cand":"из тега","lg_cur":"текущий столбец","lg_ind":"независимый выбор","lg_bad":"запрещённый переход","lg_crf":"путь CRF","cmp_title":"Два ответа и их оценки","cmp_ind":"Независимый классификатор","cmp_crf":"CRF + Витерби","sum_e":"Σ оценок слов","sum_t":"Σ переходов","total":"итого","prob":"P(y | x)","invalid":"нарушает BIO","valid":"корректно","cmp_same":"Ответы совпадают.","cmp_diff":"Ответы различаются на словах: {list}.","prob_note":"P(y | x) = exp(итог) / Z, где Z — сумма exp(итог) по всем возможным последовательностям тегов (считается тем же проходом по решётке, но с суммой вместо максимума).","p4_title":"Как оценить NER: сущности, а не слова","p4_intro":"Сравниваем найденные сущности с эталоном. Сущность засчитывается, только если совпали и границы, и тип. Подробнее о метриках — в теме 18.","src_label":"Чью разметку проверить","src_user":"вашу (часть 1)","src_ind":"независимый классификатор","src_crf":"CRF","gold_title":"Эталон","pred_title":"Ответ","m_note":"Точность (precision) — доля найденных сущностей, которые верны. Полнота (recall) — доля эталонных сущностей, которые найдены.","m_tp":"верно найдено (TP)","m_fp":"лишние (FP)","m_fn":"пропущены (FN)","m_p":"точность P","m_r":"полнота R","m_f1":"F1","m_f":"P = {tp} / ({tp} + {fp}) = {p}\nR = {tp} / ({tp} + {fn}) = {r}\nF1 = 2PR / (P + R) = {f}","m_word_acc":"Для сравнения: доля слов с верным тегом = {a}. Она почти всегда выше F1, потому что большинство слов — O.","theory":"\n\u003cp>\u003cb>Распознавание именованных сущностей\u003c/b> (NER) — поиск в тексте имён людей (PER), мест (LOC), организаций (ORG), дат и других объектов. Сущность часто состоит из нескольких слов («Казанский университет»), поэтому NER сводят к разметке последовательности (тема 8) с помощью схемы \u003cb>BIO\u003c/b>: B-X — первое слово сущности типа X, I-X — продолжение, O — вне сущностей. Тег B нужен, чтобы различать соседние сущности одного типа. Не всякая цепочка тегов допустима: I-LOC после O или после B-PER не имеет смысла.\u003c/p>\n\u003cp>\u003cb>Признаки.\u003c/b> Классический NER описывает каждое слово набором признаков: заглавная буква, слово из списка имён или мест (газеттир), соседние слова (предлог «в» перед словом), суффиксы, слова-маркеры («университет»). Каждый признак f добавляет к каждому тегу y вес w. Сумма даёт оценку тега:\u003c/p>\n\u003cdiv class=\"formula\">e(yₜ) = Σ_f w(f, yₜ) · f(x, t)\u003c/div>\n\u003cp>\u003cb>Независимый классификатор\u003c/b> (логистическая регрессия) выбирает для каждого слова тег с наибольшей оценкой и не видит соседних тегов. Поэтому он может выдать недопустимую цепочку, например B-LOC, I-ORG.\u003c/p>\n\u003cp>\u003cb>Линейная цепочка CRF\u003c/b> (conditional random field) оценивает всю последовательность сразу: к оценкам слов добавляются оценки переходов T(yₜ₋₁, yₜ) между соседними тегами:\u003c/p>\n\u003cdiv class=\"formula\">score(x, y) = Σₜ [ e(yₜ) + T(yₜ₋₁, yₜ) ]        P(y | x) = exp(score(x, y)) / Z(x)\u003c/div>\n\u003cp>Z(x) — сумма exp(score) по всем последовательностям. Её считают алгоритмом forward, а лучшую последовательность ищут \u003cb>алгоритмом Витерби\u003c/b>, как в HMM, только оценки складываются, а не перемножаются:\u003c/p>\n\u003cdiv class=\"formula\">δₜ(j) = maxᵢ [ δₜ₋₁(i) + T(i, j) ] + eₜ(j)\u003c/div>\n\u003cp>Запрещённым переходам ставят T = −∞, и Витерби никогда не выберет путь через них. Веса признаков и переходов CRF учит по размеченному корпусу, максимизируя log P(y | x). В этой лаборатории веса заданы вручную.\u003c/p>\n\u003cp>\u003cb>CRF и HMM.\u003c/b> HMM — порождающая модель: она описывает, как теги порождают слова, и не умеет учитывать пересекающиеся признаки. CRF — дискриминативная модель: она прямо моделирует P(y | x) и может использовать любые признаки всего предложения. Современные системы заменяют ручные признаки нейросетью (BiLSTM, BERT), но часто оставляют сверху слой CRF.\u003c/p>\n\u003cp>\u003cb>Оценка.\u003c/b> Качество NER считают по сущностям: сущность верна, только если совпали границы и тип. Отсюда точность, полнота и F1 (тема 18).\u003c/p>","experiments":["В первой части в предложении про Толстого сделайте «Поляне» тегом I-PER. Что сообщает проверка и почему? Верните I-LOC и сделайте «Толстой» тегом B-PER: проверка ошибок не находит, но сколько теперь персон и верно ли это?","Во второй части нажмите на строку «Казанском». Какие признаки сработали и почему B-LOC получает больше, чем B-ORG? Отключите признак «заглавное слово после предлога» и посмотрите, что изменилось в таблице.","В третьей части выберите режим «нет (независимо)». Какой переход в ответе нарушает BIO? Переключите на «только правила BIO»: ответ стал корректным, но верен ли он?","Включите «правила + веса» и пройдите решётку кнопкой «Шаг». В столбце «Казанском» оценка B-LOC выше, чем B-ORG. Нажмите на клетку I-ORG в последнем столбце: откуда приходит её стрелка? Почему Витерби всё же выбирает B-ORG?","Во второй части отключите признак «основа из списка мест». Как изменились ответы независимого классификатора и CRF? Какой признак теперь отвечает за «Москвы» в третьем предложении?","В четвёртой части сравните F1 независимого классификатора и CRF. Затем в первой части уберите тег у «Поляне» (сделайте O) и вернитесь сюда: как изменились точность и полнота вашей разметки?"],"quiz":[{"q":"Какая из последовательностей нарушает схему BIO?","a":["B-PER I-PER O","O I-LOC O","B-LOC B-LOC O","B-ORG I-ORG I-ORG"],"correct":1,"why":"I-LOC должен продолжать сущность LOC, а перед ним O. Две B-LOC подряд допустимы: это две соседние сущности.","hint":"Ищите I-тег, перед которым нет сущности того же типа."},{"q":"Сколько сущностей в разметке B-PER I-PER O B-LOC B-LOC?","a":["2","3","4","5"],"correct":1,"why":"B-PER I-PER — одна персона из двух слов, а каждый B-LOC начинает своё место: всего 3 сущности."},{"q":"Что CRF добавляет к независимому классификатору тегов?","a":["Больше признаков для каждого слова","Оценки переходов между соседними тегами и выбор всей последовательности сразу алгоритмом Витерби","Словарь всех имён и мест","Порождающую модель слов, как в HMM"],"correct":1,"why":"Оценки слов у них могут быть одинаковыми. CRF добавляет T(yₜ₋₁, yₜ) и максимизирует сумму по всей последовательности, поэтому запрещённые переходы (−∞) не попадают в ответ."},{"q":"В эталоне 3 сущности. Модель нашла 4, из них 2 полностью верны. Чему равны точность и полнота?","a":["P = 2/3, R = 2/4","P = 2/4 = 0,5, R = 2/3 ≈ 0,67","P = 3/4, R = 2/3","P = R = 0,5"],"correct":1,"why":"Точность = верные / найденные = 2/4, полнота = верные / эталонные = 2/3. F1 = 2·0,5·0,67 / (0,5 + 0,67) ≈ 0,57.","hint":"В знаменателе точности стоят найденные моделью сущности, полноты — эталонные."}]};
+</script>
+<script>
+/* NLP labs: shared helpers. Globals provided by the build before this file: LANG, UI, L, META. */
+"use strict";
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+
+/* h("div", {class: "x", onclick: fn, style: {...}}, child, [children], "text") */
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  if (props) {
+    for (const [k, v] of Object.entries(props)) {
+      if (v == null || v === false) continue;
+      if (k === "class") el.className = v;
+      else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
+      else if (k === "html") el.innerHTML = v;
+      else if (k === "text") el.textContent = v;
+      else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
+      else if (k in el && typeof v !== "string") el[k] = v;
+      else el.setAttribute(k, v === true ? "" : v);
+    }
+  }
+  const add = (c) => {
+    if (c == null || c === false) return;
+    if (Array.isArray(c)) c.forEach(add);
+    else el.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
+  };
+  kids.forEach(add);
+  return el;
+}
+function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
+function mount(target) { return typeof target === "string" ? $(target) : target; }
+
+/* numbers */
+function fmt(x, d = 2) {
+  if (x == null || Number.isNaN(x)) return "–";
+  if (!Number.isFinite(x)) return x > 0 ? "∞" : "−∞";
+  return Number(x).toFixed(d).replace(".", ",").replace("-", "−");
+}
+function pct(x, d = 0) { return fmt(100 * x, d) + "%"; }
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const sum = (a) => a.reduce((s, x) => s + x, 0);
+const argmax = (a) => a.reduce((bi, x, i) => (x > a[bi] ? i : bi), 0);
+function softmax(arr, T = 1) {
+  const m = Math.max(...arr.map((x) => x / T));
+  const e = arr.map((x) => Math.exp(x / T - m));
+  const s = sum(e);
+  return e.map((x) => x / s);
+}
+function dot(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; }
+function norm(a) { return Math.sqrt(dot(a, a)); }
+function cosine(a, b) { const n = norm(a) * norm(b); return n ? dot(a, b) / n : 0; }
+/* deterministic random numbers: const r = rng(42); r() in [0,1) */
+function rng(seed = 1) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function sample(probs, r = Math.random) {
+  let x = r() * sum(probs);
+  for (let i = 0; i < probs.length; i++) { x -= probs[i]; if (x <= 0) return i; }
+  return probs.length - 1;
+}
+
+/* colors */
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+const PALETTE = ["--c1", "--c2", "--c3", "--c4", "--c5", "--c6", "--c7", "--c8"];
+function color(i) { return cssVar(PALETTE[((i % PALETTE.length) + PALETTE.length) % PALETTE.length]); }
+function hexToRgb(hex) {
+  const m = hex.replace("#", "");
+  const n = parseInt(m.length === 3 ? m.split("").map((c) => c + c).join("") : m, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function alpha(hex, a) { const [r, g, b] = hexToRgb(hex); return `rgba(${r},${g},${b},${a})`; }
+/* white -> pen blue scale for heatmaps, t in [0,1] */
+function heatColor(t, base = "--pen") {
+  const [r, g, b] = hexToRgb(cssVar(base));
+  t = clamp(t, 0, 1);
+  return `rgb(${Math.round(lerp(255, r, t))},${Math.round(lerp(255, g, t))},${Math.round(lerp(255, b, t))})`;
+}
+function inkOn(t) { return t > 0.55 ? "#fff" : cssVar("--ink"); }
+
+/* controls ---------------------------------------------------------------- */
+function slider(parent, o) {
+  const fmtv = o.format || ((v) => String(v));
+  const val = h("span", { class: "val" }, fmtv(o.value));
+  const input = h("input", { type: "range", min: o.min, max: o.max, step: o.step ?? 1, value: o.value, "aria-label": o.label });
+  const box = h("div", { class: "ctl" }, h("label", null, h("span", null, o.label), val), input);
+  input.addEventListener("input", () => {
+    const v = parseFloat(input.value);
+    val.textContent = fmtv(v);
+    o.onInput && o.onInput(v);
+  });
+  mount(parent).appendChild(box);
+  return {
+    el: box, input,
+    get value() { return parseFloat(input.value); },
+    set value(v) { input.value = v; val.textContent = fmtv(parseFloat(input.value)); },
+  };
+}
+
+function segmented(parent, o) {
+  let current = o.value;
+  const btns = o.options.map((opt) =>
+    h("button", { type: "button", "aria-pressed": String(opt.value === current), onclick: () => api.set(opt.value, true) }, opt.label));
+  const seg = h("div", { class: "seg", role: "group", "aria-label": o.label || "" }, btns);
+  const box = h("div", { class: "ctl" }, o.label ? h("div", { class: "lbl" }, h("span", null, o.label)) : null, seg);
+  const api = {
+    el: box,
+    get value() { return current; },
+    set(v, fire) {
+      current = v;
+      btns.forEach((b, i) => b.setAttribute("aria-pressed", String(o.options[i].value === v)));
+      if (fire && o.onChange) o.onChange(v);
+    },
+  };
+  mount(parent).appendChild(box);
+  return api;
+}
+
+function button(parent, label, onClick, variant = "") {
+  const b = h("button", { type: "button", class: "btn " + variant, onclick: onClick }, label);
+  mount(parent).appendChild(b);
+  return b;
+}
+
+function checkbox(parent, label, checked, onChange) {
+  const input = h("input", { type: "checkbox", checked: !!checked });
+  input.addEventListener("change", () => onChange && onChange(input.checked));
+  const box = h("label", { class: "check" }, input, h("span", null, label));
+  mount(parent).appendChild(box);
+  return input;
+}
+
+/* Play / Pause / Step / Reset with a speed slider.
+   o.step() advances one step and returns false when the process is finished.
+   o.reset() restores the initial state. o.interval: base delay in ms. */
+function player(parent, o) {
+  let timer = null;
+  let speed = o.speed ?? 3;
+  const delay = () => (o.interval ?? 700) * Math.pow(0.6, speed - 3);
+  const playBtn = h("button", { type: "button", class: "btn", onclick: () => (timer ? stop() : start()) }, UI.play);
+  const stepBtn = h("button", { type: "button", class: "btn ghost", onclick: () => { stop(); doStep(); } }, UI.step);
+  const resetBtn = h("button", { type: "button", class: "btn ghost", onclick: () => { stop(); o.reset(); } }, UI.reset);
+  const sp = h("input", { type: "range", min: 1, max: 5, step: 1, value: speed, "aria-label": UI.speed });
+  sp.addEventListener("input", () => { speed = +sp.value; if (timer) { stop(); start(); } });
+  const box = h("div", { class: "player" }, playBtn, stepBtn, resetBtn, o.noSpeed ? null : h("span", { class: "speed" }, UI.speed, sp));
+  mount(parent).appendChild(box);
+  function doStep() { const more = o.step(); if (more === false) stop(); return more; }
+  function start() {
+    if (o.canStep && !o.canStep()) o.reset();
+    playBtn.textContent = UI.pause;
+    timer = setInterval(() => { if (doStep() === false) stop(); }, delay());
+    o.onPlay && o.onPlay();
+  }
+  function stop() { if (timer) clearInterval(timer); timer = null; playBtn.textContent = UI.play; }
+  return { el: box, start, stop, get playing() { return !!timer; } };
+}
+
+/* Responsive HiDPI canvas.
+   o.height (px) or o.aspect (h/w); o.draw(ctx, w, h); pointer callbacks get {x, y} in CSS pixels. */
+function canvasBox(parent, o) {
+  const cv = h("canvas", { class: "viz", role: "img", "aria-label": o.label || "" });
+  const wrap = h("div", { class: "viz-wrap" }, cv);
+  mount(parent).appendChild(wrap);
+  const ctx = cv.getContext("2d");
+  let W = 0, H = 0;
+  function size() {
+    const w = Math.max(10, wrap.clientWidth);
+    const hh = o.height ? (typeof o.height === "function" ? o.height(w) : o.height) : Math.round(w * (o.aspect || 0.6));
+    const dpr = window.devicePixelRatio || 1;
+    if (w !== W || hh !== H || cv.width !== Math.round(w * dpr)) {
+      W = w; H = hh;
+      cv.width = Math.round(w * dpr); cv.height = Math.round(hh * dpr);
+      cv.style.height = hh + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+  }
+  function redraw() { size(); ctx.clearRect(0, 0, W, H); o.draw && o.draw(ctx, W, H); }
+  const pos = (e) => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  let down = false;
+  cv.addEventListener("pointerdown", (e) => { down = true; try { cv.setPointerCapture(e.pointerId); } catch (_) {} o.onDown && o.onDown(pos(e), e); });
+  cv.addEventListener("pointermove", (e) => { if (down) o.onDrag && o.onDrag(pos(e), e); else o.onHover && o.onHover(pos(e), e); });
+  cv.addEventListener("pointerup", (e) => { down = false; o.onUp && o.onUp(pos(e), e); });
+  cv.addEventListener("pointerleave", () => { if (!down && o.onLeave) o.onLeave(); });
+  if (window.ResizeObserver) new ResizeObserver(() => redraw()).observe(wrap);
+  else window.addEventListener("resize", redraw);
+  requestAnimationFrame(redraw);
+  return { canvas: cv, wrap, ctx, redraw, get w() { return W; }, get h() { return H; } };
+}
+
+/* canvas text helpers */
+function font(px, weight = 400, mono = false) { return `${weight} ${px}px ${mono ? cssVar("--mono") : cssVar("--font")}`; }
+function text(ctx, s, x, y, o = {}) {
+  ctx.save();
+  ctx.font = font(o.size || 13, o.weight || 400, o.mono);
+  ctx.fillStyle = o.color || cssVar("--ink");
+  ctx.textAlign = o.align || "left";
+  ctx.textBaseline = o.base || "middle";
+  if (o.bg) {
+    const m = ctx.measureText(s), pad = 3, tw = m.width, th = (o.size || 13) + 4;
+    let bx = x - (o.align === "center" ? tw / 2 : o.align === "right" ? tw : 0);
+    ctx.fillStyle = o.bg; ctx.fillRect(bx - pad, y - th / 2, tw + 2 * pad, th);
+    ctx.fillStyle = o.color || cssVar("--ink");
+  }
+  ctx.fillText(s, x, y);
+  ctx.restore();
+}
+function roundRect(ctx, x, y, w, hh, r) {
+  r = Math.min(r, w / 2, hh / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + hh, r); ctx.arcTo(x + w, y + hh, x, y + hh, r);
+  ctx.arcTo(x, y + hh, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function arrow(ctx, x1, y1, x2, y2, o = {}) {
+  ctx.save();
+  ctx.strokeStyle = ctx.fillStyle = o.color || cssVar("--ink");
+  ctx.lineWidth = o.width || 1.5;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  const a = Math.atan2(y2 - y1, x2 - x1), s = o.head || 8;
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - s * Math.cos(a - 0.4), y2 - s * Math.sin(a - 0.4));
+  ctx.lineTo(x2 - s * Math.cos(a + 0.4), y2 - s * Math.sin(a + 0.4));
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+/* Simple line chart on a canvas. series: [{values:[...], color, label, dash}] ; o: {xLabels, yMin, yMax, yFmt, title, markX} */
+function lineChart(ctx, W, H, series, o = {}) {
+  const pad = { l: 44, r: 12, t: o.title ? 24 : 10, b: 26 };
+  const n = Math.max(1, ...series.map((s) => s.values.length));
+  const all = series.flatMap((s) => s.values.filter((v) => Number.isFinite(v)));
+  let y0 = o.yMin ?? Math.min(0, ...all), y1 = o.yMax ?? Math.max(1e-9, ...all);
+  if (y1 === y0) y1 = y0 + 1;
+  const X = (i) => pad.l + (n === 1 ? 0 : (i / (n - 1)) * (W - pad.l - pad.r));
+  const Y = (v) => H - pad.b - ((v - y0) / (y1 - y0)) * (H - pad.t - pad.b);
+  ctx.save();
+  ctx.strokeStyle = cssVar("--line"); ctx.lineWidth = 1;
+  for (let k = 0; k <= 4; k++) {
+    const v = y0 + (k / 4) * (y1 - y0), y = Y(v);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+    text(ctx, (o.yFmt || ((x) => fmt(x, 2)))(v), pad.l - 6, y, { align: "right", size: 11, color: cssVar("--muted") });
+  }
+  if (o.title) text(ctx, o.title, pad.l, 10, { size: 12.5, weight: 600, color: cssVar("--muted") });
+  const labels = o.xLabels || [];
+  const every = Math.ceil(labels.length / Math.max(1, Math.floor((W - pad.l) / 46)));
+  labels.forEach((lab, i) => { if (i % every === 0) text(ctx, String(lab), X(i), H - pad.b + 13, { align: "center", size: 11, color: cssVar("--muted") }); });
+  if (o.markX != null) {
+    ctx.strokeStyle = cssVar("--mark"); ctx.lineWidth = 6; ctx.globalAlpha = 0.7;
+    ctx.beginPath(); ctx.moveTo(X(o.markX), pad.t); ctx.lineTo(X(o.markX), H - pad.b); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  for (const s of series) {
+    ctx.strokeStyle = s.color || cssVar("--pen"); ctx.lineWidth = s.width || 2; ctx.setLineDash(s.dash || []);
+    ctx.beginPath();
+    let started = false;
+    s.values.forEach((v, i) => { if (!Number.isFinite(v)) return; if (!started) { ctx.moveTo(X(i), Y(v)); started = true; } else ctx.lineTo(X(i), Y(v)); });
+    ctx.stroke(); ctx.setLineDash([]);
+    if (s.dots) s.values.forEach((v, i) => { if (Number.isFinite(v)) { ctx.fillStyle = s.color || cssVar("--pen"); ctx.beginPath(); ctx.arc(X(i), Y(v), 3, 0, 7); ctx.fill(); } });
+  }
+  ctx.restore();
+  return { X, Y };
+}
+
+/* DOM widgets ------------------------------------------------------------- */
+/* items: [{label, value, color, note}] ; o: {max, format} */
+function bars(parent, items, o = {}) {
+  const el = clear(mount(parent));
+  el.classList.add("bars");
+  const max = o.max ?? Math.max(1e-9, ...items.map((i) => Math.abs(i.value)));
+  for (const it of items) {
+    const w = clamp(Math.abs(it.value) / max, 0, 1) * 100;
+    el.appendChild(h("div", { class: "bar", title: it.note || "" },
+      h("span", { class: "lab" + (o.mono ? " mono" : "") }, it.label),
+      h("span", { class: "track" }, h("span", { class: "fill", style: { width: w + "%", display: "block", background: it.color || cssVar("--pen") } })),
+      h("span", { class: "num" }, (o.format || ((v) => fmt(v, 2)))(it.value))));
+  }
+  return el;
+}
+
+/* tokens: array of strings or {text, sub, cls, title, onclick} */
+function tokens(parent, toks, o = {}) {
+  const el = clear(mount(parent));
+  el.classList.add("tokens");
+  toks.forEach((t, i) => {
+    const d = typeof t === "string" ? { text: t } : t;
+    const tag = d.onclick ? "button" : "span";
+    const attrs = { class: "tok " + (d.cls || ""), title: d.title || null, type: d.onclick ? "button" : null, onclick: d.onclick || null };
+    if (d.color) attrs.style = { background: d.color, borderColor: d.color, color: d.ink || "#fff" };
+    el.appendChild(h(tag, attrs, d.text, d.sub != null ? h("span", { class: "sub" }, d.sub) : null));
+  });
+  return el;
+}
+
+/* heatmap table. matrix[r][c]; o: {format, max, min, rowHead, colHead, highlight:(r,c)=>bool} */
+function heatTable(parent, rows, cols, matrix, o = {}) {
+  const el = clear(mount(parent));
+  const flat = matrix.flat().filter(Number.isFinite);
+  const mx = o.max ?? Math.max(...flat), mn = o.min ?? Math.min(0, ...flat);
+  const t = (v) => (mx === mn ? 0 : (v - mn) / (mx - mn));
+  const head = h("tr", null, h("th", { class: "l" }, o.corner || ""), cols.map((c) => h("th", null, c)));
+  const body = rows.map((r, i) => h("tr", null, h("th", { class: "l" }, r), cols.map((_, j) => {
+    const v = matrix[i][j];
+    const tv = Number.isFinite(v) ? t(v) : 0;
+    const style = { background: o.plain ? "" : heatColor(tv * 0.85), color: o.plain ? "" : inkOn(tv * 0.85) };
+    if (o.highlight && o.highlight(i, j)) { style.outline = "3px solid " + cssVar("--mark"); style.outlineOffset = "-3px"; }
+    return h("td", { class: "num", style }, (o.format || ((x) => fmt(x, 2)))(v));
+  })));
+  el.appendChild(h("div", { class: "scroll-x" }, h("table", { class: "grid" }, h("thead", null, head), h("tbody", null, body))));
+  return el;
+}
+
+function legend(parent, items) {
+  const el = clear(mount(parent));
+  el.classList.add("legend");
+  items.forEach((it) => el.appendChild(h("span", null, h("i", { style: { background: it.color } }), it.label)));
+  return el;
+}
+
+/* page sections built from L.theory, L.experiments, L.quiz ----------------- */
+function renderNotes() {
+  const q = $("#quiz");
+  if (!q || !Array.isArray(L.quiz)) return;
+  let right = 0, answered = 0;
+  const score = h("p", { class: "quiz-score" });
+  const upd = () => { score.textContent = answered ? UI.score(right, L.quiz.length) : ""; };
+  L.quiz.forEach((item, qi) => {
+    const fb = h("div", { class: "fb", "aria-live": "polite" });
+    let done = false;
+    const opts = item.a.map((txt, ai) => h("button", {
+      type: "button", class: "opt", html: txt,
+      onclick: (e) => {
+        const ok = ai === item.correct;
+        e.currentTarget.classList.add(ok ? "right" : "wrong");
+        clear(fb).appendChild(h("span", { html: `<b>${ok ? UI.correct : UI.wrong}</b>` + (ok ? (item.why || "") : (item.hint || UI.tryAgain)) }));
+        if (!done) { done = true; answered++; if (ok) right++; upd(); }
+      },
+    }));
+    q.appendChild(h("div", { class: "q" }, h("p", { html: `${qi + 1}. ${item.q}` }), h("div", { class: "opts" }, opts), fb));
+  });
+  q.appendChild(score);
+}
+
+/* Colab link: on *.github.io the repository and the folder are read from the address;
+   elsewhere config.js (window.NLP_LABS = {repo, branch, folder}) is used; otherwise the .ipynb is offered as a download. */
+function colabTarget(lang, slug) {
+  const cfg = window.NLP_LABS || {};
+  const branch = cfg.branch || "main";
+  let repo = cfg.repo || "", folder = (cfg.folder || "").replace(/^\/+|\/+$/g, "");
+  if (!repo && /\.github\.io$/.test(location.hostname)) {
+    const user = location.hostname.replace(/\.github\.io$/, "");
+    const seg = location.pathname.split("/").filter(Boolean);
+    const li = seg.findIndex((x) => x === "ru" || x === "uz");
+    const before = li >= 0 ? seg.slice(0, li) : [];
+    // project site: user.github.io/<repo>/…  ;  user site: user.github.io/…
+    if (before.length && before[0] !== user + ".github.io") { repo = `${user}/${before[0]}`; folder = before.slice(1).join("/"); }
+    else { repo = `${user}/${location.hostname}`; folder = before.join("/"); }
+  }
+  if (!repo) return null;
+  const nb = (folder ? folder + "/" : "") + `${lang}/notebooks/${slug}.ipynb`;
+  return `https://colab.research.google.com/github/${repo}/blob/${branch}/${nb}`;
+}
+
+function setupPractice() {
+  const a = $("#colab");
+  if (!a) return;
+  const url = colabTarget(LANG, META.slug);
+  if (url) {
+    a.href = url;
+    a.textContent = UI.colab;
+    a.target = "_blank"; a.rel = "noopener";
+  } else {
+    a.href = `../notebooks/${META.slug}.ipynb`;
+    a.textContent = UI.nbDownload;
+    a.setAttribute("download", "");
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => { renderNotes(); setupPractice(); });
+
+</script>
+<script>
+/* Lab 9: NER with BIO tags: hand labelling, feature scores, linear-chain CRF with Viterbi, span-level F1. */
+
+const TAGS = ["O", "B-PER", "I-PER", "B-LOC", "I-LOC", "B-ORG", "I-ORG"];
+const K = TAGS.length;
+const NEG = -Infinity;
+const TYPE_VAR = { PER: "--c2", LOC: "--c3", ORG: "--c4" };
+const typeOf = (t) => (t === "O" ? null : t.slice(2));
+const tagColor = (t) => (t === "O" ? cssVar("--c8") : cssVar(TYPE_VAR[typeOf(t)]));
+const typeName = (ty) => (L.types.find((x) => x.id === ty) || { name: ty }).name;
+const tpl = (s, o) => s.replace(/\{(\w+)\}/g, (m, k) => (o[k] != null ? o[k] : m));
+const f1 = (x) => fmt(x, 1);
+// BIO rule: an I-X tag must follow B-X or I-X of the same type
+const validPair = (a, b) => !b.startsWith("I-") || (a !== "<s>" && a !== "O" && typeOf(a) === typeOf(b));
+
+/* transition weights of the toy CRF (rows: <s>, then tags; columns: tags). Invalid pairs become −∞ */
+const TW = [
+  [0.5, 0.2, 0, 0.2, 0, 0.2, 0],
+  [0.5, 0.0, 0, 0.1, 0, 0.0, 0],
+  [0.2, -0.5, 1.2, -0.3, 0, -0.3, 0],
+  [0.4, -0.5, 0.2, -0.3, 0, -0.3, 0],
+  [0.3, -0.3, 0, -1.0, 1.2, -0.5, 0],
+  [0.4, -0.3, 0, -1.0, 0.2, -0.5, 0],
+  [0.2, -0.3, 0, -0.5, 0, -1.0, 1.4],
+  [0.4, -0.3, 0, -1.0, 0, -1.0, 1.0],
+];
+function transMatrix(mode) {
+  const from = ["<s>", ...TAGS];
+  return from.map((a, ai) => TAGS.map((b, j) => (mode === 0 ? 0 : !validPair(a, b) ? NEG : mode === 2 ? TW[ai][j] : 0)));
+}
+
+/* sentences: "|" marks a case suffix boundary (used only by the tokenization toggle) */
+const SENTS = L.sents.map((s) => {
+  const raw = s.text.split(" ");
+  return { raw, words: raw.map((w) => w.replace("|", "")), gold: s.gold.split(" ") };
+});
+const HAS_SPLIT = SENTS.some((s) => s.raw.some((w) => w.includes("|")));
+function tokenize(si, split) {
+  const s = SENTS[si], toks = [], gold = [], word = [];
+  s.raw.forEach((w, k) => {
+    const parts = split ? w.split("|") : [w.replace("|", "")];
+    parts.forEach((p, q) => {
+      toks.push(q ? "-" + p : p); word.push(k);
+      if (q === 0) gold.push(s.gold[k]);
+      else { const nx = s.gold[k + 1] || "O"; gold.push(nx.startsWith("I-") ? "I-" + typeOf(s.gold[k]) : "O"); }
+    });
+  });
+  return { toks, gold, word };
+}
+
+/* entity spans with the usual lenient reading: an I-X that cannot continue starts a new entity */
+function spans(tags) {
+  const out = [];
+  let cur = null;
+  tags.forEach((t, i) => {
+    const ty = typeOf(t);
+    if (t === "O") { cur = null; return; }
+    if (t.startsWith("B-") || !cur || cur.type !== ty) { cur = { start: i, end: i, type: ty }; out.push(cur); }
+    else cur.end = i;
+  });
+  return out;
+}
+function bioErrors(tags) {
+  const errs = [];
+  tags.forEach((t, i) => { const p = i ? tags[i - 1] : "<s>"; if (!validPair(p, t)) errs.push(i); });
+  return errs;
+}
+
+/* ---------- features, emissions, Viterbi ---------- */
+const up = (w) => /^\p{Lu}/u.test(w);
+const low = (w) => w.toLowerCase();
+const RULES = {
+  first: (f, t, i) => i === 0,
+  cap: (f, t, i) => i > 0 && up(t[i]),
+  low: (f, t, i) => !up(t[i]),
+  name: (f, t, i) => f.list.includes(t[i]),
+  after_name: (f, t, i) => i > 0 && up(t[i]) && f.list.includes(t[i - 1]),
+  place: (f, t, i) => up(t[i]) && f.list.some((p) => t[i].startsWith(p)),
+  prev_word: (f, t, i) => i > 0 && up(t[i]) && f.list.includes(low(t[i - 1])),
+  cap_suffix: (f, t, i) => i > 0 && up(t[i]) && f.list.some((s) => t[i].length > s.length + 2 && t[i].endsWith(s)),
+  prev_cap: (f, t, i) => i > 0 && up(t[i - 1]) && up(t[i]),
+  org_word: (f, t, i) => f.list.some((p) => low(t[i]).startsWith(p)),
+  before_org: (f, t, i) => i + 1 < t.length && f.list.some((p) => low(t[i + 1]).startsWith(p)),
+};
+const FEATS = L.features;
+const fires = (f, toks, i) => RULES[f.rule](f, toks, i);
+function emissions(toks, on) {
+  return toks.map((_, i) => {
+    const s = new Array(K).fill(0);
+    FEATS.forEach((f, k) => { if (on[k] && fires(f, toks, i)) f.w.forEach((x, j) => (s[j] += x)); });
+    return s.map((x) => Math.round(x * 10) / 10);
+  });
+}
+function viterbi(E, T) {
+  const n = E.length, d = [], bp = [];
+  for (let t = 0; t < n; t++) {
+    d.push([]); bp.push([]);
+    for (let j = 0; j < K; j++) {
+      if (t === 0) { d[t][j] = T[0][j] + E[t][j]; bp[t][j] = -1; continue; }
+      let b = NEG, bi = -1;
+      for (let i = 0; i < K; i++) { const c = d[t - 1][i] + T[i + 1][j]; if (c > b) { b = c; bi = i; } }
+      d[t][j] = b + E[t][j]; bp[t][j] = bi;
+    }
+  }
+  const path = new Array(n);
+  path[n - 1] = argmax(d[n - 1]);
+  for (let t = n - 1; t > 0; t--) path[t - 1] = bp[t][path[t]];
+  return { d, bp, path, score: d[n - 1][path[n - 1]] };
+}
+function lse(xs) { const f = xs.filter(Number.isFinite); if (!f.length) return NEG; const m = Math.max(...f); return m + Math.log(sum(f.map((x) => Math.exp(x - m)))); }
+function logZ(E, T) {
+  let a = E[0].map((e, j) => T[0][j] + e);
+  for (let t = 1; t < E.length; t++) a = TAGS.map((_, j) => lse(a.map((v, i) => v + T[i + 1][j])) + E[t][j]);
+  return lse(a);
+}
+function parts(E, T, path) {
+  let se = 0, st = 0, prev = 0;
+  path.forEach((j, t) => { se += E[t][j]; st += T[prev][j]; prev = j + 1; });
+  return { se, st, total: se + st };
+}
+
+/* shared state of parts 2–4 */
+const ST = { cur: L.crf_default, on: FEATS.map(() => true), mode: 2 };
+const USER = SENTS.map((s) => ({ split: false, tags: s.gold.slice() }));
+const listeners = [];
+const changed = () => listeners.forEach((fn) => fn());
+function decode(si) {
+  const toks = SENTS[si].words, E = emissions(toks, ST.on), T = transMatrix(ST.mode);
+  const ind = E.map((r) => argmax(r));
+  const V = viterbi(E, T);
+  return { toks, E, T, ind, V, lz: logZ(E, T) };
+}
+const shortLabel = (s) => (s.words.length > 3 ? s.words.slice(0, 3).join(" ") + " …" : s.words.join(" "));
+function sentencePicker(host) {
+  const seg = segmented(host, { label: L.sent_label, value: ST.cur,
+    options: SENTS.map((s, i) => ({ value: i, label: shortLabel(s) })),
+    onChange: (v) => { ST.cur = v; changed(); } });
+  listeners.unshift(() => seg.set(ST.cur));
+}
+
+/* tokens with BIO tags and entity brackets */
+function nerRow(host, toks, tags, o = {}) {
+  const box = clear(mount(host));
+  const sp = spans(tags), bad = new Set(o.noBad ? [] : bioErrors(tags));
+  const at = new Map();
+  sp.forEach((s) => { for (let i = s.start; i <= s.end; i++) at.set(i, s); });
+  toks.forEach((w, i) => {
+    const t = tags[i], s = at.get(i);
+    const inner = [w, h("span", { class: "tg", style: { color: tagColor(t) } }, t)];
+    const cls = "tk" + (bad.has(i) ? " bad" : "") + (o.sel === i ? " sel" : "") + (w.startsWith("-") ? " suf" : "");
+    const tk = o.onClick ? h("button", { type: "button", class: cls, onclick: () => o.onClick(i) }, inner) : h("span", { class: cls }, inner);
+    const kids = [tk];
+    if (s) {
+      kids.push(h("span", { class: "br" }));
+      if (s.start === i) kids.push(h("span", { class: "lb" }, s.type + (o.mark ? o.mark(s) : "")));
+    }
+    const tw = h("span", { class: "tw" + (s && s.start === i ? " s" : "") + (s && s.end === i ? " e" : ""), style: s ? { "--b": cssVar(TYPE_VAR[s.type]) } : null }, kids);
+    if (s) tw.style.setProperty("--b", cssVar(TYPE_VAR[s.type]));
+    box.appendChild(tw);
+  });
+  return box;
+}
+const spanText = (toks, s) => toks.slice(s.start, s.end + 1).join(" ").replace(/ -/g, "-");
+
+/* ---------- Part 1: BIO playground ---------- */
+(function bioPart() {
+  let si = 0, sel = 0, anim = null;     // anim: index of next token in the animation, null = not animating
+  const pick = segmented("#b-pick", { label: L.sent_label, value: 0,
+    options: SENTS.map((s, i) => ({ value: i, label: shortLabel(s) })),
+    onChange: (v) => { si = v; sel = 0; anim = null; render(); changed(); } });
+  void pick;
+  const view = () => tokenize(si, USER[si].split);
+
+  function setTag(i, t) { USER[si].tags[i] = t; anim = null; render(); changed(); }
+  function cycle(i) { sel = i; setTag(i, TAGS[(TAGS.indexOf(USER[si].tags[i]) + 1) % K]); }
+
+  // palette to set the tag of the selected token directly
+  const pal = $("#b-pal");
+  pal.appendChild(h("span", { class: "lbl" }, L.pal_label));
+  const palBtns = TAGS.map((t) => {
+    const b = h("button", { type: "button", "aria-pressed": "false", onclick: () => setTag(sel, t) }, t);
+    pal.appendChild(b);
+    return b;
+  });
+  button("#b-clear", L.btn_clear, () => { USER[si].tags = USER[si].tags.map(() => "O"); anim = null; render(); changed(); }, "ghost small");
+  if (HAS_SPLIT) {
+    checkbox("#b-split", L.split_label, false, (on) => {
+      SENTS.forEach((s, k) => {
+        const u = USER[k], from = tokenize(k, u.split), to = tokenize(k, on);
+        const byWord = {};
+        from.word.forEach((w, i) => { if (!(w in byWord)) byWord[w] = u.tags[i]; });
+        u.tags = to.word.map((w, i) => {
+          if (i === 0 || to.word[i - 1] !== w) return byWord[w];
+          const nx = byWord[w + 1] || "O";
+          return nx.startsWith("I-") ? "I-" + typeOf(byWord[w]) : "O";
+        });
+        u.split = on;
+      });
+      sel = 0; anim = null; render(); changed();
+    });
+  }
+
+  player("#b-player", {
+    interval: 900,
+    step: () => {
+      const v = view();
+      if (anim == null || anim >= v.toks.length) { USER[si].tags = v.toks.map(() => "O"); anim = 0; sel = 0; render(); changed(); return true; }
+      USER[si].tags[anim] = v.gold[anim]; sel = anim; anim++;
+      render(); changed();
+      return anim < v.toks.length;
+    },
+    canStep: () => anim != null && anim < view().toks.length,
+    reset: () => { USER[si].tags = view().toks.map(() => "O"); anim = 0; sel = 0; render(); changed(); },
+  });
+
+  function render() {
+    const v = view(), tags = USER[si].tags;
+    nerRow("#b-toks", v.toks, tags, { sel, onClick: cycle });
+    palBtns.forEach((b, k) => {
+      const on = tags[sel] === TAGS[k];
+      b.setAttribute("aria-pressed", String(on));
+      b.style.background = on ? tagColor(TAGS[k]) : "";
+      b.style.borderColor = on ? tagColor(TAGS[k]) : "";
+    });
+    // spans
+    const ul = clear($("#b-spans"));
+    const sp = spans(tags);
+    if (!sp.length) ul.appendChild(h("li", { class: "muted" }, L.no_spans));
+    sp.forEach((s) => ul.appendChild(h("li", null,
+      h("span", { class: "ty", style: { background: cssVar(TYPE_VAR[s.type]) } }, s.type),
+      h("span", { class: "w" }, spanText(v.toks, s)), h("span", { class: "muted small" }, typeName(s.type)))));
+    // validity
+    const errs = bioErrors(tags), vb = clear($("#b-valid"));
+    if (!errs.length) vb.appendChild(h("div", { class: "status good small" }, L.valid_ok));
+    else {
+      const msgs = errs.map((i) => {
+        const p = i ? tags[i - 1] : "<s>", o = { w: v.toks[i], t: tags[i], p };
+        return tpl(i === 0 ? L.inv_start : p === "O" ? L.inv_after_o : L.inv_type, o);
+      });
+      vb.appendChild(h("div", { class: "status bad small" }, msgs.map((m) => h("div", null, m)), h("div", { class: "muted", style: { marginTop: "4px" } }, L.inv_note)));
+    }
+    $("#b-seg").textContent = USER[si].split ? L.split_note : L.seg_note;
+    // animation message
+    const isGold = tags.every((t, i) => t === v.gold[i]);
+    let msg = isGold ? L.anim_done : L.anim_edit;
+    if (anim != null && anim > 0 && anim <= v.toks.length) {
+      const i = anim - 1, t = tags[i];
+      msg = tpl(t === "O" ? L.anim_O : t.startsWith("B-") ? L.anim_B : L.anim_I, { w: v.toks[i], t, type: typeName(typeOf(t) || "") });
+      if (anim === v.toks.length) msg += " " + L.anim_done;
+    } else if (anim === 0) msg = L.anim_start;
+    $("#b-msg").innerHTML = msg;
+  }
+  render();
+})();
+
+/* ---------- Part 2: emission scores from features ---------- */
+(function featurePart() {
+  let row = 0;
+  sentencePicker("#f-pick");
+  const fbox = $("#f-feats");
+  const counts = [];
+  FEATS.forEach((f, k) => {
+    const cb = checkbox(fbox, "", true, (on) => { ST.on[k] = on; changed(); });
+    const span = cb.nextElementSibling;
+    span.append(f.label);
+    if (f.list.length) span.appendChild(h("span", { class: "cnt" }, " (" + f.list.slice(0, 6).join(", ") + ")"));
+    counts.push(span.appendChild(h("span", { class: "cnt" })));
+  });
+
+  function render() {
+    const D = decode(ST.cur), toks = D.toks;
+    if (row >= toks.length) row = 0;
+    const flat = D.E.flat(), mx = Math.max(...flat), mn = Math.min(...flat);
+    const bad = new Set(bioErrors(D.ind.map((j) => TAGS[j])));
+    const head = h("tr", null, h("th", null, L.corner), TAGS.map((t) => h("th", { style: { color: tagColor(t) } }, t)));
+    const body = toks.map((w, i) => h("tr", { class: i === row ? "sel" : "", onclick: () => { row = i; render(); } },
+      h("td", { class: "w" }, w, bad.has(i) ? h("span", { class: "bang" }, "!") : null),
+      D.E[i].map((v, j) => {
+        const tt = mx > mn ? (v - mn) / (mx - mn) : 0;
+        return h("td", { class: j === D.ind[i] ? "pick" : "", style: { background: heatColor(tt * 0.75), color: inkOn(tt * 0.75) } }, f1(v));
+      })));
+    clear($("#f-table")).appendChild(h("table", { class: "ft" }, h("thead", null, head), h("tbody", null, body)));
+
+    // independent classifier output
+    const it = D.ind.map((j) => TAGS[j]);
+    const ib = clear($("#f-ind"));
+    const r = h("div", { class: "ner" }); ib.appendChild(r);
+    nerRow(r, toks, it);
+    const errs = bioErrors(it);
+    ib.appendChild(h("div", { class: "status small " + (errs.length ? "bad" : "good") },
+      errs.length ? tpl(L.ind_bad, { list: errs.map((i) => (i ? it[i - 1] : "<s>") + " → " + it[i]).join(", ") }) : L.ind_ok));
+
+    // breakdown for the selected word
+    $("#f-bd-title").textContent = tpl(L.bd_title, { w: toks[row] });
+    const fired = FEATS.map((f, k) => ({ f, k })).filter(({ f }) => fires(f, toks, row));
+    const bd = clear($("#f-bd"));
+    if (!fired.some(({ k }) => ST.on[k])) bd.appendChild(h("p", { class: "small muted", style: { margin: "0 0 8px" } }, L.bd_none));
+    const bh = h("tr", null, h("th", { class: "l" }), TAGS.map((t) => h("th", { style: { color: tagColor(t) } }, t)));
+    const rows = fired.map(({ f, k }) => h("tr", { class: ST.on[k] ? "" : "off" },
+      h("td", { class: "l" }, f.label + (ST.on[k] ? "" : " (" + L.bd_off + ")")),
+      f.w.map((x) => h("td", null, x === 0 ? "0" : (x > 0 ? "+" : "") + f1(x)))));
+    rows.push(h("tr", { class: "sum" }, h("td", { class: "l" }, L.bd_sum), D.E[row].map((x, j) => h("td", { class: j === D.ind[row] ? "pick" : "" }, f1(x)))));
+    bd.appendChild(h("div", { class: "scroll-x" }, h("table", { class: "ft" }, h("thead", null, bh), h("tbody", null, rows))));
+
+    // how many words of the sentence trigger each feature
+    FEATS.forEach((f, k) => { const c = toks.filter((_, i) => fires(f, toks, i)).length; counts[k].textContent = " · " + tpl(L.fires_n, { n: c }); });
+  }
+  listeners.push(render);
+  render();
+})();
+
+/* ---------- Part 3: CRF lattice and Viterbi ---------- */
+(function crfPart() {
+  let D = null, pos = 0, inspect = null;
+  sentencePicker("#c-pick");
+  const modeSeg = segmented("#c-mode", { label: L.mode_label, value: ST.mode,
+    options: [{ value: 0, label: L.mode_none }, { value: 1, label: L.mode_bio }, { value: 2, label: L.mode_full }],
+    onChange: (v) => { ST.mode = v; changed(); } });
+  void modeSeg;
+  legend("#c-legend", [{ label: L.lg_cur, color: cssVar("--mark") }, { label: L.lg_ind, color: cssVar("--c5") },
+    { label: L.lg_bad, color: cssVar("--bad") }, { label: L.lg_crf, color: cssVar("--pen") }]);
+
+  /* lattice geometry */
+  const ROW_H = 36, ROW_GAP = 6, HEAD = 44, GAP = 20, MIN_CELL = 70, MAX_CELL = 104, S_W = 40;
+  const H = HEAD + K * (ROW_H + ROW_GAP) + 4;
+  const root = $("#c-lat");
+  root.classList.add("lat-inner");
+  root.appendChild(h("div", { class: "rowlab", style: { width: "64px", paddingTop: HEAD + "px" } },
+    TAGS.map((t) => h("div", { style: { height: ROW_H + "px", marginBottom: ROW_GAP + "px", color: tagColor(t) } }, t))));
+  const cvHost = root.appendChild(h("div", { class: "cv" }));
+  function layout(W, n) {
+    const cw = clamp((W - S_W - 10) / n - GAP, MIN_CELL, MAX_CELL);
+    const used = S_W + n * (cw + GAP);
+    const ox = Math.max(0, (W - used - 10) / 2);
+    return { cw, colX: (t) => ox + S_W + GAP / 2 + t * (cw + GAP), rowY: (j) => HEAD + j * (ROW_H + ROW_GAP), sx: ox + 16 };
+  }
+  const midY = HEAD + (K * (ROW_H + ROW_GAP) - ROW_GAP) / 2;
+  function fitText(ctx, s, x, y, max, o) {
+    let size = o.size;
+    ctx.font = font(size, o.weight || 400, o.mono);
+    while (size > 9 && ctx.measureText(s).width > max) { size -= 0.5; ctx.font = font(size, o.weight || 400, o.mono); }
+    text(ctx, s, x, y, Object.assign({}, o, { size }));
+  }
+  function line(ctx, a, b, o) {
+    ctx.save(); ctx.strokeStyle = o.color; ctx.lineWidth = o.width || 1.2; ctx.setLineDash(o.dash || []); ctx.globalAlpha = o.alpha ?? 1;
+    if (o.head) { ctx.setLineDash([]); arrow(ctx, a[0], a[1], b[0], b[1], { color: o.color, width: o.width, head: o.head }); }
+    else { ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  function draw(ctx, W) {
+    const n = D.toks.length, Ly = layout(W, n), shown = Math.min(pos, n), final = pos > n;
+    const cy = (j) => Ly.rowY(j) + ROW_H / 2;
+    const L_ = (t, j) => [Ly.colX(t), cy(j)], R_ = (t, j) => [Ly.colX(t) + Ly.cw, cy(j)];
+    const S = [Ly.sx + 14, midY];
+    const curCol = inspect ? inspect.t : pos >= 1 && pos <= n ? pos - 1 : null;
+    D.toks.forEach((w, t) => {
+      const x = Ly.colX(t) + Ly.cw / 2;
+      if (curCol === t) { ctx.fillStyle = cssVar("--mark-soft"); roundRect(ctx, Ly.colX(t) - 5, 1, Ly.cw + 10, HEAD - 6, 5); ctx.fill(); }
+      text(ctx, String(t + 1), x, 10, { size: 10.5, align: "center", color: cssVar("--faint") });
+      fitText(ctx, w, x, 27, Ly.cw + GAP - 4, { size: 13.5, weight: 700, mono: true, align: "center" });
+    });
+    ctx.fillStyle = cssVar("--soft"); ctx.strokeStyle = cssVar("--faint");
+    ctx.beginPath(); ctx.arc(Ly.sx, midY, 14, 0, 7); ctx.fill(); ctx.stroke();
+    text(ctx, "<s>", Ly.sx, midY, { size: 10, align: "center", mono: true, color: cssVar("--muted") });
+    // back pointers of filled columns
+    for (let t = 1; t < shown; t++) for (let j = 0; j < K; j++) {
+      const b = D.V.bp[t][j];
+      if (b >= 0 && Number.isFinite(D.V.d[t][j])) line(ctx, R_(t - 1, b), L_(t, j), { color: cssVar("--faint"), width: 1, alpha: 0.7 });
+    }
+    // candidates into an inspected cell
+    if (inspect && inspect.t > 0) {
+      const { t, j } = inspect;
+      for (let i = 0; i < K; i++) {
+        const c = D.V.d[t - 1][i] + D.T[i + 1][j];
+        if (i === D.V.bp[t][j]) continue;
+        line(ctx, R_(t - 1, i), L_(t, j), { color: Number.isFinite(c) ? cssVar("--muted") : cssVar("--bad"), width: 1.2, dash: [4, 4], alpha: Number.isFinite(c) ? 1 : 0.5 });
+      }
+      const b = D.V.bp[t][j];
+      if (b >= 0 && Number.isFinite(D.V.d[t][j])) line(ctx, R_(t - 1, b), L_(t, j), { color: cssVar("--pen"), width: 2.6, head: 9 });
+    }
+    // independent choice: orange; BIO-violating links red
+    const it = D.ind.map((j) => TAGS[j]);
+    for (let t = 0; t < shown; t++) {
+      const ok = validPair(t ? it[t - 1] : "<s>", it[t]);
+      const a = t ? R_(t - 1, D.ind[t - 1]) : S, b = L_(t, D.ind[t]);
+      line(ctx, [a[0], a[1] - 3], [b[0], b[1] - 3], ok ? { color: cssVar("--c5"), width: 2.2, alpha: 0.9 } : { color: cssVar("--bad"), width: 3, dash: [6, 4] });
+    }
+    // CRF path
+    if (final && Number.isFinite(D.V.score)) {
+      const p = D.V.path;
+      for (let t = 0; t < n; t++) line(ctx, t ? [R_(t - 1, p[t - 1])[0], R_(t - 1, p[t - 1])[1] + 3] : [S[0], S[1] + 3], [L_(t, p[t])[0], L_(t, p[t])[1] + 3], { color: cssVar("--pen"), width: 3.2 });
+    }
+    // cells
+    const fin = D.V.d.flat().filter(Number.isFinite), mx = Math.max(...fin), mn = Math.min(...fin);
+    for (let t = 0; t < n; t++) for (let j = 0; j < K; j++) {
+      const x = Ly.colX(t), y = Ly.rowY(j);
+      roundRect(ctx, x, y, Ly.cw, ROW_H, 5);
+      const filled = t < shown, v = D.V.d[t][j];
+      ctx.fillStyle = !filled ? "#fff" : Number.isFinite(v) ? heatColor(0.06 + 0.4 * (mx > mn ? (v - mn) / (mx - mn) : 0)) : "#E9ECF1";
+      ctx.fill();
+      ctx.save(); ctx.strokeStyle = cssVar("--line"); if (!filled) ctx.setLineDash([3, 3]); ctx.stroke(); ctx.restore();
+      if (filled) fitText(ctx, f1(v), x + Ly.cw / 2, y + ROW_H / 2 + 1, Ly.cw - 8, { size: 13, weight: 700, mono: true, align: "center", color: Number.isFinite(v) ? cssVar("--ink") : cssVar("--faint") });
+      const rings = [];
+      if (filled && D.ind[t] === j) rings.push({ c: cssVar("--c5"), w: 2.5 });
+      if (final && D.V.path[t] === j) rings.push({ c: cssVar("--pen"), w: 3 });
+      rings.forEach((r, k) => { ctx.save(); const ins = 1 + k * 3.5; roundRect(ctx, x + ins, y + ins, Ly.cw - 2 * ins, ROW_H - 2 * ins, 4); ctx.strokeStyle = r.c; ctx.lineWidth = r.w; ctx.stroke(); ctx.restore(); });
+    }
+    if (inspect) {
+      const x = Ly.colX(inspect.t), y = Ly.rowY(inspect.j);
+      ctx.save(); roundRect(ctx, x - 2.5, y - 2.5, Ly.cw + 5, ROW_H + 5, 7); ctx.strokeStyle = cssVar("--mark"); ctx.lineWidth = 4; ctx.stroke(); ctx.restore();
+    }
+  }
+  const box = canvasBox(cvHost, { height: H, label: L.p3_title, draw: (ctx, W) => draw(ctx, W),
+    onDown: (p) => {
+      const n = D.toks.length, Ly = layout(box.w, n);
+      for (let t = 0; t < Math.min(pos, n); t++) for (let j = 0; j < K; j++) {
+        const x = Ly.colX(t), y = Ly.rowY(j);
+        if (p.x >= x && p.x <= x + Ly.cw && p.y >= y && p.y <= y + ROW_H) { inspect = { t, j }; render(); return; }
+      }
+    } });
+  function scrollTo(t) {
+    const sc = $("#c-scroll");
+    if (sc.scrollWidth <= sc.clientWidth + 1) return;
+    const Ly = layout(box.w, D.toks.length);
+    const x1 = 64 + Ly.colX(t) + Ly.cw + 24, x0 = Ly.colX(Math.max(0, t - 1));
+    let left = sc.scrollLeft;
+    if (x1 > left + sc.clientWidth) left = x1 - sc.clientWidth;
+    if (x0 < left) left = x0;
+    sc.scrollLeft = Math.max(0, left);
+  }
+
+  player("#c-player", {
+    interval: 1100,
+    step: () => {
+      const n = D.toks.length;
+      if (pos > n) pos = 0;            // Step after the end starts over
+      pos++; inspect = null; render(); scrollTo(Math.min(pos, n) - 1);
+      return pos <= n;
+    },
+    canStep: () => pos <= D.toks.length,
+    reset: () => { pos = 0; inspect = null; render(); scrollTo(0); },
+  });
+
+  /* readouts */
+  const V = (x) => f1(x);
+  function table(head, rows) {
+    return h("div", { class: "scroll-x" }, h("table", { class: "grid calc" },
+      h("thead", null, h("tr", null, head.map((x) => h("th", null, x)))),
+      h("tbody", null, rows.map((r) => h("tr", { class: r.cls || "" }, r.cells.map((c, k) => h("td", { class: k ? "num" : "l" }, c)))))));
+  }
+  function columnReadout(box_, t) {
+    const n = D.toks.length;
+    box_.appendChild(h("p", { html: tpl(t ? L.r_col : L.r_col_first, { k: t + 1, w: D.toks[t] }) }));
+    const rows = TAGS.map((tg, j) => {
+      const b = t ? D.V.bp[t][j] : -1, prevPlus = t ? (b >= 0 ? D.V.d[t - 1][b] + D.T[b + 1][j] : NEG) : D.T[0][j];
+      return { cls: Number.isFinite(D.V.d[t][j]) ? "" : "neg", cells: [tg, t ? (b >= 0 && Number.isFinite(prevPlus) ? TAGS[b] : "–") : "<s>", V(prevPlus), "+ " + V(D.E[t][j]), "= " + V(D.V.d[t][j])] };
+    });
+    box_.appendChild(table([L.th_tag, L.th_from, L.th_prev, L.th_emis, L.th_res], rows));
+    if (t === n - 1) box_.appendChild(h("p", { style: { marginTop: "8px" }, html: tpl(L.r_final, { t: TAGS[D.V.path[n - 1]], s: V(D.V.score) }) }));
+    else box_.appendChild(h("p", { class: "small muted", style: { marginTop: "8px" } }, L.r_click));
+  }
+  function cellReadout(box_, t, j) {
+    const w = D.toks[t], d = D.V.d[t][j], e = D.E[t][j];
+    box_.appendChild(h("p", { html: tpl(L.r_cell, { w, t: TAGS[j] }) }));
+    if (t === 0) { box_.appendChild(h("p", { html: tpl(L.r_cell_first, { a: V(D.T[0][j]), e: V(e), d: V(d) }) })); return; }
+    const b = D.V.bp[t][j];
+    const rows = TAGS.map((tg, i) => {
+      const c = D.V.d[t - 1][i] + D.T[i + 1][j];
+      return { cls: i === b && Number.isFinite(c) ? "best" : Number.isFinite(c) ? "" : "neg", cells: [tg + " → " + TAGS[j], V(D.V.d[t - 1][i]), "+ " + V(D.T[i + 1][j]), "= " + V(c)] };
+    });
+    box_.appendChild(table([L.th_cand, "δ", "T", "Σ"], rows));
+    box_.appendChild(h("p", { style: { marginTop: "8px" }, html: Number.isFinite(d) ? tpl(L.r_cell_res, { i: TAGS[b], a: V(D.V.d[t - 1][b] + D.T[b + 1][j]), e: V(e), d: V(d) }) : L.r_cell_neg }));
+  }
+
+  function renderTrans() {
+    const it = D.ind.map((j) => TAGS[j]), p = D.V.path, n = D.toks.length;
+    const crfSet = new Set(), badSet = new Set();
+    p.forEach((j, t) => crfSet.add((t ? p[t - 1] + 1 : 0) + "," + j));
+    it.forEach((tg, t) => { if (!validPair(t ? it[t - 1] : "<s>", tg)) badSet.add((t ? D.ind[t - 1] + 1 : 0) + "," + D.ind[t]); });
+    const from = ["<s>", ...TAGS];
+    const head = h("tr", null, h("th", null, L.trans_corner), TAGS.map((t) => h("th", { style: { color: tagColor(t) } }, t)));
+    const body = from.map((a, ai) => h("tr", null, h("th", { class: "l", style: { color: ai ? tagColor(a) : "" } }, a), TAGS.map((_, j) => {
+      const v = D.T[ai][j], key = ai + "," + j;
+      const cls = (Number.isFinite(v) ? "" : "ninf ") + (badSet.has(key) ? "badt" : pos > n && crfSet.has(key) ? "crf" : "");
+      const tt = Number.isFinite(v) ? clamp((v + 1) / 2.4, 0, 1) : 0;
+      return h("td", { class: cls, style: Number.isFinite(v) && ST.mode === 2 ? { background: heatColor(tt * 0.5) } : null }, Number.isFinite(v) ? f1(v) : "−∞");
+    })));
+    clear($("#c-trans")).appendChild(h("table", { class: "grid tm" }, h("thead", null, head), h("tbody", null, body)));
+  }
+
+  function renderCmp() {
+    const box_ = clear($("#c-cmp"));
+    const it = D.ind.map((j) => TAGS[j]), ct = D.V.path.map((j) => TAGS[j]);
+    const block = (title, tags, path, other) => {
+      const errs = new Set(bioErrors(tags));
+      const pr = parts(D.E, D.T, path);
+      const prob = Number.isFinite(pr.total) ? Math.exp(pr.total - D.lz) : 0;
+      box_.appendChild(h("div", { class: "cmp-row" },
+        h("h4", null, title, h("span", { class: "badge " + (errs.size ? "no" : "ok") }, errs.size ? L.invalid : L.valid)),
+        h("div", { class: "mini" }, D.toks.map((w, i) => h("span", { class: (errs.has(i) ? "badt " : "") + (tags[i] !== other[i] ? "diff" : ""), title: w },
+          w.length > 12 ? w.slice(0, 11) + "…" : w, " ", h("b", { style: { color: tagColor(tags[i]) } }, tags[i])))),
+        h("dl", { class: "kv", style: { marginTop: "8px" } },
+          h("dt", null, L.sum_e), h("dd", null, V(pr.se)),
+          h("dt", null, L.sum_t), h("dd", null, V(pr.st)),
+          h("dt", null, L.total), h("dd", null, V(pr.total)),
+          h("dt", null, L.prob), h("dd", null, fmt(prob, 3)))));
+    };
+    block(L.cmp_ind, it, D.ind, ct);
+    block(L.cmp_crf, ct, D.V.path, it);
+    const diff = D.toks.filter((_, i) => it[i] !== ct[i]).map((w) => "«" + w + "»");
+    box_.appendChild(h("div", { class: "status small " + (diff.length ? "note" : "good") }, diff.length ? tpl(L.cmp_diff, { list: diff.join(", ") }) : L.cmp_same));
+    box_.appendChild(h("p", { class: "tiny muted", style: { margin: "10px 0 0" } }, L.prob_note));
+  }
+
+  function render() {
+    const n = D.toks.length, rb = clear($("#c-readout"));
+    if (inspect) cellReadout(rb, inspect.t, inspect.j);
+    else if (pos === 0) rb.appendChild(h("p", { html: tpl(L.r_start, { w: D.toks[0] }) }));
+    else if (pos <= n) columnReadout(rb, pos - 1);
+    else {
+      rb.appendChild(h("p", { html: tpl(L.r_final, { t: TAGS[D.V.path[n - 1]], s: V(D.V.score) }) }));
+      rb.appendChild(h("p", { class: "small muted" }, L.r_click));
+    }
+    renderTrans();
+    renderCmp();
+    box.redraw();
+  }
+  let lastSent = -1;
+  function update() {
+    D = decode(ST.cur);
+    if (ST.cur !== lastSent) { pos = D.toks.length + 1; inspect = null; lastSent = ST.cur; $("#c-scroll").scrollLeft = 0; }
+    if (inspect && inspect.t >= Math.min(pos, D.toks.length)) inspect = null;
+    root.style.minWidth = 64 + S_W + D.toks.length * (MIN_CELL + GAP) + 10 + "px";
+    render();
+  }
+  listeners.push(update);
+  update();
+})();
+
+/* ---------- Part 4: span-level precision, recall, F1 ---------- */
+(function metricsPart() {
+  let src = "crf";
+  sentencePicker("#m-pick");
+  segmented("#m-src", { label: L.src_label, value: src,
+    options: [{ value: "user", label: L.src_user }, { value: "ind", label: L.src_ind }, { value: "crf", label: L.src_crf }],
+    onChange: (v) => { src = v; render(); } });
+
+  const key = (s) => s.start + ":" + s.end + ":" + s.type;
+  function predict(si, who) {
+    if (who === "user") { const tk = tokenize(si, USER[si].split); return { toks: tk.toks, gold: tk.gold, pred: USER[si].tags }; }
+    const D = decode(si);
+    return { toks: D.toks, gold: SENTS[si].gold, pred: (who === "ind" ? D.ind : D.V.path).map((j) => TAGS[j]) };
+  }
+  function score(gold, pred) {
+    const g = spans(gold), p = spans(pred), gk = new Set(g.map(key)), pk = new Set(p.map(key));
+    const tp = p.filter((s) => gk.has(key(s))).length;
+    return { g, p, gk, pk, tp, fp: p.length - tp, fn: g.length - tp };
+  }
+  function prf(tp, fp, fn) {
+    const P = tp + fp ? tp / (tp + fp) : NaN, R = tp + fn ? tp / (tp + fn) : NaN;
+    const F = P > 0 && R > 0 ? (2 * P * R) / (P + R) : 0;
+    return { P, R, F };
+  }
+
+  function render() {
+    const X = predict(ST.cur, src), M = score(X.gold, X.pred), m = prf(M.tp, M.fp, M.fn);
+    nerRow("#m-gold", X.toks, X.gold, { noBad: true });
+    nerRow("#m-pred", X.toks, X.pred, { mark: (s) => (M.gk.has(key(s)) ? "" : " ×") });
+    const fnList = M.g.filter((s) => !M.pk.has(key(s)));
+    const fpList = M.p.filter((s) => !M.gk.has(key(s)));
+    const fnBox = clear($("#m-fn"));
+    if (fpList.length) fnBox.appendChild(h("div", null, h("b", null, L.m_fp + ": "), fpList.map((s) => spanText(X.toks, s) + " (" + s.type + ")").join("; ")));
+    if (fnList.length) fnBox.appendChild(h("div", null, h("b", null, L.m_fn + ": "), fnList.map((s) => spanText(X.toks, s) + " (" + s.type + ")").join("; ")));
+    const cards = clear($("#m-cards"));
+    [[L.m_p, m.P], [L.m_r, m.R], [L.m_f1, m.F]].forEach(([lab, v]) => cards.appendChild(h("div", null, h("b", null, fmt(v, 2)), h("span", null, lab))));
+    const kv = clear($("#m-kv"));
+    [[L.m_tp, M.tp], [L.m_fp, M.fp], [L.m_fn, M.fn]].forEach(([a, b]) => kv.append(h("dt", null, a), h("dd", null, String(b))));
+    $("#m-formula").textContent = tpl(L.m_f, { tp: M.tp, fp: M.fp, fn: M.fn, p: fmt(m.P, 2), r: fmt(m.R, 2), f: fmt(m.F, 2) });
+    const acc = X.pred.filter((t, i) => t === X.gold[i]).length / X.gold.length;
+    $("#m-acc").textContent = tpl(L.m_word_acc, { a: fmt(acc, 2) });
+
+    // all sentences, micro-averaged
+    const rows = [["user", L.src_user], ["ind", L.src_ind], ["crf", L.src_crf]].map(([who, lab]) => {
+      let tp = 0, fp = 0, fn = 0;
+      SENTS.forEach((_, si) => { const Y = predict(si, who), S = score(Y.gold, Y.pred); tp += S.tp; fp += S.fp; fn += S.fn; });
+      const r = prf(tp, fp, fn);
+      return h("tr", { class: who === src ? "sel" : "" }, h("td", { class: "l" }, lab), [tp, fp, fn].map((x) => h("td", { class: "num" }, String(x))),
+        [r.P, r.R, r.F].map((x) => h("td", { class: "num" }, fmt(x, 2))));
+    });
+    clear($("#m-all")).appendChild(h("table", { class: "grid" },
+      h("thead", null, h("tr", null, h("th", { class: "l" }, L.m_sys), ["TP", "FP", "FN", "P", "R", "F1"].map((x) => h("th", null, x)))),
+      h("tbody", null, rows)));
+  }
+  listeners.push(render);
+  render();
+})();
+
+</script>
+</body>
+</html>

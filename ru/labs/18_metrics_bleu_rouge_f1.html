@@ -1,0 +1,1725 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>18. Метрики качества: BLEU, ROUGE, F1</title>
+<meta name="description" content="Метрики качества: практический расчёт BLEU, ROUGE и F1-score">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=PT+Mono&display=swap" rel="stylesheet">
+<style>
+/* NLP labs: shared style. Light theme only (labs are often projected in class). */
+:root {
+  color-scheme: light;
+  --paper: #EDF1F6;
+  --panel: #FFFFFF;
+  --soft: #F5F7FA;
+  --ink: #1C2A43;
+  --muted: #56637C;
+  --faint: #8C97AB;
+  --line: #D2D9E4;
+  --pen: #2B55C9;
+  --pen-dark: #1F3F9A;
+  --mark: #FFD84D;
+  --mark-soft: #FFF2B8;
+  --good: #1A8F5F;
+  --good-soft: #DDF3E8;
+  --bad: #C2413A;
+  --bad-soft: #FBE3E1;
+  --c1: #2B55C9;
+  --c2: #D04A55;
+  --c3: #17907E;
+  --c4: #9157BF;
+  --c5: #DB8F1F;
+  --c6: #5B7A2A;
+  --c7: #C1508F;
+  --c8: #5E6B85;
+  --font: "Golos Text", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --mono: "PT Mono", Consolas, "Liberation Mono", "Courier New", monospace;
+  --r: 10px;
+  --r-sm: 5px;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.55 var(--font);
+}
+a { color: var(--pen); }
+a:hover { color: var(--pen-dark); }
+:focus-visible { outline: 3px solid var(--mark); outline-offset: 2px; border-radius: 3px; }
+img, svg, canvas { max-width: 100%; }
+
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+
+/* top navigation */
+.topnav { background: var(--ink); color: #fff; font-size: 14px; }
+.topnav .wrap { display: flex; align-items: center; gap: 12px; min-height: 46px; flex-wrap: wrap; }
+.topnav a { color: #fff; text-decoration: none; padding: 6px 10px; border-radius: var(--r-sm); }
+.topnav a:hover { background: rgba(255,255,255,.12); color: #fff; }
+.topnav .course { font-weight: 600; margin-right: auto; }
+.topnav .pager { display: flex; gap: 4px; }
+.topnav .disabled { opacity: .35; pointer-events: none; }
+
+/* header */
+.lab-head { padding: 28px 0 8px; }
+.lab-no { margin: 0 0 6px; color: var(--muted); font-size: 15px; }
+.lab-head h1 { margin: 0; font-size: clamp(28px, 4.2vw, 42px); line-height: 1.12; font-weight: 700; letter-spacing: -.01em; max-width: 26ch; }
+.lab-head .lead { margin: 14px 0 0; font-size: 18px; max-width: 70ch; color: var(--ink); }
+.lab-head .topic { margin: 12px 0 0; font-size: 14px; color: var(--muted); max-width: 90ch; }
+
+/* sections and the highlighter heading: the one decorative motif */
+.part { margin: 34px 0 0; }
+.part > h2, .notes h2 {
+  font-size: 23px; line-height: 1.25; margin: 0 0 6px; font-weight: 700;
+  display: inline;
+  background: linear-gradient(transparent 58%, var(--mark) 58%, var(--mark) 92%, transparent 92%);
+  box-decoration-break: clone; -webkit-box-decoration-break: clone;
+  padding: 0 3px;
+}
+.part > .hint, .part > p.intro { margin: 10px 0 14px; color: var(--muted); max-width: 75ch; }
+.part > h2 + .stage { margin-top: 16px; }
+
+/* stage: visual on the left, controls and readouts on the right */
+.stage { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.stage.even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.stage.single { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 900px) { .stage, .stage.even { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; min-width: 0; }
+.panel + .panel { margin-top: 16px; }
+.stage > .panel + .panel { margin-top: 0; }
+.panel h3 { margin: 0 0 10px; font-size: 16px; font-weight: 600; }
+.panel h3 + .muted { margin-top: -6px; }
+.col > .panel + .panel { margin-top: 16px; }
+.stage > .panel + .panel { margin-top: 0; }
+
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+.tiny { font-size: 12.5px; }
+.mono { font-family: var(--mono); }
+.center { text-align: center; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row + .row { margin-top: 10px; }
+.grow { flex: 1 1 auto; }
+.spacer { height: 10px; }
+
+/* controls */
+.btn {
+  font: inherit; font-size: 15px; font-weight: 500;
+  border: 1px solid var(--pen); background: var(--pen); color: #fff;
+  border-radius: 999px; padding: 7px 16px; cursor: pointer; line-height: 1.3;
+  min-height: 36px; touch-action: manipulation;
+}
+.btn:hover { background: var(--pen-dark); border-color: var(--pen-dark); }
+.btn.ghost { background: transparent; color: var(--pen); }
+.btn.ghost:hover { background: #E6ECFA; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.small { font-size: 14px; padding: 5px 12px; min-height: 32px; }
+
+.player { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.player .speed { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.player .speed input { width: 110px; }
+
+.ctl { margin: 0 0 14px; }
+.panel > .ctl:last-child, .panel > div:last-child > .ctl:last-child { margin-bottom: 0; }
+.ctl label, .ctl .lbl { display: flex; justify-content: space-between; gap: 8px; font-size: 14.5px; margin-bottom: 4px; }
+.ctl .val { font-family: var(--mono); font-weight: 700; color: var(--pen); white-space: nowrap; }
+input[type=range] { width: 100%; accent-color: var(--pen); margin: 0; height: 26px; }
+
+.seg { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
+.seg button { font: inherit; font-size: 14px; border: 1px solid #B8C6EA; background: var(--panel); color: var(--pen); padding: 5px 12px; cursor: pointer; min-height: 34px; border-radius: 999px; }
+.seg button:hover { border-color: var(--pen); }
+.seg button[aria-pressed=true] { background: var(--pen); color: #fff; border-color: var(--pen); }
+
+input[type=text], textarea, select {
+  font: inherit; font-size: 15px; color: var(--ink); background: #fff;
+  border: 1px solid var(--line); border-radius: var(--r-sm); padding: 7px 10px; width: 100%; max-width: 100%;
+}
+textarea { min-height: 76px; resize: vertical; }
+input[type=text]:focus, textarea:focus, select:focus { border-color: var(--pen); outline: none; box-shadow: 0 0 0 3px #D7E1FA; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 14.5px; cursor: pointer; margin: 6px 0; }
+.check input { width: 17px; height: 17px; accent-color: var(--pen); }
+
+/* tokens: strings of text are the material of this course */
+.tokens { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tok {
+  font-family: var(--mono); font-size: 15px; line-height: 1.2;
+  border: 1px solid var(--line); background: var(--soft); border-radius: var(--r-sm);
+  padding: 4px 7px; white-space: pre; display: inline-flex; flex-direction: column; align-items: center;
+}
+.tok .sub { font-family: var(--font); font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.tok.hl { background: var(--mark-soft); border-color: #E8C33A; }
+.tok.on { background: var(--pen); color: #fff; border-color: var(--pen); }
+.tok.on .sub { color: #DCE4FA; }
+button.tok { cursor: pointer; font-family: var(--mono); color: var(--ink); }
+.morph { font-family: var(--mono); }
+.morph .b { color: var(--faint); padding: 0 1px; }
+
+mark, .hl-text { background: var(--mark-soft); color: inherit; border-radius: 3px; padding: 0 2px; }
+
+/* readouts */
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 14.5px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-family: var(--mono); font-weight: 700; text-align: right; }
+.big-num { font-size: 30px; font-weight: 700; line-height: 1.1; }
+.big-num small { font-size: 15px; font-weight: 400; color: var(--muted); margin-left: 6px; }
+
+.bars { display: grid; gap: 6px; }
+.bar { display: grid; grid-template-columns: minmax(70px, 34%) 1fr auto; gap: 8px; align-items: center; font-size: 14px; }
+.bar .lab { overflow-wrap: anywhere; line-height: 1.3; }
+.bar .track { background: var(--soft); border: 1px solid var(--line); border-radius: 4px; height: 16px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--pen); border-radius: 3px 0 0 3px; transition: width .35s ease; }
+.bar .num { font-family: var(--mono); font-size: 13px; min-width: 46px; text-align: right; }
+
+table.grid { border-collapse: collapse; font-size: 14px; width: 100%; }
+table.grid th, table.grid td { border: 1px solid var(--line); padding: 5px 7px; text-align: center; }
+table.grid th { background: var(--soft); font-weight: 600; }
+table.grid td.l, table.grid th.l { text-align: left; }
+table.grid td.num { font-family: var(--mono); }
+table.grid tr.sel td { background: var(--mark-soft); }
+.scroll-x { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+.status { border-radius: var(--r-sm); padding: 8px 12px; font-size: 14.5px; background: var(--soft); border: 1px solid var(--line); }
+.status.good { background: var(--good-soft); border-color: #A9DCC2; }
+.status.bad { background: var(--bad-soft); border-color: #F0B7B2; }
+.status.note { background: var(--mark-soft); border-color: #E8C33A; }
+
+canvas.viz { display: block; width: 100%; touch-action: none; border-radius: var(--r-sm); }
+.viz-wrap { position: relative; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; font-size: 13px; padding: 4px 8px; border-radius: 4px; white-space: nowrap; transform: translate(-50%, -120%); }
+
+/* notes: theory, experiments, quiz */
+.notes { margin: 44px 0 0; }
+.notes > section { margin: 0 0 34px; }
+.notes .text { margin-top: 14px; max-width: 76ch; }
+.notes .text p { margin: 0 0 12px; }
+.notes .text code, .notes li code { font-family: var(--mono); background: var(--soft); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; font-size: 14.5px; }
+.formula { font-family: var(--mono); background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--pen); border-radius: var(--r-sm); padding: 10px 14px; margin: 10px 0 14px; overflow-x: auto; white-space: pre-wrap; }
+ol.exp { margin: 14px 0 0; padding-left: 26px; max-width: 76ch; }
+ol.exp li { margin: 0 0 10px; padding-left: 4px; }
+
+.quiz { display: grid; gap: 14px; margin-top: 16px; max-width: 820px; }
+.quiz .q { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
+.quiz .q p { margin: 0 0 10px; font-weight: 600; }
+.quiz .opts { display: grid; gap: 6px; }
+.quiz .opt { font: inherit; text-align: left; background: var(--soft); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 12px; cursor: pointer; color: var(--ink); }
+.quiz .opt:hover { border-color: var(--pen); }
+.quiz .opt.right { background: var(--good-soft); border-color: var(--good); }
+.quiz .opt.wrong { background: var(--bad-soft); border-color: var(--bad); }
+.quiz .fb { margin-top: 10px; font-size: 14.5px; }
+.quiz .fb b { margin-right: 4px; }
+.quiz-score { font-weight: 600; margin-top: 4px; }
+
+.practice { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--mark); border-radius: var(--r); padding: 16px 18px; max-width: 820px; }
+.practice p { margin: 0 0 12px; }
+.practice a.btn { text-decoration: none; display: inline-block; }
+
+footer { margin: 50px 0 0; padding: 22px 0 40px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+
+@media (max-width: 600px) {
+  body { font-size: 15.5px; }
+  .lab-head .lead { font-size: 16.5px; }
+  .panel { padding: 13px; }
+  .part > h2, .notes h2 { font-size: 21px; }
+  .bar { grid-template-columns: minmax(60px, 38%) 1fr auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+</style>
+</head>
+<body>
+<nav class="topnav" aria-label="Оглавление"><div class="wrap">
+  <a class="course" href="../index.html">Оглавление</a>
+  <span class="pager">
+    <a href="17_agglutinative_stress.html" class="" rel="prev">‹ Назад</a>
+    <a href="#" class="disabled" rel="next">Далее ›</a>
+  </span>
+</div></nav>
+<div class="wrap">
+<header class="lab-head">
+  <p class="lab-no">Лаборатория 18 из 18</p>
+  <h1>Метрики качества: BLEU, ROUGE, F1</h1>
+  <p class="lead">Как машина ставит оценку переводу, реферату и разметке. BLEU, ROUGE и F1 считаются по шагам на ваших собственных примерах.</p>
+  <p class="topic">Тема курса: Метрики качества: практический расчёт BLEU, ROUGE и F1-score</p>
+</header>
+<main id="lab">
+<style>
+.lbl-s { display: block; font-size: 13.5px; color: var(--muted); margin: 10px 0 4px; }
+.lbl-s:first-child { margin-top: 0; }
+.txt-line { min-height: 34px; }
+.txt-line .tok { transition: background .2s, border-color .2s, box-shadow .2s; }
+.tok.ok, .sw.ok { background: var(--good-soft); border-color: #7CC9A4; }
+.tok.miss, .sw.miss { background: var(--bad-soft); border-color: #E8A29C; }
+.tok.cur, .sw.cur { box-shadow: 0 0 0 3px var(--mark); border-color: #C9A10F; }
+.tok.lcs { background: var(--pen); color: #fff; border-color: var(--pen); }
+.legend .sw { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--line); display: inline-block; }
+.opts .check { margin: 4px 0; }
+.say { min-height: 64px; margin-top: 12px; }
+.say b { font-family: var(--mono); font-weight: 700; }
+.formula.now { border-left-color: var(--mark); background: var(--mark-soft); }
+.formula { font-size: 14px; }
+.ngt .cr { white-space: nowrap; }
+.bars-x { display: grid; gap: 8px; }
+.bars-x .bar { grid-template-columns: 52px minmax(0, 1fr) auto; }
+.bars-x .bar .num { min-width: 92px; white-space: nowrap; }
+.bars-x .bar.now { outline: 3px solid var(--mark); outline-offset: 2px; border-radius: 4px; }
+.bars-x .bar.zero .num { color: var(--bad); font-weight: 700; }
+.bars-x.wide .bar { grid-template-columns: 96px minmax(0, 1fr) auto; }
+.bars-x.wide .bar .num { min-width: 48px; }
+.ngt td, .ngt th { white-space: nowrap; }
+.ngt tbody tr:not(.tot):not(.msg) { cursor: pointer; }
+.ngt tr.ok td.cr { color: var(--good); font-weight: 700; }
+.ngt tr.no td.cr { color: var(--bad); }
+.ngt tr.sel td { background: var(--mark-soft); }
+.ngt tr.tot td { font-weight: 700; background: var(--soft); }
+.ngt td.l { font-family: var(--mono); }
+.ngt td.l.muted { font-family: var(--font); white-space: normal; }
+.res-big { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+/* LCS table */
+table.dp { border-collapse: collapse; font-family: var(--mono); font-size: 13.5px; margin: 0 auto 0 0; }
+table.dp td, table.dp th { border: 1px solid var(--line); width: 30px; min-width: 30px; height: 28px; text-align: center; padding: 0; }
+table.dp th { background: var(--soft); font-weight: 400; color: var(--muted); }
+table.dp th.v { height: auto; vertical-align: bottom; padding: 4px 0; }
+table.dp th.v span { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; display: inline-block; max-height: 128px; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+table.dp th.r { text-align: right; padding: 0 6px; white-space: nowrap; width: auto; color: var(--ink); }
+table.dp th.hc { background: var(--mark); }
+table.dp th.corner { border-top-color: transparent; border-left-color: transparent; background: transparent; }
+table.dp td.z { color: var(--faint); }
+table.dp td.eq { background: var(--good-soft); }
+table.dp td.dep { box-shadow: inset 0 0 0 2px var(--pen); }
+table.dp td.path { background: #E6ECFA; }
+table.dp td.take { background: var(--pen); color: #fff; font-weight: 700; }
+table.dp td.cur { box-shadow: inset 0 0 0 3px var(--mark); background: var(--mark-soft); color: var(--ink); font-weight: 700; }
+.sw.eq { background: var(--good-soft); }
+.sw.dep { box-shadow: inset 0 0 0 2px var(--pen); }
+.sw.take { background: var(--pen); border-color: var(--pen) !important; }
+.sc td.f, .pc td.f { font-weight: 700; color: var(--pen); }
+.sc tr.sel td, .sc tr.sel th { background: var(--mark-soft); }
+/* NER spans */
+.sent { display: flex; flex-wrap: wrap; gap: 6px 5px; align-items: flex-end; line-height: 1.2; min-height: 44px; }
+.sent .w { font-size: 15.5px; padding: 3px 2px; }
+.ent { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 4px; border: 2px solid; border-radius: 6px; padding: 1px 5px; transition: box-shadow .2s; }
+.ent .tag { font-size: 11px; font-family: var(--mono); font-weight: 700; color: #fff; border-radius: 3px; padding: 1px 4px; margin-left: 2px; }
+.ent.cur { box-shadow: 0 0 0 4px var(--mark); }
+.ent.mini { font-size: 13.5px; padding: 0 4px; border-width: 1.5px; line-height: 1.5; }
+.t-PER { border-color: var(--c4) !important; background: #F3ECF9; }
+.t-PER .tag { background: var(--c4); }
+.t-LOC { border-color: var(--c3) !important; background: #E2F3F0; }
+.t-LOC .tag { background: var(--c3); }
+.t-ORG { border-color: var(--c5) !important; background: #FBF0DE; }
+.t-ORG .tag { background: var(--c5); }
+.sw.t-PER, .sw.t-LOC, .sw.t-ORG { border-width: 2px; }
+.badge { font-family: var(--mono); font-size: 12px; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #fff; }
+.badge.tp { background: var(--good); }
+.badge.fp { background: var(--c5); }
+.badge.fn { background: var(--bad); }
+.nt td { vertical-align: top; }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 4px 0 12px; }
+.tile { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 10px; background: var(--soft); transition: box-shadow .2s; }
+.tile b { display: block; font-size: 26px; line-height: 1.1; }
+.tile span { font-size: 12.5px; color: var(--muted); line-height: 1.25; display: block; }
+.tile.tp b { color: var(--good); }
+.tile.fp b { color: var(--c5); }
+.tile.fn b { color: var(--bad); }
+.tile.now { box-shadow: 0 0 0 3px var(--mark); }
+#ner-ctl .ctl { margin-bottom: 10px; }
+#ner-ctl .ctl .lbl span { font-family: var(--mono); font-size: 13.5px; }
+/* confusion matrix */
+table.cm { border-collapse: separate; border-spacing: 3px; font-size: 14px; }
+table.cm th { font-weight: 600; padding: 2px 6px; text-align: center; white-space: nowrap; }
+table.cm th.l { text-align: right; }
+table.cm th.corner { font-weight: 400; font-size: 12px; color: var(--muted); text-align: left; white-space: normal; max-width: 110px; line-height: 1.2; }
+table.cm td { padding: 0; text-align: center; }
+table.cm button { font: inherit; font-family: var(--mono); font-weight: 700; width: 58px; height: 44px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+table.cm button.tp { box-shadow: inset 0 0 0 3px var(--good); }
+table.cm button.fp { box-shadow: inset 0 0 0 3px var(--c5); }
+table.cm button.fn { box-shadow: inset 0 0 0 3px var(--bad); }
+table.cm button.dim { opacity: .4; }
+table.cm button.sel { outline: 3px solid var(--mark); outline-offset: 1px; }
+.sw.c-tp { box-shadow: inset 0 0 0 3px var(--good); }
+.sw.c-fp { box-shadow: inset 0 0 0 3px var(--c5); }
+.sw.c-fn { box-shadow: inset 0 0 0 3px var(--bad); }
+.linkish { font: inherit; background: none; border: 0; padding: 0; color: var(--pen); cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+.pc tr.sel td { background: var(--mark-soft); }
+@media (max-width: 600px) {
+  table.cm button { width: 50px; height: 40px; }
+  .tile b { font-size: 22px; }
+  .bars-x .bar .num { min-width: 0; font-size: 12px; }
+  .formula { font-size: 12.5px; padding: 9px 10px; }
+  .ngt th, .ngt td { white-space: normal; font-size: 13px; padding: 4px 5px; }
+  .ngt td.l { overflow-wrap: anywhere; }
+  table.dp { font-size: 11.5px; }
+  table.dp td, table.dp th { width: 23px; min-width: 23px; height: 24px; }
+  table.dp th.r { padding: 0 3px; font-size: 11px; }
+  table.dp th.v span { font-size: 11px; max-height: 96px; }
+  .nt td, .nt th { padding: 4px 5px; }
+  .pc th, .pc td { padding: 4px 4px; font-size: 13px; }
+}
+</style>
+
+<section class="part" id="p1">
+  <h2>BLEU по шагам</h2>
+  <p class="intro">Сравниваем машинный перевод с эталоном. Выберите пример или впишите свой вариант и нажмите «Шаг» или «Пуск»: сначала n-граммы проверяются одна за другой, затем считаются точности, штраф за краткость и итог.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <div id="bleu-pick"></div>
+        <span class="lbl-s">Эталон 1 (перевод человека)</span>
+        <div class="txt-line" id="bleu-ref1"></div>
+        <div id="bleu-ref2-line">
+          <span class="lbl-s">Эталон 2</span>
+          <div class="txt-line" id="bleu-ref2"></div>
+        </div>
+        <label class="lbl-s" for="bleu-cand">Перевод системы (можно редактировать)</label>
+        <input type="text" id="bleu-cand" autocomplete="off" spellcheck="false">
+        <div class="spacer"></div>
+        <div class="txt-line" id="bleu-ctoks"></div>
+        <p class="small muted" id="bleu-note" style="margin:10px 0 6px"></p>
+        <div class="opts" id="bleu-opts"></div>
+      </div>
+      <div class="panel">
+        <h3>Таблица n-грамм</h3>
+        <div id="bleu-n"></div>
+        <div id="bleu-table"></div>
+        <div class="spacer"></div>
+        <div id="bleu-legend"></div>
+        <div class="spacer"></div>
+        <div id="bleu-player"></div>
+        <div class="status note say" id="bleu-say" aria-live="polite"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <h3>Модифицированные точности pₙ</h3>
+        <p class="small muted" style="margin:-6px 0 10px">Доля n-грамм перевода, найденных в эталоне (с отсечением).</p>
+        <div class="bars-x" id="bleu-prec"></div>
+      </div>
+      <div class="panel">
+        <h3>Штраф за краткость (BP)</h3>
+        <p class="small muted" style="margin:-6px 0 8px">c — длина перевода, r — длина эталона (из нескольких эталонов берётся ближайший по длине).</p>
+        <div id="bleu-bp"></div>
+      </div>
+      <div class="panel">
+        <h3>Итог</h3>
+        <div class="big-num" id="bleu-big"></div>
+        <div id="bleu-formula"></div>
+        <h3 style="margin-top:4px">BLEU и chrF</h3>
+        <div class="bars-x wide" id="bleu-vs"></div>
+        <p class="tiny muted" style="margin:8px 0 0">chrF сравнивает символьные n-граммы (n = 1..6), поэтому «гуляли» и «гуляем» для него почти одно и то же. Считается по стандартной формуле (β = 2).</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="part" id="p2">
+  <h2>ROUGE и наибольшая общая подпоследовательность</h2>
+  <p class="intro">Сравниваем автоматический реферат с эталонным. «Пуск» заполняет таблицу LCS клетка за клеткой, а затем обратным ходом находит общую подпоследовательность.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <div id="rg-pick"></div>
+        <span class="lbl-s">Эталонный реферат</span>
+        <div class="txt-line" id="rg-ref"></div>
+        <label class="lbl-s" for="rg-cand">Реферат системы (можно редактировать)</label>
+        <input type="text" id="rg-cand" autocomplete="off" spellcheck="false">
+        <div class="spacer"></div>
+        <div class="txt-line" id="rg-ctoks"></div>
+        <p class="small muted" id="rg-note" style="margin:10px 0 0"></p>
+      </div>
+      <div class="panel">
+        <h3>Таблица LCS</h3>
+        <p class="small muted" style="margin:-6px 0 10px">Строки — слова эталона, столбцы — слова реферата системы. В клетке длина LCS для начальных отрезков обоих текстов.</p>
+        <div id="rg-dp"></div>
+        <div class="spacer"></div>
+        <div id="rg-legend"></div>
+        <div class="spacer"></div>
+        <div id="rg-player"></div>
+        <div class="status note say" id="rg-say" aria-live="polite"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <h3>Оценки ROUGE</h3>
+        <div id="rg-table"></div>
+        <div id="rg-formula"></div>
+        <div id="rg-bigrams"></div>
+        <div id="rg-lcs"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="part" id="p3">
+  <h2>F1 для именованных сущностей</h2>
+  <p class="intro">Сверху эталонная разметка, снизу ответ модели. Меняйте ответ модели справа и смотрите, как меняются TP, FP, FN и F1.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <span class="lbl-s">Эталон (gold)</span>
+        <div class="sent" id="ner-gold"></div>
+        <span class="lbl-s" style="margin-top:14px">Ответ модели (predicted)</span>
+        <div class="sent" id="ner-pred"></div>
+        <div class="spacer"></div>
+        <div id="ner-legend"></div>
+      </div>
+      <div class="panel">
+        <h3>Сверка сущностей</h3>
+        <div id="ner-table"></div>
+        <div class="spacer"></div>
+        <div id="ner-player"></div>
+        <div class="status note say" id="ner-say" aria-live="polite"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <h3>Что предсказала модель</h3>
+        <p class="small muted" style="margin:-6px 0 10px">Для каждой сущности эталона выберите ответ модели.</p>
+        <div id="ner-ctl"></div>
+      </div>
+      <div class="panel">
+        <div id="ner-mode"></div>
+        <p class="small muted" id="ner-mode-note" style="margin:-4px 0 10px"></p>
+        <div class="tiles" id="ner-tiles"></div>
+        <div id="ner-formula"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="part" id="p4">
+  <h2>Micro и macro: усреднение по классам</h2>
+  <p class="intro">Матрица ошибок классификатора новостей по темам. По шагам считаем F1 для каждого класса, затем два способа усреднения. Нажмите на клетку и меняйте её кнопками.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <div id="avg-pick"></div>
+        <h3 style="margin-top:6px">Матрица ошибок</h3>
+        <p class="small muted" style="margin:-6px 0 8px">Строки — правильный класс, столбцы — ответ модели. На диагонали верные ответы.</p>
+        <div id="avg-cm"></div>
+        <div class="spacer"></div>
+        <div class="row" id="avg-edit"></div>
+        <div class="spacer"></div>
+        <div id="avg-legend"></div>
+      </div>
+      <div class="panel">
+        <h3>F1 по классам</h3>
+        <div id="avg-table"></div>
+        <div class="spacer"></div>
+        <div id="avg-player"></div>
+        <div class="status note say" id="avg-say" aria-live="polite"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <h3>Два способа усреднения</h3>
+        <div class="bars-x wide" id="avg-bars"></div>
+        <div class="spacer"></div>
+        <div id="avg-formula"></div>
+        <p class="tiny muted" style="margin:4px 0 0">Если у каждого примера ровно один ответ, micro-F1 равна accuracy: каждая ошибка — это FP одного класса и FN другого.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div class="notes">
+  <section><h2>Как это устроено</h2><div class="text">
+<p>Метрики позволяют сравнивать системы автоматически, без экспертов. Все три метрики этой лаборатории считают совпадения ответа системы с <b>эталоном</b> (reference), который сделал человек.</p>
+<p><b>BLEU</b> (машинный перевод, тема 12) — это точность (precision) по n-граммам. Для n = 1..4 берём n-граммы перевода и проверяем, есть ли они в эталоне. Каждая n-грамма засчитывается не больше раз, чем встречается в эталоне (<b>отсечение</b>, clipping), иначе «мы мы мы мы» получил бы p₁ = 1.</p>
+<div class="formula">pₙ = Σ min(count(g), max_ref count_ref(g)) / Σ count(g)
+BP = 1, если c > r;   BP = exp(1 − r/c), если c ≤ r
+BLEU = BP · ⁴√(p₁ · p₂ · p₃ · p₄)</div>
+<p>Точность не наказывает за пропущенные слова, поэтому добавлен <b>штраф за краткость</b> BP: c — длина перевода, r — длина эталона (при нескольких эталонах берётся ближайший по длине). Среднее геометрическое обнуляется, если хоть одна pₙ = 0, поэтому для отдельных предложений применяют сглаживание, а настоящий BLEU считают сразу по всему корпусу. Слабые места BLEU: он не знает синонимов и не видит, что «гуляли» и «гуляем» — формы одного слова. Для языков с богатой морфологией (русский, узбекский) полезен <b>chrF</b>: F-мера по символьным n-граммам.</p>
+<p><b>ROUGE</b> (реферирование, тема 13) смотрит прежде всего на полноту (recall): какая доля эталона попала в реферат. ROUGE-N считает общие n-граммы, ROUGE-L — длину <b>наибольшей общей подпоследовательности</b> (LCS): слова идут в том же порядке, но не обязательно подряд. LCS находится динамическим программированием, как расстояние Левенштейна (тема 11):</p>
+<div class="formula">T[i][j] = T[i−1][j−1] + 1,           если ref[i] = cand[j]
+T[i][j] = max(T[i−1][j], T[i][j−1]),  иначе
+P = LCS / |cand|,   R = LCS / |ref|</div>
+<p><b>F1</b> (классификация и NER, темы 7 и 9) — гармоническое среднее точности и полноты:</p>
+<div class="formula">P = TP / (TP + FP),   R = TP / (TP + FN),   F1 = 2·P·R / (P + R)</div>
+<p>В NER единица счёта — сущность целиком. При точном сравнении (как в CoNLL) неверная граница даёт сразу FP и FN. Для нескольких классов F1 усредняют двумя способами:</p>
+<ul>
+<li><b>micro</b>: складываем TP, FP, FN всех классов и считаем одну F1; частые классы весят больше;</li>
+<li><b>macro</b>: считаем F1 каждого класса и берём среднее; редкий класс весит столько же, сколько частый.</li>
+</ul></div></section>
+  <section><h2>Эксперименты</h2><ol class="exp"><li>Выберите «Синоним» и нажимайте «Шаг». Сколько n-грамм каждого порядка испортила одна замена слова? Почему потери растут с n? Затем выберите «Окончание» и сравните BLEU и chrF на правой панели.</li>
+<li>Выберите «Порядок слов». Почему p₁ = 1, а BLEU = 0? Включите по очереди «Второй эталон» и «Сглаживание»: что меняет каждая галочка?</li>
+<li>Выберите «Короткий» и проверьте BP по формуле exp(1 − 8/6). Допишите в поле два любых слова, которых нет в эталоне. Штраф исчез, но вырос ли BLEU?</li>
+<li>Выберите «Повторы» и выключите «Отсечение». Чему стала равна p₁? Почему BLEU всё равно равен 0?</li>
+<li>Во второй части выберите «Обратный порядок» и нажмите «Пуск». Почему ROUGE-1 = 1, а ROUGE-L всего 0,11? Сравните с «Длинным»: почему там R = 1, а P меньше?</li>
+<li>В третьей части для ORG выбрано «частично»: переключайте сравнение «точное» и «частичное». Почему при точном сравнении одна ошибка границы стоит и FP, и FN? Затем в четвёртой части выберите «Редкий класс» и нажмите на клетку «культура / культура», добавьте несколько верных ответов кнопкой +1. Какое среднее реагирует сильнее?</li></ol></section>
+  <section><h2>Проверь себя</h2><div class="quiz" id="quiz"></div></section>
+  <section><h2>Практикум</h2>
+    <div class="practice" style="margin-top:14px"><p>Тот же алгоритм на настоящем коде Python. Ноутбук открывается в Google Colab, ничего устанавливать не нужно.</p><a class="btn" id="colab" href="../notebooks/18_metrics_bleu_rouge_f1.ipynb">Скачать практикум (.ipynb)</a></div>
+  </section>
+</div>
+<footer>Виртуальная лаборатория курса «Алгоритмы NLP». Работает в браузере, без установки и без интернета. <a href="../../uz/labs/18_metrics_bleu_rouge_f1.html" lang="uz">Oʻzbekcha</a></footer>
+</div>
+<script src="../../config.js"></script>
+<script>
+const LANG = "ru";
+const META = {"n":18,"slug":"18_metrics_bleu_rouge_f1","total":18};
+const UI = {"toc": "Оглавление",
+"prev": "Назад",
+"next": "Далее",
+"labOf": (n, total) => `Лаборатория ${n} из ${total}`,
+"topic": "Тема курса",
+"play": "Пуск",
+"pause": "Пауза",
+"step": "Шаг",
+"reset": "Сначала",
+"speed": "Скорость",
+"how": "Как это устроено",
+"experiments": "Эксперименты",
+"quiz": "Проверь себя",
+"correct": "Верно.",
+"wrong": "Не совсем.",
+"tryAgain": "Попробуйте другой вариант.",
+"score": (a, b) => `Правильных ответов: ${a} из ${b}`,
+"colab": "Открыть практикум в Colab",
+"nbDownload": "Скачать практикум (.ipynb)",
+"practice": "Практикум",
+"practiceText": "Тот же алгоритм на настоящем коде Python. Ноутбук открывается в Google Colab, ничего устанавливать не нужно.",
+"langName": "Русский",
+"otherLang": "Oʻzbekcha",
+"footer": "Виртуальная лаборатория курса «Алгоритмы NLP». Работает в браузере, без установки и без интернета."};
+const L = {"title":"Метрики качества: BLEU, ROUGE, F1","lead":"Как машина ставит оценку переводу, реферату и разметке. BLEU, ROUGE и F1 считаются по шагам на ваших собственных примерах.","empty":"(пусто)","p1_title":"BLEU по шагам","p1_intro":"Сравниваем машинный перевод с эталоном. Выберите пример или впишите свой вариант и нажмите «Шаг» или «Пуск»: сначала n-граммы проверяются одна за другой, затем считаются точности, штраф за краткость и итог.","bleu":{"pick_label":"Пример","ref1":"Вчера вечером мы долго гуляли в старом парке.","ref2":"Мы вчера вечером долго гуляли по старому парку.","cands":[{"label":"Копия","text":"Вчера вечером мы долго гуляли в старом парке.","note":"Перевод совпадает с эталоном: все точности равны 1, BLEU = 1."},{"label":"Синоним","text":"Вчера вечером мы долго бродили в старом парке.","note":"«бродили» вместо «гуляли»: смысл тот же, слово другое. Одна замена портит 1 униграмму, 2 биграммы, 3 триграммы и 4 четырёхграммы."},{"label":"Порядок слов","text":"В старом парке мы вчера вечером долго гуляли.","note":"Те же слова в другом порядке. p₁ = 1, но ни одна четырёхграмма не совпала, и BLEU обнуляется. Включите второй эталон: в нём «мы вчера вечером» стоит так же."},{"label":"Окончание","text":"Вчера вечером мы долго гуляем в старом парке.","note":"«гуляем» вместо «гуляли»: другое окончание, и для BLEU это просто другое слово. chrF сравнивает символы и штрафует гораздо мягче."},{"label":"Короткий","text":"Мы долго гуляли в старом парке.","note":"Все n-граммы перевода есть в эталоне, точности равны 1. Но перевод короче эталона, и работает штраф за краткость."},{"label":"Повторы","text":"мы мы мы мы мы мы мы мы","note":"Восемь раз «мы». Выключите отсечение (clipping) и посмотрите на p₁."}],"custom_note":"Свой вариант. Слова приводятся к нижнему регистру, знаки препинания не учитываются.","ref1_label":"Эталон 1 (перевод человека)","ref2_label":"Эталон 2","cand_label":"Перевод системы (можно редактировать)","opt_two":"Второй эталон","opt_clip":"Отсечение (clipping)","opt_smooth":"Сглаживание: +1 для n ≥ 2","n_label":"Порядок n-грамм","n_names":["n = 1","n = 2","n = 3","n = 4"],"leg_ok":"засчитано","leg_miss":"нет в эталоне или сверх лимита","leg_cur":"текущая n-грамма","table_title":"Таблица n-грамм","col_ngram":"n-грамма","col_cand":"в переводе","col_ref":"в эталоне","col_credit":"засчитано","total":"Всего","no_ngrams":"В переводе нет {n}-грамм: он короче {n} слов.","empty_cand":"Перевод пуст: введите хотя бы одно слово.","not_yet":"Ещё не посчитано: нажмите «Шаг».","prec_title":"Модифицированные точности pₙ","prec_hint":"Доля n-грамм перевода, найденных в эталоне (с отсечением).","bp_title":"Штраф за краткость (BP)","bp_hint":"c — длина перевода, r — длина эталона (из нескольких эталонов берётся ближайший по длине).","c_label":"c, слов в переводе","r_label":"r, слов в эталоне","final_title":"Итог","scale100":"в шкале 0–100: {v}","vs_title":"BLEU и chrF","chrf_note":"chrF сравнивает символьные n-граммы (n = 1..6), поэтому «гуляли» и «гуляем» для него почти одно и то же. Считается по стандартной формуле (β = 2).","st_start":"Нажмите «Шаг» или «Пуск»: BLEU будет посчитан по шагам, n-грамма за n-граммой.","st_full":"Всё посчитано. Нажмите на строку таблицы, чтобы подсветить n-грамму в текстах, или «Пуск», чтобы пройти расчёт по шагам.","st_hit":"\u003cb>{g}\u003c/b>: в переводе {c}, в эталоне {r} → засчитано {k}.","st_miss":"\u003cb>{g}\u003c/b> нет ни в одном эталоне: засчитано 0. Эта n-грамма снижает точность.","st_clip":"\u003cb>{g}\u003c/b>: в переводе {c}, а в эталоне только {r}. Отсечение (clipping): засчитываем не больше, чем есть в эталоне, min({c}, {r}) = {k}.","st_noclip":"\u003cb>{g}\u003c/b>: в переводе {c}, в эталоне {r}. Отсечение выключено, поэтому засчитаны все {k}: повторяя слово, перевод «накручивает» точность.","st_pn":"Итог для n = {n}: совпало {m} из {t} n-грамм перевода. Модифицированная точность {pn} = {frac} = \u003cb>{p}\u003c/b>.","st_pn_none":"В переводе нет ни одной {n}-граммы (он слишком короткий), поэтому {pn} = 0.","st_bp_ok":"Длина перевода c = {c}, длина эталона r = {r}. Перевод не короче эталона, штрафа нет: BP = 1.","st_bp_pen":"Перевод короче эталона: c = {c} \u003c r = {r}. Без штрафа короткий перевод из одних «надёжных» слов получил бы высокую точность. BP = exp(1 − r/c) = \u003cb>{bp}\u003c/b>.","st_final":"BLEU = BP × среднее геометрическое четырёх точностей = {bp} × {geo} = \u003cb>{b}\u003c/b>.","st_final_zero":"Одна из точностей равна 0, а среднее геометрическое — корень из произведения, поэтому BLEU = 0. Для отдельных предложений поэтому применяют сглаживание: включите его."},"p2_title":"ROUGE и наибольшая общая подпоследовательность","p2_intro":"Сравниваем автоматический реферат с эталонным. «Пуск» заполняет таблицу LCS клетка за клеткой, а затем обратным ходом находит общую подпоследовательность.","rouge":{"pick_label":"Пример","ref":"Мэрия Казани решила построить новую библиотеку в центре города","cands":[{"label":"Перестановка","text":"Мэрия решила построить в центре Казани новую библиотеку","note":"Почти те же слова в другом порядке. ROUGE-1 близок к 1, а ROUGE-2 и ROUGE-L заметно ниже: порядок слов важен."},{"label":"Перефраз","text":"В центре Казани появится новая библиотека","note":"Смысл близкий, но слова другие («появится», «новая» вместо «новую»): ROUGE засчитывает только точные совпадения слов."},{"label":"Обратный порядок","text":"города центре в библиотеку новую построить решила Казани мэрия","note":"Все слова эталона, но задом наперёд. ROUGE-1 = 1, хотя текст бессмыслен. ROUGE-L находит общую подпоследовательность длины 1."},{"label":"Длинный","text":"Вчера мэрия Казани наконец решила построить большую новую библиотеку в самом центре города","note":"Реферат содержит весь эталон и лишние слова: полнота R = 1, а точность P ниже. Поэтому смотрят на F1."}],"custom_note":"Свой вариант. Слова приводятся к нижнему регистру, знаки препинания не учитываются.","ref_label":"Эталонный реферат","cand_label":"Реферат системы (можно редактировать)","dp_title":"Таблица LCS","dp_hint":"Строки — слова эталона, столбцы — слова реферата системы. В клетке длина LCS для начальных отрезков обоих текстов.","leg_eq":"слова совпадают","leg_cur":"текущая клетка","leg_dep":"откуда берётся значение","leg_lcs":"путь LCS","scores_title":"Оценки ROUGE","col_ov":"общих","bigrams_label":"Общие биграммы (ROUGE-2):","lcs_label":"Наибольшая общая подпоследовательность (ROUGE-L):","none":"нет","st_start":"Нажмите «Шаг» или «Пуск»: таблица будет заполняться по строкам.","st_full":"Таблица заполнена. Нажмите «Пуск», чтобы посмотреть заполнение по шагам.","st_eq":"«{a}» = «{b}»: слова совпали, берём значение по диагонали и прибавляем 1: {d} + 1 = \u003cb>{v}\u003c/b>.","st_ne":"«{a}» ≠ «{b}»: берём большее из значений сверху ({u}) и слева ({l}): \u003cb>{v}\u003c/b>.","st_take":"Обратный ход: слова совпадают, «\u003cb>{w}\u003c/b>» входит в LCS, идём по диагонали.","st_up":"Обратный ход: слова разные, идём туда, откуда пришло значение (вверх).","st_left":"Обратный ход: слова разные, идём туда, откуда пришло значение (влево).","st_final":"LCS = «{lcs}», длина {n}. P = {n}/{c}, R = {n}/{r}, F1 — их гармоническое среднее.","st_final_none":"Общих слов нет: LCS = 0, ROUGE-L = 0."},"p3_title":"F1 для именованных сущностей","p3_intro":"Сверху эталонная разметка, снизу ответ модели. Меняйте ответ модели справа и смотрите, как меняются TP, FP, FN и F1.","ner":{"tokens":["Вчера","Анна","Сергеевна","Петрова","из","Высшей","школы","экономики","выступила","на","форуме","в","Нижнем","Новгороде"],"gold":[{"s":1,"e":3,"type":"PER","ps":1,"pe":2,"wrong":"ORG"},{"s":5,"e":7,"type":"ORG","ps":6,"pe":7,"wrong":"LOC"},{"s":12,"e":13,"type":"LOC","ps":13,"pe":13,"wrong":"ORG"}],"spur":{"s":10,"e":10,"type":"ORG"},"defaults":["ok","part","type"],"states":{"ok":"верно","part":"частично","type":"другой тип","miss":"пропуск"},"spur_label":"Лишняя сущность: «форуме» как ORG","mode_label":"Сравнение сущностей","exact":"точное","partial":"частичное","mode_note_exact":"Должны совпасть и границы, и тип (так считают в CoNLL).","mode_note_partial":"Достаточно пересечения с эталонной сущностью того же типа.","types":{"PER":"персона","LOC":"место","ORG":"организация"},"gold_label":"Эталон (gold)","pred_label":"Ответ модели (predicted)","table_title":"Сверка сущностей","ctl_title":"Что предсказала модель","ctl_hint":"Для каждой сущности эталона выберите ответ модели.","col_pred":"Модель","col_gold":"Эталон","col_res":"Итог","none":"—","why":{"exact":"полное совпадение","overlap":"пересечение засчитано","spurious":"в эталоне такой сущности нет","type":"тип не совпадает","bounds":"границы не совпадают","missed":"модель её не нашла"},"not_yet":"Нажмите «Шаг»: сущности будут сверяться по одной.","tp_name":"верные","fp_name":"лишние","fn_name":"пропущенные","st_start":"Нажмите «Шаг» или «Пуск», чтобы сверить сущности по одной.","st_full":"Всё сверено. Меняйте ответ модели справа или нажмите «Пуск», чтобы пройти сверку заново.","st_tp":"\u003cb>{p}\u003c/b> совпадает с эталоном \u003cb>{g}\u003c/b> ({why}): это TP.","st_fp":"\u003cb>{p}\u003c/b>: {why}. Модель сказала лишнее: это FP.","st_fn":"\u003cb>{g}\u003c/b>: {why}. Сущность эталона не найдена: это FN.","st_final":"TP = {tp}, FP = {fp}, FN = {fn}. Точность P = {P}, полнота R = {R}, F1 = \u003cb>{F}\u003c/b>."},"p4_title":"Micro и macro: усреднение по классам","p4_intro":"Матрица ошибок классификатора новостей по темам. По шагам считаем F1 для каждого класса, затем два способа усреднения. Нажмите на клетку и меняйте её кнопками.","cls":{"classes":["спорт","экономика","культура"],"presets":[{"label":"Сбалансированные классы","m":[[18,1,1],[2,16,2],[1,2,17]],"note":"Классы примерно равны и распознаются одинаково хорошо: micro и macro почти совпадают."},{"label":"Редкий класс","m":[[50,2,1],[3,30,1],[3,2,1]],"note":"«Культура» встречается редко и распознаётся плохо. Micro-F1 этого почти не замечает, macro-F1 замечает."},{"label":"Всегда «спорт»","m":[[55,0,0],[35,0,0],[5,0,0]],"note":"Ленивый классификатор всегда отвечает «спорт». Micro-F1 (она же accuracy) выглядит терпимо, macro-F1 показывает провал."}],"pick_label":"Пример","minus":"−1","plus":"+1","sel_label":"Клетка: эталон «{g}», прогноз «{p}»","leg_tp":"TP класса","leg_fp":"FP класса (столбец)","leg_fn":"FN класса (строка)","corner":"эталон ↓ прогноз →","cm_title":"Матрица ошибок","cm_hint":"Строки — правильный класс, столбцы — ответ модели. На диагонали верные ответы.","per_title":"F1 по классам","col_cls":"Класс","avg_title":"Два способа усреднения","avg_note":"Если у каждого примера ровно один ответ, micro-F1 равна accuracy: каждая ошибка — это FP одного класса и FN другого.","micro":"micro-F1","macro":"macro-F1","st_start":"Нажмите «Шаг» или «Пуск»: сначала F1 для каждого класса, потом macro и micro.","st_full":"Нажмите на название класса в таблице, чтобы увидеть его TP, FP и FN на матрице.","st_cls":"Класс «{c}»: TP = {tp} (диагональ), FP = {fp} (остальные клетки столбца), FN = {fn} (остальные клетки строки). P = {P}, R = {R}, F1 = \u003cb>{F}\u003c/b>.","zero_note":"Модель ни разу не выбрала этот класс: P = 0/0, такую точность принято считать равной 0.","st_macro":"Macro-F1 — простое среднее F1 классов: ({list}) / {k} = \u003cb>{F}\u003c/b>. Каждый класс весит одинаково.","st_micro":"Micro-F1: сначала складываем TP, FP и FN всех классов, потом считаем одну F1 = \u003cb>{F}\u003c/b>. Частые классы весят больше."},"theory":"\n\u003cp>Метрики позволяют сравнивать системы автоматически, без экспертов. Все три метрики этой лаборатории считают совпадения ответа системы с \u003cb>эталоном\u003c/b> (reference), который сделал человек.\u003c/p>\n\u003cp>\u003cb>BLEU\u003c/b> (машинный перевод, тема 12) — это точность (precision) по n-граммам. Для n = 1..4 берём n-граммы перевода и проверяем, есть ли они в эталоне. Каждая n-грамма засчитывается не больше раз, чем встречается в эталоне (\u003cb>отсечение\u003c/b>, clipping), иначе «мы мы мы мы» получил бы p₁ = 1.\u003c/p>\n\u003cdiv class=\"formula\">pₙ = Σ min(count(g), max_ref count_ref(g)) / Σ count(g)\nBP = 1, если c > r;   BP = exp(1 − r/c), если c ≤ r\nBLEU = BP · ⁴√(p₁ · p₂ · p₃ · p₄)\u003c/div>\n\u003cp>Точность не наказывает за пропущенные слова, поэтому добавлен \u003cb>штраф за краткость\u003c/b> BP: c — длина перевода, r — длина эталона (при нескольких эталонах берётся ближайший по длине). Среднее геометрическое обнуляется, если хоть одна pₙ = 0, поэтому для отдельных предложений применяют сглаживание, а настоящий BLEU считают сразу по всему корпусу. Слабые места BLEU: он не знает синонимов и не видит, что «гуляли» и «гуляем» — формы одного слова. Для языков с богатой морфологией (русский, узбекский) полезен \u003cb>chrF\u003c/b>: F-мера по символьным n-граммам.\u003c/p>\n\u003cp>\u003cb>ROUGE\u003c/b> (реферирование, тема 13) смотрит прежде всего на полноту (recall): какая доля эталона попала в реферат. ROUGE-N считает общие n-граммы, ROUGE-L — длину \u003cb>наибольшей общей подпоследовательности\u003c/b> (LCS): слова идут в том же порядке, но не обязательно подряд. LCS находится динамическим программированием, как расстояние Левенштейна (тема 11):\u003c/p>\n\u003cdiv class=\"formula\">T[i][j] = T[i−1][j−1] + 1,           если ref[i] = cand[j]\nT[i][j] = max(T[i−1][j], T[i][j−1]),  иначе\nP = LCS / |cand|,   R = LCS / |ref|\u003c/div>\n\u003cp>\u003cb>F1\u003c/b> (классификация и NER, темы 7 и 9) — гармоническое среднее точности и полноты:\u003c/p>\n\u003cdiv class=\"formula\">P = TP / (TP + FP),   R = TP / (TP + FN),   F1 = 2·P·R / (P + R)\u003c/div>\n\u003cp>В NER единица счёта — сущность целиком. При точном сравнении (как в CoNLL) неверная граница даёт сразу FP и FN. Для нескольких классов F1 усредняют двумя способами:\u003c/p>\n\u003cul>\n\u003cli>\u003cb>micro\u003c/b>: складываем TP, FP, FN всех классов и считаем одну F1; частые классы весят больше;\u003c/li>\n\u003cli>\u003cb>macro\u003c/b>: считаем F1 каждого класса и берём среднее; редкий класс весит столько же, сколько частый.\u003c/li>\n\u003c/ul>","experiments":["Выберите «Синоним» и нажимайте «Шаг». Сколько n-грамм каждого порядка испортила одна замена слова? Почему потери растут с n? Затем выберите «Окончание» и сравните BLEU и chrF на правой панели.","Выберите «Порядок слов». Почему p₁ = 1, а BLEU = 0? Включите по очереди «Второй эталон» и «Сглаживание»: что меняет каждая галочка?","Выберите «Короткий» и проверьте BP по формуле exp(1 − 8/6). Допишите в поле два любых слова, которых нет в эталоне. Штраф исчез, но вырос ли BLEU?","Выберите «Повторы» и выключите «Отсечение». Чему стала равна p₁? Почему BLEU всё равно равен 0?","Во второй части выберите «Обратный порядок» и нажмите «Пуск». Почему ROUGE-1 = 1, а ROUGE-L всего 0,11? Сравните с «Длинным»: почему там R = 1, а P меньше?","В третьей части для ORG выбрано «частично»: переключайте сравнение «точное» и «частичное». Почему при точном сравнении одна ошибка границы стоит и FP, и FN? Затем в четвёртой части выберите «Редкий класс» и нажмите на клетку «культура / культура», добавьте несколько верных ответов кнопкой +1. Какое среднее реагирует сильнее?"],"quiz":[{"q":"Эталон: «кот сидит на ковре». Перевод: «кот кот кот кот». Чему равна модифицированная точность p₁?","a":["1","1/4","0","1/2"],"correct":1,"why":"«кот» засчитывается не больше раз, чем встречается в эталоне, то есть один раз. Совпала 1 из 4 униграмм перевода: p₁ = 1/4. Без отсечения было бы 4/4.","hint":"Вспомните про отсечение (clipping)."},{"q":"Почему ROUGE-L для реферата может быть заметно меньше ROUGE-1?","a":["ROUGE-L учитывает только слова, идущие в том же порядке, что и в эталоне","ROUGE-L засчитывает синонимы","ROUGE-L штрафует за длину, как BP в BLEU","ROUGE-L сравнивает символы, а не слова"],"correct":0,"why":"LCS — общая подпоследовательность: слова в ней идут в том же порядке, хотя и не обязательно подряд. Перестановки уменьшают LCS, но не ROUGE-1."},{"q":"Эталон: [Анна Сергеевна Петрова]PER. Модель нашла [Анна Сергеевна]PER. Как это учитывается при точном сравнении сущностей?","a":["Как TP","Как FP и FN одновременно","Только как FN","Никак не учитывается"],"correct":1,"why":"Границы не совпали: предсказанная сущность лишняя (FP), а эталонная не найдена (FN). Точное сравнение наказывает ошибку границы дважды."},{"q":"Классификатор отлично распознаёт две частые темы и почти всегда ошибается на редкой. Какая метрика сильнее всего покажет проблему?","a":["micro-F1","macro-F1","accuracy","BLEU"],"correct":1,"why":"Macro-F1 — среднее F1 классов, в нём редкий класс весит столько же, сколько частый. Micro-F1 и accuracy определяются в основном частыми классами."}]};
+</script>
+<script>
+/* NLP labs: shared helpers. Globals provided by the build before this file: LANG, UI, L, META. */
+"use strict";
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+
+/* h("div", {class: "x", onclick: fn, style: {...}}, child, [children], "text") */
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  if (props) {
+    for (const [k, v] of Object.entries(props)) {
+      if (v == null || v === false) continue;
+      if (k === "class") el.className = v;
+      else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
+      else if (k === "html") el.innerHTML = v;
+      else if (k === "text") el.textContent = v;
+      else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
+      else if (k in el && typeof v !== "string") el[k] = v;
+      else el.setAttribute(k, v === true ? "" : v);
+    }
+  }
+  const add = (c) => {
+    if (c == null || c === false) return;
+    if (Array.isArray(c)) c.forEach(add);
+    else el.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
+  };
+  kids.forEach(add);
+  return el;
+}
+function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
+function mount(target) { return typeof target === "string" ? $(target) : target; }
+
+/* numbers */
+function fmt(x, d = 2) {
+  if (x == null || Number.isNaN(x)) return "–";
+  if (!Number.isFinite(x)) return x > 0 ? "∞" : "−∞";
+  return Number(x).toFixed(d).replace(".", ",").replace("-", "−");
+}
+function pct(x, d = 0) { return fmt(100 * x, d) + "%"; }
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const sum = (a) => a.reduce((s, x) => s + x, 0);
+const argmax = (a) => a.reduce((bi, x, i) => (x > a[bi] ? i : bi), 0);
+function softmax(arr, T = 1) {
+  const m = Math.max(...arr.map((x) => x / T));
+  const e = arr.map((x) => Math.exp(x / T - m));
+  const s = sum(e);
+  return e.map((x) => x / s);
+}
+function dot(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; }
+function norm(a) { return Math.sqrt(dot(a, a)); }
+function cosine(a, b) { const n = norm(a) * norm(b); return n ? dot(a, b) / n : 0; }
+/* deterministic random numbers: const r = rng(42); r() in [0,1) */
+function rng(seed = 1) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function sample(probs, r = Math.random) {
+  let x = r() * sum(probs);
+  for (let i = 0; i < probs.length; i++) { x -= probs[i]; if (x <= 0) return i; }
+  return probs.length - 1;
+}
+
+/* colors */
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+const PALETTE = ["--c1", "--c2", "--c3", "--c4", "--c5", "--c6", "--c7", "--c8"];
+function color(i) { return cssVar(PALETTE[((i % PALETTE.length) + PALETTE.length) % PALETTE.length]); }
+function hexToRgb(hex) {
+  const m = hex.replace("#", "");
+  const n = parseInt(m.length === 3 ? m.split("").map((c) => c + c).join("") : m, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function alpha(hex, a) { const [r, g, b] = hexToRgb(hex); return `rgba(${r},${g},${b},${a})`; }
+/* white -> pen blue scale for heatmaps, t in [0,1] */
+function heatColor(t, base = "--pen") {
+  const [r, g, b] = hexToRgb(cssVar(base));
+  t = clamp(t, 0, 1);
+  return `rgb(${Math.round(lerp(255, r, t))},${Math.round(lerp(255, g, t))},${Math.round(lerp(255, b, t))})`;
+}
+function inkOn(t) { return t > 0.55 ? "#fff" : cssVar("--ink"); }
+
+/* controls ---------------------------------------------------------------- */
+function slider(parent, o) {
+  const fmtv = o.format || ((v) => String(v));
+  const val = h("span", { class: "val" }, fmtv(o.value));
+  const input = h("input", { type: "range", min: o.min, max: o.max, step: o.step ?? 1, value: o.value, "aria-label": o.label });
+  const box = h("div", { class: "ctl" }, h("label", null, h("span", null, o.label), val), input);
+  input.addEventListener("input", () => {
+    const v = parseFloat(input.value);
+    val.textContent = fmtv(v);
+    o.onInput && o.onInput(v);
+  });
+  mount(parent).appendChild(box);
+  return {
+    el: box, input,
+    get value() { return parseFloat(input.value); },
+    set value(v) { input.value = v; val.textContent = fmtv(parseFloat(input.value)); },
+  };
+}
+
+function segmented(parent, o) {
+  let current = o.value;
+  const btns = o.options.map((opt) =>
+    h("button", { type: "button", "aria-pressed": String(opt.value === current), onclick: () => api.set(opt.value, true) }, opt.label));
+  const seg = h("div", { class: "seg", role: "group", "aria-label": o.label || "" }, btns);
+  const box = h("div", { class: "ctl" }, o.label ? h("div", { class: "lbl" }, h("span", null, o.label)) : null, seg);
+  const api = {
+    el: box,
+    get value() { return current; },
+    set(v, fire) {
+      current = v;
+      btns.forEach((b, i) => b.setAttribute("aria-pressed", String(o.options[i].value === v)));
+      if (fire && o.onChange) o.onChange(v);
+    },
+  };
+  mount(parent).appendChild(box);
+  return api;
+}
+
+function button(parent, label, onClick, variant = "") {
+  const b = h("button", { type: "button", class: "btn " + variant, onclick: onClick }, label);
+  mount(parent).appendChild(b);
+  return b;
+}
+
+function checkbox(parent, label, checked, onChange) {
+  const input = h("input", { type: "checkbox", checked: !!checked });
+  input.addEventListener("change", () => onChange && onChange(input.checked));
+  const box = h("label", { class: "check" }, input, h("span", null, label));
+  mount(parent).appendChild(box);
+  return input;
+}
+
+/* Play / Pause / Step / Reset with a speed slider.
+   o.step() advances one step and returns false when the process is finished.
+   o.reset() restores the initial state. o.interval: base delay in ms. */
+function player(parent, o) {
+  let timer = null;
+  let speed = o.speed ?? 3;
+  const delay = () => (o.interval ?? 700) * Math.pow(0.6, speed - 3);
+  const playBtn = h("button", { type: "button", class: "btn", onclick: () => (timer ? stop() : start()) }, UI.play);
+  const stepBtn = h("button", { type: "button", class: "btn ghost", onclick: () => { stop(); doStep(); } }, UI.step);
+  const resetBtn = h("button", { type: "button", class: "btn ghost", onclick: () => { stop(); o.reset(); } }, UI.reset);
+  const sp = h("input", { type: "range", min: 1, max: 5, step: 1, value: speed, "aria-label": UI.speed });
+  sp.addEventListener("input", () => { speed = +sp.value; if (timer) { stop(); start(); } });
+  const box = h("div", { class: "player" }, playBtn, stepBtn, resetBtn, o.noSpeed ? null : h("span", { class: "speed" }, UI.speed, sp));
+  mount(parent).appendChild(box);
+  function doStep() { const more = o.step(); if (more === false) stop(); return more; }
+  function start() {
+    if (o.canStep && !o.canStep()) o.reset();
+    playBtn.textContent = UI.pause;
+    timer = setInterval(() => { if (doStep() === false) stop(); }, delay());
+    o.onPlay && o.onPlay();
+  }
+  function stop() { if (timer) clearInterval(timer); timer = null; playBtn.textContent = UI.play; }
+  return { el: box, start, stop, get playing() { return !!timer; } };
+}
+
+/* Responsive HiDPI canvas.
+   o.height (px) or o.aspect (h/w); o.draw(ctx, w, h); pointer callbacks get {x, y} in CSS pixels. */
+function canvasBox(parent, o) {
+  const cv = h("canvas", { class: "viz", role: "img", "aria-label": o.label || "" });
+  const wrap = h("div", { class: "viz-wrap" }, cv);
+  mount(parent).appendChild(wrap);
+  const ctx = cv.getContext("2d");
+  let W = 0, H = 0;
+  function size() {
+    const w = Math.max(10, wrap.clientWidth);
+    const hh = o.height ? (typeof o.height === "function" ? o.height(w) : o.height) : Math.round(w * (o.aspect || 0.6));
+    const dpr = window.devicePixelRatio || 1;
+    if (w !== W || hh !== H || cv.width !== Math.round(w * dpr)) {
+      W = w; H = hh;
+      cv.width = Math.round(w * dpr); cv.height = Math.round(hh * dpr);
+      cv.style.height = hh + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+  }
+  function redraw() { size(); ctx.clearRect(0, 0, W, H); o.draw && o.draw(ctx, W, H); }
+  const pos = (e) => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  let down = false;
+  cv.addEventListener("pointerdown", (e) => { down = true; try { cv.setPointerCapture(e.pointerId); } catch (_) {} o.onDown && o.onDown(pos(e), e); });
+  cv.addEventListener("pointermove", (e) => { if (down) o.onDrag && o.onDrag(pos(e), e); else o.onHover && o.onHover(pos(e), e); });
+  cv.addEventListener("pointerup", (e) => { down = false; o.onUp && o.onUp(pos(e), e); });
+  cv.addEventListener("pointerleave", () => { if (!down && o.onLeave) o.onLeave(); });
+  if (window.ResizeObserver) new ResizeObserver(() => redraw()).observe(wrap);
+  else window.addEventListener("resize", redraw);
+  requestAnimationFrame(redraw);
+  return { canvas: cv, wrap, ctx, redraw, get w() { return W; }, get h() { return H; } };
+}
+
+/* canvas text helpers */
+function font(px, weight = 400, mono = false) { return `${weight} ${px}px ${mono ? cssVar("--mono") : cssVar("--font")}`; }
+function text(ctx, s, x, y, o = {}) {
+  ctx.save();
+  ctx.font = font(o.size || 13, o.weight || 400, o.mono);
+  ctx.fillStyle = o.color || cssVar("--ink");
+  ctx.textAlign = o.align || "left";
+  ctx.textBaseline = o.base || "middle";
+  if (o.bg) {
+    const m = ctx.measureText(s), pad = 3, tw = m.width, th = (o.size || 13) + 4;
+    let bx = x - (o.align === "center" ? tw / 2 : o.align === "right" ? tw : 0);
+    ctx.fillStyle = o.bg; ctx.fillRect(bx - pad, y - th / 2, tw + 2 * pad, th);
+    ctx.fillStyle = o.color || cssVar("--ink");
+  }
+  ctx.fillText(s, x, y);
+  ctx.restore();
+}
+function roundRect(ctx, x, y, w, hh, r) {
+  r = Math.min(r, w / 2, hh / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + hh, r); ctx.arcTo(x + w, y + hh, x, y + hh, r);
+  ctx.arcTo(x, y + hh, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function arrow(ctx, x1, y1, x2, y2, o = {}) {
+  ctx.save();
+  ctx.strokeStyle = ctx.fillStyle = o.color || cssVar("--ink");
+  ctx.lineWidth = o.width || 1.5;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  const a = Math.atan2(y2 - y1, x2 - x1), s = o.head || 8;
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - s * Math.cos(a - 0.4), y2 - s * Math.sin(a - 0.4));
+  ctx.lineTo(x2 - s * Math.cos(a + 0.4), y2 - s * Math.sin(a + 0.4));
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+/* Simple line chart on a canvas. series: [{values:[...], color, label, dash}] ; o: {xLabels, yMin, yMax, yFmt, title, markX} */
+function lineChart(ctx, W, H, series, o = {}) {
+  const pad = { l: 44, r: 12, t: o.title ? 24 : 10, b: 26 };
+  const n = Math.max(1, ...series.map((s) => s.values.length));
+  const all = series.flatMap((s) => s.values.filter((v) => Number.isFinite(v)));
+  let y0 = o.yMin ?? Math.min(0, ...all), y1 = o.yMax ?? Math.max(1e-9, ...all);
+  if (y1 === y0) y1 = y0 + 1;
+  const X = (i) => pad.l + (n === 1 ? 0 : (i / (n - 1)) * (W - pad.l - pad.r));
+  const Y = (v) => H - pad.b - ((v - y0) / (y1 - y0)) * (H - pad.t - pad.b);
+  ctx.save();
+  ctx.strokeStyle = cssVar("--line"); ctx.lineWidth = 1;
+  for (let k = 0; k <= 4; k++) {
+    const v = y0 + (k / 4) * (y1 - y0), y = Y(v);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+    text(ctx, (o.yFmt || ((x) => fmt(x, 2)))(v), pad.l - 6, y, { align: "right", size: 11, color: cssVar("--muted") });
+  }
+  if (o.title) text(ctx, o.title, pad.l, 10, { size: 12.5, weight: 600, color: cssVar("--muted") });
+  const labels = o.xLabels || [];
+  const every = Math.ceil(labels.length / Math.max(1, Math.floor((W - pad.l) / 46)));
+  labels.forEach((lab, i) => { if (i % every === 0) text(ctx, String(lab), X(i), H - pad.b + 13, { align: "center", size: 11, color: cssVar("--muted") }); });
+  if (o.markX != null) {
+    ctx.strokeStyle = cssVar("--mark"); ctx.lineWidth = 6; ctx.globalAlpha = 0.7;
+    ctx.beginPath(); ctx.moveTo(X(o.markX), pad.t); ctx.lineTo(X(o.markX), H - pad.b); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  for (const s of series) {
+    ctx.strokeStyle = s.color || cssVar("--pen"); ctx.lineWidth = s.width || 2; ctx.setLineDash(s.dash || []);
+    ctx.beginPath();
+    let started = false;
+    s.values.forEach((v, i) => { if (!Number.isFinite(v)) return; if (!started) { ctx.moveTo(X(i), Y(v)); started = true; } else ctx.lineTo(X(i), Y(v)); });
+    ctx.stroke(); ctx.setLineDash([]);
+    if (s.dots) s.values.forEach((v, i) => { if (Number.isFinite(v)) { ctx.fillStyle = s.color || cssVar("--pen"); ctx.beginPath(); ctx.arc(X(i), Y(v), 3, 0, 7); ctx.fill(); } });
+  }
+  ctx.restore();
+  return { X, Y };
+}
+
+/* DOM widgets ------------------------------------------------------------- */
+/* items: [{label, value, color, note}] ; o: {max, format} */
+function bars(parent, items, o = {}) {
+  const el = clear(mount(parent));
+  el.classList.add("bars");
+  const max = o.max ?? Math.max(1e-9, ...items.map((i) => Math.abs(i.value)));
+  for (const it of items) {
+    const w = clamp(Math.abs(it.value) / max, 0, 1) * 100;
+    el.appendChild(h("div", { class: "bar", title: it.note || "" },
+      h("span", { class: "lab" + (o.mono ? " mono" : "") }, it.label),
+      h("span", { class: "track" }, h("span", { class: "fill", style: { width: w + "%", display: "block", background: it.color || cssVar("--pen") } })),
+      h("span", { class: "num" }, (o.format || ((v) => fmt(v, 2)))(it.value))));
+  }
+  return el;
+}
+
+/* tokens: array of strings or {text, sub, cls, title, onclick} */
+function tokens(parent, toks, o = {}) {
+  const el = clear(mount(parent));
+  el.classList.add("tokens");
+  toks.forEach((t, i) => {
+    const d = typeof t === "string" ? { text: t } : t;
+    const tag = d.onclick ? "button" : "span";
+    const attrs = { class: "tok " + (d.cls || ""), title: d.title || null, type: d.onclick ? "button" : null, onclick: d.onclick || null };
+    if (d.color) attrs.style = { background: d.color, borderColor: d.color, color: d.ink || "#fff" };
+    el.appendChild(h(tag, attrs, d.text, d.sub != null ? h("span", { class: "sub" }, d.sub) : null));
+  });
+  return el;
+}
+
+/* heatmap table. matrix[r][c]; o: {format, max, min, rowHead, colHead, highlight:(r,c)=>bool} */
+function heatTable(parent, rows, cols, matrix, o = {}) {
+  const el = clear(mount(parent));
+  const flat = matrix.flat().filter(Number.isFinite);
+  const mx = o.max ?? Math.max(...flat), mn = o.min ?? Math.min(0, ...flat);
+  const t = (v) => (mx === mn ? 0 : (v - mn) / (mx - mn));
+  const head = h("tr", null, h("th", { class: "l" }, o.corner || ""), cols.map((c) => h("th", null, c)));
+  const body = rows.map((r, i) => h("tr", null, h("th", { class: "l" }, r), cols.map((_, j) => {
+    const v = matrix[i][j];
+    const tv = Number.isFinite(v) ? t(v) : 0;
+    const style = { background: o.plain ? "" : heatColor(tv * 0.85), color: o.plain ? "" : inkOn(tv * 0.85) };
+    if (o.highlight && o.highlight(i, j)) { style.outline = "3px solid " + cssVar("--mark"); style.outlineOffset = "-3px"; }
+    return h("td", { class: "num", style }, (o.format || ((x) => fmt(x, 2)))(v));
+  })));
+  el.appendChild(h("div", { class: "scroll-x" }, h("table", { class: "grid" }, h("thead", null, head), h("tbody", null, body))));
+  return el;
+}
+
+function legend(parent, items) {
+  const el = clear(mount(parent));
+  el.classList.add("legend");
+  items.forEach((it) => el.appendChild(h("span", null, h("i", { style: { background: it.color } }), it.label)));
+  return el;
+}
+
+/* page sections built from L.theory, L.experiments, L.quiz ----------------- */
+function renderNotes() {
+  const q = $("#quiz");
+  if (!q || !Array.isArray(L.quiz)) return;
+  let right = 0, answered = 0;
+  const score = h("p", { class: "quiz-score" });
+  const upd = () => { score.textContent = answered ? UI.score(right, L.quiz.length) : ""; };
+  L.quiz.forEach((item, qi) => {
+    const fb = h("div", { class: "fb", "aria-live": "polite" });
+    let done = false;
+    const opts = item.a.map((txt, ai) => h("button", {
+      type: "button", class: "opt", html: txt,
+      onclick: (e) => {
+        const ok = ai === item.correct;
+        e.currentTarget.classList.add(ok ? "right" : "wrong");
+        clear(fb).appendChild(h("span", { html: `<b>${ok ? UI.correct : UI.wrong}</b>` + (ok ? (item.why || "") : (item.hint || UI.tryAgain)) }));
+        if (!done) { done = true; answered++; if (ok) right++; upd(); }
+      },
+    }));
+    q.appendChild(h("div", { class: "q" }, h("p", { html: `${qi + 1}. ${item.q}` }), h("div", { class: "opts" }, opts), fb));
+  });
+  q.appendChild(score);
+}
+
+/* Colab link: on *.github.io the repository and the folder are read from the address;
+   elsewhere config.js (window.NLP_LABS = {repo, branch, folder}) is used; otherwise the .ipynb is offered as a download. */
+function colabTarget(lang, slug) {
+  const cfg = window.NLP_LABS || {};
+  const branch = cfg.branch || "main";
+  let repo = cfg.repo || "", folder = (cfg.folder || "").replace(/^\/+|\/+$/g, "");
+  if (!repo && /\.github\.io$/.test(location.hostname)) {
+    const user = location.hostname.replace(/\.github\.io$/, "");
+    const seg = location.pathname.split("/").filter(Boolean);
+    const li = seg.findIndex((x) => x === "ru" || x === "uz");
+    const before = li >= 0 ? seg.slice(0, li) : [];
+    // project site: user.github.io/<repo>/…  ;  user site: user.github.io/…
+    if (before.length && before[0] !== user + ".github.io") { repo = `${user}/${before[0]}`; folder = before.slice(1).join("/"); }
+    else { repo = `${user}/${location.hostname}`; folder = before.join("/"); }
+  }
+  if (!repo) return null;
+  const nb = (folder ? folder + "/" : "") + `${lang}/notebooks/${slug}.ipynb`;
+  return `https://colab.research.google.com/github/${repo}/blob/${branch}/${nb}`;
+}
+
+function setupPractice() {
+  const a = $("#colab");
+  if (!a) return;
+  const url = colabTarget(LANG, META.slug);
+  if (url) {
+    a.href = url;
+    a.textContent = UI.colab;
+    a.target = "_blank"; a.rel = "noopener";
+  } else {
+    a.href = `../notebooks/${META.slug}.ipynb`;
+    a.textContent = UI.nbDownload;
+    a.setAttribute("download", "");
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => { renderNotes(); setupPractice(); });
+
+</script>
+<script>
+/* Lab 18: quality metrics. BLEU step by step, ROUGE-L with the LCS table, F1 for NER spans, micro vs macro F1. */
+
+/* ---------- metrics: pure functions, no DOM (checked against sacrebleu / rouge-score / sklearn) ---------- */
+/* metrics:start */
+// lowercase words; punctuation dropped; hyphen and apostrophes inside a word are kept (oʻzbek)
+function tokenize(s) {
+  return String(s).toLowerCase().match(/[\p{L}\p{N}]+(?:[-'’][\p{L}\p{N}]+)*/gu) || [];
+}
+function ngramList(toks, n) {
+  const out = [];
+  for (let i = 0; i + n <= toks.length; i++) out.push(toks.slice(i, i + n).join(" "));
+  return out;
+}
+function countMap(list) {
+  const m = new Map();
+  for (const g of list) m.set(g, (m.get(g) || 0) + 1);
+  return m;
+}
+function prf(ov, tc, tr) {
+  const P = tc ? ov / tc : 0, R = tr ? ov / tr : 0;
+  return { ov, tc, tr, P, R, F: P + R > 0 ? (2 * P * R) / (P + R) : 0 };
+}
+
+/* Sentence BLEU (Papineni et al. 2002): clipped n-gram counts for n = 1..4, uniform weights,
+   r = length of the reference closest to c (ties: the shorter one), BP = exp(1 - r/c) when c < r.
+   opt.clip = false switches clipping off (demo only); opt.smooth adds 1 to numerator and denominator for n >= 2. */
+function bleuScore(cand, refs, opt = {}) {
+  const clip = opt.clip !== false, smooth = !!opt.smooth;
+  const c = cand.length;
+  let r = refs.length ? refs[0].length : 0, best = Infinity;
+  for (const ref of refs) {
+    const d = Math.abs(ref.length - c);
+    if (d < best || (d === best && ref.length < r)) { best = d; r = ref.length; }
+  }
+  const orders = [];
+  for (let n = 1; n <= 4; n++) {
+    const list = ngramList(cand, n);
+    const refMaps = refs.map((ref) => countMap(ngramList(ref, n)));
+    const rows = [];
+    for (const [g, count] of countMap(list)) {
+      const refMax = Math.max(0, ...refMaps.map((m) => m.get(g) || 0));
+      const credit = clip ? Math.min(count, refMax) : refMax > 0 ? count : 0;
+      const pos = [];
+      list.forEach((x, i) => { if (x === g) pos.push(i); });
+      rows.push({ g, count, refMax, credit, pos });
+    }
+    const match = rows.reduce((s, x) => s + x.credit, 0), total = list.length;
+    const add = smooth && n > 1 ? 1 : 0;
+    const num = match + add, den = total + add;
+    orders.push({ n, rows, match, total, num, den, p: den ? num / den : 0 });
+  }
+  const bp = c === 0 ? 0 : c >= r ? 1 : Math.exp(1 - r / c);
+  const geo = orders.some((o) => o.p === 0) ? 0 : Math.exp(orders.reduce((s, o) => s + Math.log(o.p), 0) / 4);
+  return { c, r, orders, bp, geo, bleu: bp * geo };
+}
+
+/* chrF as in sacrebleu (defaults): character n-grams 1..6 with spaces removed, precision and recall
+   averaged over the orders that exist in both strings, F-beta with beta = 2, best reference wins. */
+function chrF(cand, refs, beta = 2, N = 6) {
+  const chars = (toks) => Array.from(toks.join(""));
+  const grams = (ch, n) => { const out = []; for (let i = 0; i + n <= ch.length; i++) out.push(ch.slice(i, i + n).join("")); return out; };
+  const hc = chars(cand);
+  let best = null;
+  for (const ref of refs) {
+    const rc = chars(ref);
+    let P = 0, R = 0, eff = 0;
+    for (let n = 1; n <= N; n++) {
+      const hl = grams(hc, n), rl = grams(rc, n);
+      if (!hl.length || !rl.length) continue;
+      const rm = countMap(rl);
+      let m = 0;
+      for (const [g, k] of countMap(hl)) m += Math.min(k, rm.get(g) || 0);
+      P += m / hl.length; R += m / rl.length; eff++;
+    }
+    if (eff) { P /= eff; R /= eff; }
+    const b2 = beta * beta;
+    const f = P + R > 0 ? ((1 + b2) * P * R) / (b2 * P + R) : 0;
+    if (!best || f > best.f) best = { f, P, R };
+  }
+  return best || { f: 0, P: 0, R: 0 };
+}
+
+/* ROUGE-N: clipped n-gram overlap; P over candidate n-grams, R over reference n-grams, F1. */
+function rougeN(cand, ref, n) {
+  const cm = countMap(ngramList(cand, n)), rm = countMap(ngramList(ref, n));
+  let ov = 0;
+  const shared = [];
+  for (const [g, k] of cm) {
+    const m = Math.min(k, rm.get(g) || 0);
+    if (m) { ov += m; shared.push(g); }
+  }
+  return Object.assign(prf(ov, Math.max(0, cand.length - n + 1), Math.max(0, ref.length - n + 1)), { shared });
+}
+/* LCS dynamic programming: rows = reference words (a), columns = candidate words (b). */
+function lcsTable(a, b) {
+  const T = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++)
+      T[i][j] = a[i - 1] === b[j - 1] ? T[i - 1][j - 1] + 1 : Math.max(T[i - 1][j], T[i][j - 1]);
+  return T;
+}
+/* Backtrace from the bottom-right cell (same rule as rouge-score): equal words -> diagonal, else the larger neighbour. */
+function lcsPath(a, b, T) {
+  const path = [];
+  let i = a.length, j = b.length;
+  while (i > 0 && j > 0) {
+    if (a[i - 1] === b[j - 1]) { path.push({ i, j, take: true }); i--; j--; }
+    else if (T[i][j - 1] > T[i - 1][j]) { path.push({ i, j, take: false, dir: "left" }); j--; }
+    else { path.push({ i, j, take: false, dir: "up" }); i--; }
+  }
+  return path;
+}
+
+/* Entity-level matching. Spans {s, e (inclusive), type}. exact: same boundaries and type;
+   partial: overlap with a gold span of the same type. Each gold span can be matched once. */
+function nerMatch(gold, pred, partial) {
+  const ov = (a, b) => a.s <= b.e && b.s <= a.e;
+  const same = (a, b) => a.s === b.s && a.e === b.e;
+  const used = gold.map(() => false), ev = [];
+  pred.forEach((p, pi) => {
+    const gi = gold.findIndex((g, k) => !used[k] && g.type === p.type && (partial ? ov(g, p) : same(g, p)));
+    if (gi >= 0) { used[gi] = true; ev.push({ kind: "tp", p: pi, g: gi, why: same(gold[gi], p) ? "exact" : "overlap" }); return; }
+    let og = gold.findIndex((g) => ov(g, p) && g.type === p.type);
+    if (og < 0) og = gold.findIndex((g) => ov(g, p));
+    ev.push({ kind: "fp", p: pi, g: og, why: og < 0 ? "spurious" : gold[og].type !== p.type ? "type" : "bounds" });
+  });
+  gold.forEach((g, gi) => {
+    if (used[gi]) return;
+    let op = pred.findIndex((p) => ov(g, p) && p.type === g.type);
+    if (op < 0) op = pred.findIndex((p) => ov(g, p));
+    ev.push({ kind: "fn", p: op, g: gi, why: op < 0 ? "missed" : pred[op].type !== g.type ? "type" : "bounds" });
+  });
+  // walk the sentence left to right; at the same place the prediction comes before the missed gold span
+  const at = (e) => (e.p >= 0 ? pred[e.p].s : gold[e.g].s) * 2 + (e.kind === "fn" ? 1 : 0);
+  ev.sort((a, b) => at(a) - at(b));
+  const tp = ev.filter((e) => e.kind === "tp").length, fp = ev.filter((e) => e.kind === "fp").length, fn = ev.filter((e) => e.kind === "fn").length;
+  return Object.assign(prf(tp, tp + fp, tp + fn), { ev, tp, fp, fn });
+}
+
+/* Per-class P/R/F1 from a confusion matrix M[gold][pred]; micro pools the counts, macro averages per-class scores.
+   0/0 is taken as 0 (scikit-learn zero_division=0). */
+function classReport(M) {
+  const K = M.length, rows = [];
+  for (let c = 0; c < K; c++) {
+    let fp = 0, fn = 0;
+    for (let o = 0; o < K; o++) if (o !== c) { fp += M[o][c]; fn += M[c][o]; }
+    const tp = M[c][c];
+    rows.push(Object.assign(prf(tp, tp + fp, tp + fn), { tp, fp, fn }));
+  }
+  const TP = rows.reduce((s, r) => s + r.tp, 0), FP = rows.reduce((s, r) => s + r.fp, 0), FN = rows.reduce((s, r) => s + r.fn, 0);
+  const avg = (k) => rows.reduce((s, r) => s + r[k], 0) / K;
+  return { rows, TP, FP, FN, micro: prf(TP, TP + FP, TP + FN), macro: { P: avg("P"), R: avg("R"), F: avg("F") } };
+}
+/* metrics:end */
+
+/* ---------- small helpers ---------- */
+const SUBS = "₀₁₂₃₄₅₆₇₈₉";
+const sub = (n) => String(n).split("").map((d) => SUBS[+d]).join("");
+const tpl = (s, o) => String(s).replace(/\{(\w+)\}/g, (m, k) => (k in o ? String(o[k]) : m));
+
+function tokLine(target, toks, cls) {
+  const el = clear(mount(target));
+  el.classList.add("tokens");
+  if (!toks.length) el.appendChild(h("span", { class: "muted small" }, L.empty));
+  toks.forEach((t, i) => el.appendChild(h("span", { class: "tok " + (cls[i] || "") }, t)));
+  return el;
+}
+function swatches(target, items) {
+  const el = clear(mount(target));
+  el.classList.add("legend");
+  items.forEach((it) => el.appendChild(h("span", null, h("i", { class: "sw " + it.cls }), it.label)));
+}
+// one row of a horizontal bar list; text is shown as is ("?" before the value is revealed)
+function barRow(label, value, text, color, extra) {
+  return h("div", { class: "bar " + (extra || "") },
+    h("span", { class: "lab mono" }, label),
+    h("span", { class: "track" }, h("span", { class: "fill", style: { width: clamp(value, 0, 1) * 100 + "%", display: "block", background: color } })),
+    h("span", { class: "num" }, text));
+}
+
+/* ---------- Part 1: BLEU step by step ---------- */
+(function bleuPart() {
+  const B = L.bleu;
+  const st = { two: false, clip: true, smooth: false, view: 1, focus: null, preset: 1 };
+  let cand = [], refs = [], res = null, steps = [], pos = 0, cur = null;
+
+  const pick = segmented("#bleu-pick", {
+    label: B.pick_label, value: st.preset,
+    options: B.cands.map((c, i) => ({ value: i, label: c.label })),
+    onChange: (v) => { st.preset = v; input.value = B.cands[v].text; recompute(); },
+  });
+  const input = $("#bleu-cand");
+  input.value = B.cands[st.preset].text;
+  input.addEventListener("input", () => { st.preset = -1; pick.set(-1); recompute(); });
+  checkbox("#bleu-opts", B.opt_two, st.two, (v) => { st.two = v; recompute(); });
+  checkbox("#bleu-opts", B.opt_clip, st.clip, (v) => { st.clip = v; recompute(); });
+  checkbox("#bleu-opts", B.opt_smooth, st.smooth, (v) => { st.smooth = v; recompute(); });
+  const nSeg = segmented("#bleu-n", {
+    label: B.n_label, value: 1,
+    options: B.n_names.map((s, i) => ({ value: i + 1, label: s })),
+    onChange: (v) => { st.view = v; st.focus = null; render(); },
+  });
+  swatches("#bleu-legend", [{ cls: "ok", label: B.leg_ok }, { cls: "miss", label: B.leg_miss }, { cls: "cur", label: B.leg_cur }]);
+
+  function recompute() {
+    refs = (st.two ? [B.ref1, B.ref2] : [B.ref1]).map(tokenize);
+    cand = tokenize(input.value);
+    res = bleuScore(cand, refs, { clip: st.clip, smooth: st.smooth });
+    steps = [];
+    res.orders.forEach((o) => {
+      o.rows.forEach((_, k) => steps.push({ t: "ng", n: o.n, k }));
+      steps.push({ t: "pn", n: o.n });
+    });
+    steps.push({ t: "bp" }, { t: "final" });
+    pos = steps.length; cur = null; st.focus = null;
+    render();
+  }
+  const all = () => pos >= steps.length;
+  const done = (t, n) => all() || steps.slice(0, pos).some((s) => s.t === t && (n == null || s.n === n));
+  const rowsShown = (n) => (all() ? res.orders[n - 1].rows.length : steps.slice(0, pos).filter((s) => s.t === "ng" && s.n === n).length);
+  const fracText = (o) => (st.smooth && o.n > 1 ? `(${o.match}+1)/(${o.total}+1)` : `${o.match}/${o.total}`);
+
+  // the n-gram highlighted in all texts: the current animation step, or the table row the user clicked
+  function marked() {
+    if (cur && cur.t === "ng") return { n: cur.n, g: res.orders[cur.n - 1].rows[cur.k].g };
+    if (st.focus) return { n: st.view, g: st.focus };
+    return null;
+  }
+  function markCur(toks, cls) {
+    const m = marked();
+    if (!m) return;
+    ngramList(toks, m.n).forEach((g, p) => { if (g === m.g) for (let i = p; i < p + m.n; i++) cls[i] += " cur"; });
+  }
+  // candidate words: green if inside a credited n-gram of the shown order, red if only inside uncredited ones
+  function candCls() {
+    const n = st.view, cls = cand.map(() => "");
+    res.orders[n - 1].rows.slice(0, rowsShown(n)).forEach((row) => row.pos.forEach((p, idx) => {
+      for (let i = p; i < p + n; i++) {
+        if (idx < row.credit) cls[i] = "ok";
+        else if (cls[i] !== "ok") cls[i] = "miss";
+      }
+    }));
+    markCur(cand, cls);
+    return cls;
+  }
+  function refCls(ref) {
+    const n = st.view, cls = ref.map(() => "");
+    const got = new Set(res.orders[n - 1].rows.slice(0, rowsShown(n)).filter((r) => r.credit > 0).map((r) => r.g));
+    ngramList(ref, n).forEach((g, p) => { if (got.has(g)) for (let i = p; i < p + n; i++) cls[i] = "ok"; });
+    markCur(ref, cls);
+    return cls;
+  }
+
+  function renderTable() {
+    const n = st.view, o = res.orders[n - 1], k = rowsShown(n);
+    const head = h("tr", null, h("th", { class: "l" }, B.col_ngram), h("th", null, B.col_cand), h("th", null, B.col_ref), h("th", null, B.col_credit));
+    const body = [];
+    if (!o.rows.length) body.push(h("tr", { class: "msg" }, h("td", { class: "l muted", colspan: 4 }, cand.length ? tpl(B.no_ngrams, { n }) : B.empty_cand)));
+    else if (!k) body.push(h("tr", { class: "msg" }, h("td", { class: "l muted", colspan: 4 }, B.not_yet)));
+    o.rows.slice(0, k).forEach((row, i) => {
+      const now = (cur && cur.t === "ng" && cur.n === n && cur.k === i) || st.focus === row.g;
+      const clipped = st.clip && row.refMax > 0 && row.count > row.refMax;
+      body.push(h("tr", {
+        class: (now ? "sel " : "") + (row.credit ? "ok" : "no"),
+        onclick: () => { st.focus = st.focus === row.g ? null : row.g; cur = null; render(); },
+      },
+        h("td", { class: "l mono" }, row.g),
+        h("td", { class: "num" }, String(row.count)),
+        h("td", { class: "num" }, String(row.refMax)),
+        h("td", { class: "num cr" }, clipped ? `min(${row.count}, ${row.refMax}) = ${row.credit}` : String(row.credit))));
+    });
+    if (o.rows.length && k) {
+      const shown = o.rows.slice(0, k);
+      const pDone = done("pn", n);
+      body.push(h("tr", { class: "tot" },
+        h("td", { class: "l" }, B.total),
+        h("td", { class: "num" }, String(shown.reduce((s, r) => s + r.count, 0))),
+        h("td", null, ""),
+        h("td", { class: "num" }, String(shown.reduce((s, r) => s + r.credit, 0)) + (pDone ? `  →  p${sub(n)} = ${fmt(o.p, 2)}` : ""))));
+    }
+    clear($("#bleu-table")).appendChild(h("div", { class: "scroll-x" }, h("table", { class: "grid ngt" }, h("thead", null, head), h("tbody", null, body))));
+  }
+
+  function renderPrec() {
+    const box = clear($("#bleu-prec"));
+    res.orders.forEach((o) => {
+      const show = done("pn", o.n);
+      const now = cur && cur.n === o.n;
+      box.appendChild(barRow("p" + sub(o.n), show ? o.p : 0, show ? `${fracText(o)} = ${fmt(o.p, 2)}` : "?",
+        cssVar("--pen"), (now ? "now " : "") + (show && o.p === 0 ? "zero" : "")));
+    });
+  }
+
+  function renderBP() {
+    const box = clear($("#bleu-bp")), show = done("bp");
+    box.appendChild(h("dl", { class: "kv" },
+      h("dt", null, B.c_label), h("dd", null, String(res.c)),
+      h("dt", null, B.r_label), h("dd", null, String(res.r))));
+    let f = "BP = ?";
+    if (show) {
+      if (res.c === 0) f = "c = 0  →  BP = 0";
+      else if (res.c >= res.r) f = `c = ${res.c} ≥ r = ${res.r}  →  BP = 1`;
+      else f = `c = ${res.c} < r = ${res.r}\nBP = exp(1 − ${res.r}/${res.c}) = ${fmt(res.bp, 3)}`;
+    }
+    box.appendChild(h("div", { class: "formula" + (cur && cur.t === "bp" ? " now" : "") }, f));
+  }
+
+  function renderFinal() {
+    const show = done("final");
+    const big = clear($("#bleu-big"));
+    big.append(show ? fmt(res.bleu, 3) : "?");
+    if (show) big.appendChild(h("small", null, tpl(B.scale100, { v: fmt(100 * res.bleu, 1) })));
+    const ps = res.orders.map((o) => "p" + sub(o.n)).join("·");
+    let f = `BLEU = BP · ⁴√(${ps})`;
+    if (show) {
+      const z = res.orders.find((o) => o.p === 0);
+      if (res.c === 0) f += "\n  = 0";
+      else if (z) f += `\np${sub(z.n)} = 0  →  BLEU = 0`;
+      else f += `\n  = ${fmt(res.bp, 3)} · ⁴√(${res.orders.map((o) => fmt(o.p, 2)).join("·")})\n  = ${fmt(res.bp, 3)} · ${fmt(res.geo, 3)} = ${fmt(res.bleu, 3)}`;
+    }
+    clear($("#bleu-formula")).appendChild(h("div", { class: "formula" + (cur && cur.t === "final" ? " now" : "") }, f));
+    const cf = chrF(cand, refs);
+    const vs = clear($("#bleu-vs"));
+    vs.appendChild(barRow("BLEU", show ? res.bleu : 0, show ? fmt(res.bleu, 2) : "?", cssVar("--pen")));
+    vs.appendChild(barRow("chrF", cf.f, fmt(cf.f, 2), cssVar("--c3")));
+  }
+
+  function say() {
+    let step = cur;
+    if (!step && st.focus) step = { t: "ng", n: st.view, k: res.orders[st.view - 1].rows.findIndex((r) => r.g === st.focus) };
+    if (!cand.length) return B.empty_cand;
+    if (!step) return pos === 0 ? B.st_start : B.st_full;
+    if (step.t === "ng") {
+      const r = res.orders[step.n - 1].rows[step.k];
+      const o = { g: r.g, c: r.count, r: r.refMax, k: r.credit };
+      if (r.refMax === 0) return tpl(B.st_miss, o);
+      if (r.count > r.refMax) return tpl(st.clip ? B.st_clip : B.st_noclip, o);
+      return tpl(B.st_hit, o);
+    }
+    if (step.t === "pn") {
+      const o = res.orders[step.n - 1], pn = "p" + sub(step.n);
+      if (!o.total && !(st.smooth && step.n > 1)) return tpl(cand.length ? B.st_pn_none : B.empty_cand, { n: step.n, pn });
+      return tpl(B.st_pn, { n: step.n, m: o.match, t: o.total, pn, frac: fracText(o), p: fmt(o.p, 2) });
+    }
+    if (step.t === "bp") {
+      if (res.c === 0) return B.empty_cand;
+      return tpl(res.c >= res.r ? B.st_bp_ok : B.st_bp_pen, { c: res.c, r: res.r, bp: fmt(res.bp, 3) });
+    }
+    return res.geo === 0 ? B.st_final_zero : tpl(B.st_final, { bp: fmt(res.bp, 3), geo: fmt(res.geo, 3), b: fmt(res.bleu, 3) });
+  }
+
+  function render() {
+    tokLine("#bleu-ref1", refs[0], refCls(refs[0]));
+    $("#bleu-ref2-line").style.display = st.two ? "" : "none";
+    if (st.two) tokLine("#bleu-ref2", refs[1], refCls(refs[1]));
+    tokLine("#bleu-ctoks", cand, candCls());
+    $("#bleu-note").innerHTML = st.preset >= 0 ? B.cands[st.preset].note : B.custom_note;
+    renderTable(); renderPrec(); renderBP(); renderFinal();
+    $("#bleu-say").innerHTML = say();
+  }
+
+  player("#bleu-player", {
+    interval: 650,
+    step: () => {
+      if (pos >= steps.length) return false;
+      pos++; cur = steps[pos - 1]; st.focus = null;
+      if (cur.n) { st.view = cur.n; nSeg.set(cur.n); }
+      render();
+      return pos < steps.length;
+    },
+    canStep: () => pos < steps.length,
+    reset: () => { pos = 0; cur = null; st.focus = null; st.view = 1; nSeg.set(1); render(); },
+  });
+  recompute();
+})();
+
+/* ---------- Part 2: ROUGE-1/2 and ROUGE-L with the LCS table ---------- */
+(function rougePart() {
+  const R = L.rouge;
+  const ref = tokenize(R.ref);
+  let preset = 0, cand = [], T = [[0]], path = [], steps = [], pos = 0, cur = null;
+
+  const pick = segmented("#rg-pick", {
+    label: R.pick_label, value: 0,
+    options: R.cands.map((c, i) => ({ value: i, label: c.label })),
+    onChange: (v) => { preset = v; input.value = R.cands[v].text; recompute(); },
+  });
+  const input = $("#rg-cand");
+  input.value = R.cands[0].text;
+  input.addEventListener("input", () => { preset = -1; pick.set(-1); recompute(); });
+  swatches("#rg-legend", [{ cls: "eq", label: R.leg_eq }, { cls: "cur", label: R.leg_cur }, { cls: "dep", label: R.leg_dep }, { cls: "take", label: R.leg_lcs }]);
+
+  function recompute() {
+    cand = tokenize(input.value);
+    T = lcsTable(ref, cand);
+    path = lcsPath(ref, cand, T);
+    steps = [];
+    for (let i = 1; i <= ref.length; i++) for (let j = 1; j <= cand.length; j++) steps.push({ t: "cell", i, j });
+    path.forEach((_, k) => steps.push({ t: "back", k }));
+    steps.push({ t: "final" });
+    pos = steps.length; cur = null;
+    render();
+  }
+  const nCells = () => ref.length * cand.length;
+  const filled = () => Math.min(pos, nCells());
+  const backShown = () => clamp(pos - nCells(), 0, path.length);
+  const finished = () => pos >= steps.length;
+  const focusCell = () => (cur && cur.t === "cell" ? cur : cur && cur.t === "back" ? path[cur.k] : null);
+  const lcsWords = () => path.filter((p) => p.take).map((p) => ref[p.i - 1]).reverse();
+
+  function renderDP() {
+    const f = filled(), fc = focusCell();
+    const onPath = new Map();
+    path.slice(0, backShown()).forEach((p) => onPath.set(p.i + "," + p.j, p));
+    const deps = new Set();
+    if (cur && cur.t === "cell") {
+      const { i, j } = cur;
+      if (ref[i - 1] === cand[j - 1]) deps.add(i - 1 + "," + (j - 1));
+      else { deps.add(i - 1 + "," + j); deps.add(i + "," + (j - 1)); }
+    }
+    const head = h("tr", null, h("th", { class: "corner" }), h("th", { class: "v" }, h("span", null, "∅")),
+      cand.map((w, j) => h("th", { class: "v" + (fc && fc.j === j + 1 ? " hc" : "") }, h("span", null, w))));
+    const rows = [];
+    for (let i = 0; i <= ref.length; i++) {
+      const tds = [];
+      for (let j = 0; j <= cand.length; j++) {
+        const key = i + "," + j;
+        const known = i === 0 || j === 0 || (i - 1) * cand.length + (j - 1) < f;
+        const cls = [];
+        if (i === 0 || j === 0) cls.push("z");
+        else if (ref[i - 1] === cand[j - 1]) cls.push("eq");
+        if (deps.has(key)) cls.push("dep");
+        const p = onPath.get(key);
+        if (p) cls.push(p.take ? "take" : "path");
+        if (fc && fc.i === i && fc.j === j) cls.push("cur");
+        tds.push(h("td", { class: cls.join(" ") }, known ? String(T[i][j]) : ""));
+      }
+      rows.push(h("tr", null, h("th", { class: "r" + (fc && i > 0 && fc.i === i ? " hc" : "") }, i === 0 ? "∅" : ref[i - 1]), tds));
+    }
+    clear($("#rg-dp")).appendChild(h("div", { class: "scroll-x" }, h("table", { class: "dp" }, h("thead", null, head), h("tbody", null, rows))));
+  }
+
+  function renderTexts() {
+    const rc = ref.map(() => ""), cc = cand.map(() => "");
+    path.slice(0, backShown()).forEach((p) => { if (p.take) { rc[p.i - 1] = "lcs"; cc[p.j - 1] = "lcs"; } });
+    const fc = focusCell();
+    if (fc) { rc[fc.i - 1] += " cur"; cc[fc.j - 1] += " cur"; }
+    tokLine("#rg-ref", ref, rc);
+    tokLine("#rg-ctoks", cand, cc);
+  }
+
+  function renderScores() {
+    const r1 = rougeN(cand, ref, 1), r2 = rougeN(cand, ref, 2);
+    const lcs = T[ref.length][cand.length], rl = prf(lcs, cand.length, ref.length), show = finished();
+    const row = (name, m, ok) => h("tr", { class: name === "ROUGE-L" && cur && cur.t === "final" ? "sel" : "" },
+      h("th", { class: "l" }, name),
+      h("td", { class: "num" }, ok ? String(m.ov) : "?"),
+      h("td", { class: "num" }, ok ? fmt(m.P, 2) : "?"),
+      h("td", { class: "num" }, ok ? fmt(m.R, 2) : "?"),
+      h("td", { class: "num f" }, ok ? fmt(m.F, 2) : "?"));
+    const table = h("table", { class: "grid sc" },
+      h("thead", null, h("tr", null, h("th", { class: "l" }, ""), h("th", null, R.col_ov), h("th", null, "P"), h("th", null, "R"), h("th", null, "F1"))),
+      h("tbody", null, row("ROUGE-1", r1, true), row("ROUGE-2", r2, true), row("ROUGE-L", rl, show)));
+    clear($("#rg-table")).appendChild(h("div", { class: "scroll-x" }, table));
+    const line = (name, m) => `${name}   P = ${m.ov}/${m.tc}   R = ${m.ov}/${m.tr}`;
+    const lines = [line("ROUGE-1", r1), line("ROUGE-2", r2), show ? line("ROUGE-L", rl) + `   (LCS = ${lcs})` : "ROUGE-L   LCS = ?"];
+    clear($("#rg-formula")).appendChild(h("div", { class: "formula" }, lines.join("\n")));
+    const bg = clear($("#rg-bigrams"));
+    bg.appendChild(h("p", { class: "small muted", style: { margin: "0 0 6px" } }, R.bigrams_label));
+    const chips = h("div");
+    bg.appendChild(chips);
+    tokens(chips, r2.shared.length ? r2.shared.map((g) => ({ text: g, cls: "hl" })) : [R.none]);
+    const lw = clear($("#rg-lcs"));
+    lw.appendChild(h("p", { class: "small muted", style: { margin: "12px 0 6px" } }, R.lcs_label));
+    const lchips = h("div");
+    lw.appendChild(lchips);
+    const words = show ? lcsWords() : [];
+    tokens(lchips, show ? (words.length ? words.map((w) => ({ text: w, cls: "on" })) : [R.none]) : ["?"]);
+  }
+
+  function say() {
+    if (!cur) return pos === 0 ? R.st_start : R.st_full;
+    if (cur.t === "cell") {
+      const { i, j } = cur, a = ref[i - 1], b = cand[j - 1];
+      return a === b ? tpl(R.st_eq, { a, b, d: T[i - 1][j - 1], v: T[i][j] }) : tpl(R.st_ne, { a, b, u: T[i - 1][j], l: T[i][j - 1], v: T[i][j] });
+    }
+    if (cur.t === "back") {
+      const p = path[cur.k];
+      return p.take ? tpl(R.st_take, { w: ref[p.i - 1] }) : p.dir === "up" ? R.st_up : R.st_left;
+    }
+    const words = lcsWords();
+    return words.length ? tpl(R.st_final, { lcs: words.join(" "), n: words.length, c: cand.length, r: ref.length }) : R.st_final_none;
+  }
+
+  function render() {
+    renderTexts(); renderDP(); renderScores();
+    $("#rg-note").innerHTML = preset >= 0 ? R.cands[preset].note : R.custom_note;
+    $("#rg-say").innerHTML = say();
+  }
+
+  player("#rg-player", {
+    interval: 220,
+    step: () => {
+      if (pos >= steps.length) return false;
+      pos++; cur = steps[pos - 1];
+      render();
+      return pos < steps.length;
+    },
+    canStep: () => pos < steps.length,
+    reset: () => { pos = 0; cur = null; render(); },
+  });
+  recompute();
+})();
+
+/* ---------- Part 3: F1 for named entities, exact vs partial match ---------- */
+(function nerPart() {
+  const N = L.ner;
+  const state = N.defaults.slice();
+  let spur = true, partial = false, pred = [], res = null, steps = [], pos = 0, cur = null;
+  const spanText = (sp) => N.tokens.slice(sp.s, sp.e + 1).join(" ");
+  const spanLabel = (sp) => spanText(sp) + " · " + sp.type;
+  const chip = (sp) => h("span", { class: "ent mini t-" + sp.type }, spanText(sp), h("b", { class: "tag" }, sp.type));
+
+  const ctl = $("#ner-ctl");
+  N.gold.forEach((g, gi) => {
+    const options = ["ok", "part", "type", "miss"].filter((s) => s !== "part" || g.ps != null).map((s) => ({ value: s, label: N.states[s] }));
+    segmented(ctl, { label: spanLabel(g), options, value: state[gi], onChange: (v) => { state[gi] = v; recompute(); } });
+  });
+  checkbox(ctl, N.spur_label, spur, (v) => { spur = v; recompute(); });
+  segmented("#ner-mode", {
+    label: N.mode_label, value: false,
+    options: [{ value: false, label: N.exact }, { value: true, label: N.partial }],
+    onChange: (v) => { partial = v; recompute(); },
+  });
+  swatches("#ner-legend", ["PER", "LOC", "ORG"].map((t) => ({ cls: "t-" + t, label: t + ": " + N.types[t] })));
+
+  function buildPred() {
+    const out = [];
+    N.gold.forEach((g, gi) => {
+      const s = state[gi];
+      if (s === "ok") out.push({ s: g.s, e: g.e, type: g.type });
+      else if (s === "part") out.push({ s: g.ps, e: g.pe, type: g.type });
+      else if (s === "type") out.push({ s: g.s, e: g.e, type: g.wrong });
+    });
+    if (spur) out.push({ s: N.spur.s, e: N.spur.e, type: N.spur.type });
+    return out.sort((a, b) => a.s - b.s);
+  }
+  function recompute() {
+    pred = buildPred();
+    res = nerMatch(N.gold, pred, partial);
+    steps = res.ev.map((_, k) => ({ t: "ev", k })).concat([{ t: "final" }]);
+    pos = steps.length; cur = null;
+    render();
+  }
+  const shown = () => Math.min(pos, res.ev.length);
+
+  function spanLine(target, spans, hl) {
+    const el = clear($(target));
+    let i = 0;
+    while (i < N.tokens.length) {
+      const k = spans.findIndex((sp) => sp.s === i);
+      if (k < 0) { el.appendChild(h("span", { class: "w" }, N.tokens[i])); i++; continue; }
+      const sp = spans[k];
+      el.appendChild(h("span", { class: "ent t-" + sp.type + (hl === k ? " cur" : "") },
+        N.tokens.slice(sp.s, sp.e + 1).map((t) => h("span", { class: "w" }, t)),
+        h("b", { class: "tag" }, sp.type)));
+      i = sp.e + 1;
+    }
+  }
+
+  function renderTable() {
+    const k = shown();
+    const head = h("tr", null, h("th", { class: "l" }, N.col_pred), h("th", { class: "l" }, N.col_gold), h("th", { class: "l" }, N.col_res));
+    const body = res.ev.slice(0, k).map((e, i) => h("tr", { class: cur && cur.t === "ev" && cur.k === i ? "sel" : "" },
+      h("td", { class: "l" }, e.p >= 0 ? chip(pred[e.p]) : N.none),
+      h("td", { class: "l" }, e.g >= 0 ? chip(N.gold[e.g]) : N.none),
+      h("td", { class: "l" }, h("span", { class: "badge " + e.kind }, e.kind.toUpperCase()), " ", h("span", { class: "small" }, N.why[e.why]))));
+    if (!k) body.push(h("tr", null, h("td", { class: "l muted", colspan: 3 }, N.not_yet)));
+    clear($("#ner-table")).appendChild(h("div", { class: "scroll-x" }, h("table", { class: "grid nt" }, h("thead", null, head), h("tbody", null, body))));
+  }
+
+  function renderScore() {
+    const ev = res.ev.slice(0, shown());
+    const c = { tp: 0, fp: 0, fn: 0 };
+    ev.forEach((e) => c[e.kind]++);
+    const tiles = clear($("#ner-tiles"));
+    [["tp", N.tp_name], ["fp", N.fp_name], ["fn", N.fn_name]].forEach(([k, name]) => {
+      const now = cur && cur.t === "ev" && res.ev[cur.k].kind === k;
+      tiles.appendChild(h("div", { class: "tile " + k + (now ? " now" : "") }, h("b", null, String(c[k])), h("span", null, k.toUpperCase() + ": " + name)));
+    });
+    const show = pos >= steps.length;
+    const f = show
+      ? `P  = TP / (TP + FP) = ${res.tp} / ${res.tp + res.fp} = ${fmt(res.P, 2)}\nR  = TP / (TP + FN) = ${res.tp} / ${res.tp + res.fn} = ${fmt(res.R, 2)}\nF1 = 2 · P · R / (P + R) = ${fmt(res.F, 2)}`
+      : "P  = TP / (TP + FP) = ?\nR  = TP / (TP + FN) = ?\nF1 = 2 · P · R / (P + R) = ?";
+    clear($("#ner-formula")).appendChild(h("div", { class: "formula" + (cur && cur.t === "final" ? " now" : "") }, f));
+    $("#ner-mode-note").textContent = partial ? N.mode_note_partial : N.mode_note_exact;
+  }
+
+  function say() {
+    if (!cur) return pos === 0 ? N.st_start : N.st_full;
+    if (cur.t === "final") return tpl(N.st_final, { tp: res.tp, fp: res.fp, fn: res.fn, P: fmt(res.P, 2), R: fmt(res.R, 2), F: fmt(res.F, 2) });
+    const e = res.ev[cur.k];
+    const p = e.p >= 0 ? spanLabel(pred[e.p]) : "", g = e.g >= 0 ? spanLabel(N.gold[e.g]) : "";
+    if (e.kind === "tp") return tpl(N.st_tp, { p, g, why: N.why[e.why] });
+    if (e.kind === "fp") return tpl(N.st_fp, { p, why: N.why[e.why] });
+    return tpl(N.st_fn, { g, why: N.why[e.why] });
+  }
+
+  function render() {
+    const e = cur && cur.t === "ev" ? res.ev[cur.k] : null;
+    spanLine("#ner-gold", N.gold, e ? e.g : -1);
+    spanLine("#ner-pred", pred, e ? e.p : -1);
+    renderTable(); renderScore();
+    $("#ner-say").innerHTML = say();
+  }
+
+  player("#ner-player", {
+    interval: 1300,
+    step: () => {
+      if (pos >= steps.length) return false;
+      pos++; cur = steps[pos - 1];
+      render();
+      return pos < steps.length;
+    },
+    canStep: () => pos < steps.length,
+    reset: () => { pos = 0; cur = null; render(); },
+  });
+  recompute();
+})();
+
+/* ---------- Part 4: micro vs macro averaging over a confusion matrix ---------- */
+(function averagingPart() {
+  const C = L.cls, K = C.classes.length;
+  let preset = 0, M = C.presets[0].m.map((r) => r.slice()), sel = { r: K - 1, c: 0 }, focus = -1, rep = null, pos = 0, cur = null;
+  const steps = C.classes.map((_, k) => ({ t: "cls", k })).concat([{ t: "macro" }, { t: "micro" }]);
+
+  const pick = segmented("#avg-pick", {
+    label: C.pick_label, value: 0,
+    options: C.presets.map((p, i) => ({ value: i, label: p.label })),
+    onChange: (v) => { preset = v; M = C.presets[v].m.map((r) => r.slice()); recompute(); },
+  });
+  const edit = $("#avg-edit");
+  button(edit, C.minus, () => change(-1), "ghost small");
+  button(edit, C.plus, () => change(1), "small");
+  const selInfo = h("span", { class: "small muted" });
+  edit.appendChild(selInfo);
+  swatches("#avg-legend", [{ cls: "c-tp", label: C.leg_tp }, { cls: "c-fp", label: C.leg_fp }, { cls: "c-fn", label: C.leg_fn }]);
+
+  function change(d) {
+    M[sel.r][sel.c] = clamp(M[sel.r][sel.c] + d, 0, 99);
+    preset = -1; pick.set(-1);
+    recompute();
+  }
+  function recompute() { rep = classReport(M); pos = steps.length; cur = null; render(); }
+  const all = () => pos >= steps.length;
+  const done = (t, k) => all() || steps.slice(0, pos).some((s) => s.t === t && (k == null || s.k === k));
+  const shownFocus = () => (cur && cur.t === "cls" ? cur.k : focus);
+
+  function renderCM() {
+    const mx = Math.max(1, ...M.flat()), f = shownFocus();
+    const head = h("tr", null, h("th", { class: "corner" }, C.corner), C.classes.map((c) => h("th", null, c)));
+    const rows = C.classes.map((name, r) => h("tr", null, h("th", { class: "l" }, name), M[r].map((v, c) => {
+      let cls = "";
+      if (f >= 0) cls = r === f && c === f ? "tp" : c === f ? "fp" : r === f ? "fn" : "dim";
+      if (sel.r === r && sel.c === c) cls += " sel";
+      const t = (v / mx) * 0.8;
+      return h("td", null, h("button", {
+        type: "button", class: cls, title: tpl(C.sel_label, { g: C.classes[r], p: C.classes[c] }),
+        style: { background: heatColor(t), color: inkOn(t) },
+        onclick: () => { sel = { r, c }; render(); },
+      }, String(v)));
+    })));
+    clear($("#avg-cm")).appendChild(h("div", { class: "scroll-x" }, h("table", { class: "cm" }, h("thead", null, head), h("tbody", null, rows))));
+    selInfo.textContent = tpl(C.sel_label, { g: C.classes[sel.r], p: C.classes[sel.c] });
+  }
+
+  function renderPer() {
+    const f = shownFocus();
+    const head = h("tr", null, h("th", { class: "l" }, C.col_cls), ["TP", "FP", "FN", "P", "R", "F1"].map((x) => h("th", null, x)));
+    const rows = rep.rows.map((r, k) => {
+      const ok = done("cls", k);
+      return h("tr", { class: f === k ? "sel" : "" },
+        h("td", { class: "l" }, h("button", { type: "button", class: "linkish", onclick: () => { focus = focus === k ? -1 : k; cur = null; render(); } }, C.classes[k])),
+        [r.tp, r.fp, r.fn].map((v) => h("td", { class: "num" }, ok ? String(v) : "?")),
+        [r.P, r.R, r.F].map((v, i) => h("td", { class: "num" + (i === 2 ? " f" : "") }, ok ? fmt(v, 2) : "?")));
+    });
+    clear($("#avg-table")).appendChild(h("div", { class: "scroll-x" }, h("table", { class: "grid pc" }, h("thead", null, head), h("tbody", null, rows))));
+  }
+
+  function renderAvg() {
+    const ma = done("macro"), mi = done("micro");
+    const box = clear($("#avg-bars"));
+    box.appendChild(barRow(C.micro, mi ? rep.micro.F : 0, mi ? fmt(rep.micro.F, 2) : "?", cssVar("--c3"), cur && cur.t === "micro" ? "now" : ""));
+    box.appendChild(barRow(C.macro, ma ? rep.macro.F : 0, ma ? fmt(rep.macro.F, 2) : "?", cssVar("--c4"), cur && cur.t === "macro" ? "now" : ""));
+    const lines = [];
+    lines.push(ma ? `${C.macro} = (${rep.rows.map((r) => fmt(r.F, 2)).join("+")})/${K} = ${fmt(rep.macro.F, 2)}` : `${C.macro} = ?`);
+    if (mi) {
+      lines.push(`ΣTP = ${rep.TP}   ΣFP = ${rep.FP}   ΣFN = ${rep.FN}`);
+      lines.push(`P = ${rep.TP}/${rep.TP + rep.FP} = ${fmt(rep.micro.P, 2)}   R = ${rep.TP}/${rep.TP + rep.FN} = ${fmt(rep.micro.R, 2)}`);
+      lines.push(`${C.micro} = ${fmt(rep.micro.F, 2)}`);
+    } else lines.push(`${C.micro} = ?`);
+    clear($("#avg-formula")).appendChild(h("div", { class: "formula" }, lines.join("\n")));
+  }
+
+  function say() {
+    if (!cur) {
+      if (pos === 0) return C.st_start;
+      return (preset >= 0 ? C.presets[preset].note + " " : "") + C.st_full;
+    }
+    if (cur.t === "cls") {
+      const r = rep.rows[cur.k];
+      let s = tpl(C.st_cls, { c: C.classes[cur.k], tp: r.tp, fp: r.fp, fn: r.fn, P: fmt(r.P, 2), R: fmt(r.R, 2), F: fmt(r.F, 2) });
+      if (r.tp + r.fp === 0) s += " " + C.zero_note;
+      return s;
+    }
+    if (cur.t === "macro") return tpl(C.st_macro, { list: rep.rows.map((r) => fmt(r.F, 2)).join(" + "), k: K, F: fmt(rep.macro.F, 2) });
+    return tpl(C.st_micro, { F: fmt(rep.micro.F, 2) });
+  }
+
+  function render() {
+    renderCM(); renderPer(); renderAvg();
+    $("#avg-say").innerHTML = say();
+  }
+
+  player("#avg-player", {
+    interval: 1800,
+    step: () => {
+      if (pos >= steps.length) return false;
+      pos++; cur = steps[pos - 1];
+      render();
+      return pos < steps.length;
+    },
+    canStep: () => pos < steps.length,
+    reset: () => { pos = 0; cur = null; focus = -1; render(); },
+  });
+  recompute();
+})();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,1394 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>17. Стресс-тест NLP на узбекской морфологии</title>
+<meta name="description" content="Стресс-тестирование алгоритмов NLP на морфологии агглютинативных языков">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=PT+Mono&display=swap" rel="stylesheet">
+<style>
+/* NLP labs: shared style. Light theme only (labs are often projected in class). */
+:root {
+  color-scheme: light;
+  --paper: #EDF1F6;
+  --panel: #FFFFFF;
+  --soft: #F5F7FA;
+  --ink: #1C2A43;
+  --muted: #56637C;
+  --faint: #8C97AB;
+  --line: #D2D9E4;
+  --pen: #2B55C9;
+  --pen-dark: #1F3F9A;
+  --mark: #FFD84D;
+  --mark-soft: #FFF2B8;
+  --good: #1A8F5F;
+  --good-soft: #DDF3E8;
+  --bad: #C2413A;
+  --bad-soft: #FBE3E1;
+  --c1: #2B55C9;
+  --c2: #D04A55;
+  --c3: #17907E;
+  --c4: #9157BF;
+  --c5: #DB8F1F;
+  --c6: #5B7A2A;
+  --c7: #C1508F;
+  --c8: #5E6B85;
+  --font: "Golos Text", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --mono: "PT Mono", Consolas, "Liberation Mono", "Courier New", monospace;
+  --r: 10px;
+  --r-sm: 5px;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.55 var(--font);
+}
+a { color: var(--pen); }
+a:hover { color: var(--pen-dark); }
+:focus-visible { outline: 3px solid var(--mark); outline-offset: 2px; border-radius: 3px; }
+img, svg, canvas { max-width: 100%; }
+
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+
+/* top navigation */
+.topnav { background: var(--ink); color: #fff; font-size: 14px; }
+.topnav .wrap { display: flex; align-items: center; gap: 12px; min-height: 46px; flex-wrap: wrap; }
+.topnav a { color: #fff; text-decoration: none; padding: 6px 10px; border-radius: var(--r-sm); }
+.topnav a:hover { background: rgba(255,255,255,.12); color: #fff; }
+.topnav .course { font-weight: 600; margin-right: auto; }
+.topnav .pager { display: flex; gap: 4px; }
+.topnav .disabled { opacity: .35; pointer-events: none; }
+
+/* header */
+.lab-head { padding: 28px 0 8px; }
+.lab-no { margin: 0 0 6px; color: var(--muted); font-size: 15px; }
+.lab-head h1 { margin: 0; font-size: clamp(28px, 4.2vw, 42px); line-height: 1.12; font-weight: 700; letter-spacing: -.01em; max-width: 26ch; }
+.lab-head .lead { margin: 14px 0 0; font-size: 18px; max-width: 70ch; color: var(--ink); }
+.lab-head .topic { margin: 12px 0 0; font-size: 14px; color: var(--muted); max-width: 90ch; }
+
+/* sections and the highlighter heading: the one decorative motif */
+.part { margin: 34px 0 0; }
+.part > h2, .notes h2 {
+  font-size: 23px; line-height: 1.25; margin: 0 0 6px; font-weight: 700;
+  display: inline;
+  background: linear-gradient(transparent 58%, var(--mark) 58%, var(--mark) 92%, transparent 92%);
+  box-decoration-break: clone; -webkit-box-decoration-break: clone;
+  padding: 0 3px;
+}
+.part > .hint, .part > p.intro { margin: 10px 0 14px; color: var(--muted); max-width: 75ch; }
+.part > h2 + .stage { margin-top: 16px; }
+
+/* stage: visual on the left, controls and readouts on the right */
+.stage { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.stage.even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.stage.single { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 900px) { .stage, .stage.even { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; min-width: 0; }
+.panel + .panel { margin-top: 16px; }
+.stage > .panel + .panel { margin-top: 0; }
+.panel h3 { margin: 0 0 10px; font-size: 16px; font-weight: 600; }
+.panel h3 + .muted { margin-top: -6px; }
+.col > .panel + .panel { margin-top: 16px; }
+.stage > .panel + .panel { margin-top: 0; }
+
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+.tiny { font-size: 12.5px; }
+.mono { font-family: var(--mono); }
+.center { text-align: center; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row + .row { margin-top: 10px; }
+.grow { flex: 1 1 auto; }
+.spacer { height: 10px; }
+
+/* controls */
+.btn {
+  font: inherit; font-size: 15px; font-weight: 500;
+  border: 1px solid var(--pen); background: var(--pen); color: #fff;
+  border-radius: 999px; padding: 7px 16px; cursor: pointer; line-height: 1.3;
+  min-height: 36px; touch-action: manipulation;
+}
+.btn:hover { background: var(--pen-dark); border-color: var(--pen-dark); }
+.btn.ghost { background: transparent; color: var(--pen); }
+.btn.ghost:hover { background: #E6ECFA; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.small { font-size: 14px; padding: 5px 12px; min-height: 32px; }
+
+.player { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.player .speed { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.player .speed input { width: 110px; }
+
+.ctl { margin: 0 0 14px; }
+.panel > .ctl:last-child, .panel > div:last-child > .ctl:last-child { margin-bottom: 0; }
+.ctl label, .ctl .lbl { display: flex; justify-content: space-between; gap: 8px; font-size: 14.5px; margin-bottom: 4px; }
+.ctl .val { font-family: var(--mono); font-weight: 700; color: var(--pen); white-space: nowrap; }
+input[type=range] { width: 100%; accent-color: var(--pen); margin: 0; height: 26px; }
+
+.seg { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
+.seg button { font: inherit; font-size: 14px; border: 1px solid #B8C6EA; background: var(--panel); color: var(--pen); padding: 5px 12px; cursor: pointer; min-height: 34px; border-radius: 999px; }
+.seg button:hover { border-color: var(--pen); }
+.seg button[aria-pressed=true] { background: var(--pen); color: #fff; border-color: var(--pen); }
+
+input[type=text], textarea, select {
+  font: inherit; font-size: 15px; color: var(--ink); background: #fff;
+  border: 1px solid var(--line); border-radius: var(--r-sm); padding: 7px 10px; width: 100%; max-width: 100%;
+}
+textarea { min-height: 76px; resize: vertical; }
+input[type=text]:focus, textarea:focus, select:focus { border-color: var(--pen); outline: none; box-shadow: 0 0 0 3px #D7E1FA; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 14.5px; cursor: pointer; margin: 6px 0; }
+.check input { width: 17px; height: 17px; accent-color: var(--pen); }
+
+/* tokens: strings of text are the material of this course */
+.tokens { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tok {
+  font-family: var(--mono); font-size: 15px; line-height: 1.2;
+  border: 1px solid var(--line); background: var(--soft); border-radius: var(--r-sm);
+  padding: 4px 7px; white-space: pre; display: inline-flex; flex-direction: column; align-items: center;
+}
+.tok .sub { font-family: var(--font); font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.tok.hl { background: var(--mark-soft); border-color: #E8C33A; }
+.tok.on { background: var(--pen); color: #fff; border-color: var(--pen); }
+.tok.on .sub { color: #DCE4FA; }
+button.tok { cursor: pointer; font-family: var(--mono); color: var(--ink); }
+.morph { font-family: var(--mono); }
+.morph .b { color: var(--faint); padding: 0 1px; }
+
+mark, .hl-text { background: var(--mark-soft); color: inherit; border-radius: 3px; padding: 0 2px; }
+
+/* readouts */
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 14.5px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-family: var(--mono); font-weight: 700; text-align: right; }
+.big-num { font-size: 30px; font-weight: 700; line-height: 1.1; }
+.big-num small { font-size: 15px; font-weight: 400; color: var(--muted); margin-left: 6px; }
+
+.bars { display: grid; gap: 6px; }
+.bar { display: grid; grid-template-columns: minmax(70px, 34%) 1fr auto; gap: 8px; align-items: center; font-size: 14px; }
+.bar .lab { overflow-wrap: anywhere; line-height: 1.3; }
+.bar .track { background: var(--soft); border: 1px solid var(--line); border-radius: 4px; height: 16px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--pen); border-radius: 3px 0 0 3px; transition: width .35s ease; }
+.bar .num { font-family: var(--mono); font-size: 13px; min-width: 46px; text-align: right; }
+
+table.grid { border-collapse: collapse; font-size: 14px; width: 100%; }
+table.grid th, table.grid td { border: 1px solid var(--line); padding: 5px 7px; text-align: center; }
+table.grid th { background: var(--soft); font-weight: 600; }
+table.grid td.l, table.grid th.l { text-align: left; }
+table.grid td.num { font-family: var(--mono); }
+table.grid tr.sel td { background: var(--mark-soft); }
+.scroll-x { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+.status { border-radius: var(--r-sm); padding: 8px 12px; font-size: 14.5px; background: var(--soft); border: 1px solid var(--line); }
+.status.good { background: var(--good-soft); border-color: #A9DCC2; }
+.status.bad { background: var(--bad-soft); border-color: #F0B7B2; }
+.status.note { background: var(--mark-soft); border-color: #E8C33A; }
+
+canvas.viz { display: block; width: 100%; touch-action: none; border-radius: var(--r-sm); }
+.viz-wrap { position: relative; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; font-size: 13px; padding: 4px 8px; border-radius: 4px; white-space: nowrap; transform: translate(-50%, -120%); }
+
+/* notes: theory, experiments, quiz */
+.notes { margin: 44px 0 0; }
+.notes > section { margin: 0 0 34px; }
+.notes .text { margin-top: 14px; max-width: 76ch; }
+.notes .text p { margin: 0 0 12px; }
+.notes .text code, .notes li code { font-family: var(--mono); background: var(--soft); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; font-size: 14.5px; }
+.formula { font-family: var(--mono); background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--pen); border-radius: var(--r-sm); padding: 10px 14px; margin: 10px 0 14px; overflow-x: auto; white-space: pre-wrap; }
+ol.exp { margin: 14px 0 0; padding-left: 26px; max-width: 76ch; }
+ol.exp li { margin: 0 0 10px; padding-left: 4px; }
+
+.quiz { display: grid; gap: 14px; margin-top: 16px; max-width: 820px; }
+.quiz .q { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
+.quiz .q p { margin: 0 0 10px; font-weight: 600; }
+.quiz .opts { display: grid; gap: 6px; }
+.quiz .opt { font: inherit; text-align: left; background: var(--soft); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 12px; cursor: pointer; color: var(--ink); }
+.quiz .opt:hover { border-color: var(--pen); }
+.quiz .opt.right { background: var(--good-soft); border-color: var(--good); }
+.quiz .opt.wrong { background: var(--bad-soft); border-color: var(--bad); }
+.quiz .fb { margin-top: 10px; font-size: 14.5px; }
+.quiz .fb b { margin-right: 4px; }
+.quiz-score { font-weight: 600; margin-top: 4px; }
+
+.practice { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--mark); border-radius: var(--r); padding: 16px 18px; max-width: 820px; }
+.practice p { margin: 0 0 12px; }
+.practice a.btn { text-decoration: none; display: inline-block; }
+
+footer { margin: 50px 0 0; padding: 22px 0 40px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+
+@media (max-width: 600px) {
+  body { font-size: 15.5px; }
+  .lab-head .lead { font-size: 16.5px; }
+  .panel { padding: 13px; }
+  .part > h2, .notes h2 { font-size: 21px; }
+  .bar { grid-template-columns: minmax(60px, 38%) 1fr auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+</style>
+</head>
+<body>
+<nav class="topnav" aria-label="Оглавление"><div class="wrap">
+  <a class="course" href="../index.html">Оглавление</a>
+  <span class="pager">
+    <a href="16_llm_prompting.html" class="" rel="prev">‹ Назад</a>
+    <a href="18_metrics_bleu_rouge_f1.html" class="" rel="next">Далее ›</a>
+  </span>
+</div></nav>
+<div class="wrap">
+<header class="lab-head">
+  <p class="lab-no">Лаборатория 17 из 18</p>
+  <h1>Стресс-тест NLP на узбекской морфологии</h1>
+  <p class="lead">Почему методы, придуманные для английского, ломаются на агглютинативном языке: взрыв числа словоформ, закон Хипса и слова вне словаря, токенизаторы, режущие поперёк морфем, и простые опечатки, которые валят наивный конвейер.</p>
+  <p class="topic">Тема курса: Стресс-тестирование алгоритмов NLP на морфологии агглютинативных языков</p>
+</header>
+<main id="lab">
+<style>
+.slots { display: grid; gap: 8px; }
+.slot { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 10px; background: var(--soft); transition: background .25s, border-color .25s; }
+.slot.on { background: #fff; border-color: #B8C6EA; }
+.slot.fresh { background: var(--mark-soft); border-color: #E8C33A; }
+.slot .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.slot .top .check { margin: 0; font-weight: 600; }
+.slot .mult { font-family: var(--mono); font-weight: 700; color: var(--pen); }
+.slot.off .mult { color: var(--faint); }
+.slot .seg { margin-top: 6px; }
+.slot .seg button { font-family: var(--mono); font-size: 13px; padding: 3px 9px; min-height: 28px; }
+.slot.off .seg { opacity: .45; }
+.word-big { font-family: var(--mono); font-size: clamp(22px, 4.6vw, 32px); font-weight: 700; margin: 4px 0 10px; overflow-wrap: anywhere; }
+.word-big .b { color: var(--faint); font-weight: 400; }
+.count-big { font-size: 34px; font-weight: 700; line-height: 1.1; font-family: var(--mono); }
+.count-eq { font-family: var(--mono); font-size: 14px; color: var(--muted); margin-top: 4px; overflow-wrap: anywhere; }
+.forms { display: flex; flex-wrap: wrap; gap: 4px; max-height: 250px; overflow-y: auto; padding: 2px; }
+.forms button { font-family: var(--mono); font-size: 12.5px; border: 1px solid var(--line); background: var(--soft); border-radius: 4px; padding: 2px 6px; cursor: pointer; color: var(--ink); }
+.forms button.new { background: var(--mark-soft); border-color: #E8C33A; }
+.forms button.cur { background: var(--pen); color: #fff; border-color: var(--pen); }
+.segw { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 7px 0; border-top: 1px solid var(--line); }
+.segw:first-child { border-top: 0; }
+.segw .g { font-size: 12px; color: var(--muted); }
+.segline { display: flex; flex-wrap: wrap; align-items: stretch; font-family: var(--mono); font-size: 15px; row-gap: 4px; }
+.segline .pc { padding: 2px 3px; background: var(--soft); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.segline .bd { width: 3px; border-radius: 2px; margin: 0 1px; }
+.segline .bd.ok { background: var(--good); }
+.segline .bd.bad { background: var(--bad); }
+.segline .bd.miss { background: repeating-linear-gradient(to bottom, var(--faint) 0 3px, transparent 3px 6px); }
+.segline .bd.edge { width: 1px; background: var(--line); }
+.segline .stat { margin-left: auto; padding-left: 10px; font-size: 12px; color: var(--muted); align-self: center; white-space: nowrap; }
+.cat-pill { display: inline-block; font-size: 11.5px; border-radius: 999px; padding: 0 7px; background: var(--soft); border: 1px solid var(--line); color: var(--muted); font-family: var(--font); margin-top: 2px; }
+table.grid td.pass { background: var(--good-soft); color: var(--good); font-weight: 700; }
+table.grid td.fail { background: var(--bad-soft); color: var(--bad); font-weight: 700; }
+table.grid td.wait { color: var(--faint); }
+table.grid tr.cur td { box-shadow: inset 0 3px 0 var(--mark), inset 0 -3px 0 var(--mark); }
+table.grid tr.cur td:first-child { box-shadow: inset 3px 3px 0 var(--mark), inset 0 -3px 0 var(--mark); }
+table.grid tr.cur td:last-child { box-shadow: inset -3px 3px 0 var(--mark), inset 0 -3px 0 var(--mark); }
+table.grid tr.click { cursor: pointer; }
+table.grid td.inp { font-family: var(--mono); text-align: left; }
+table.grid td.gl { text-align: left; font-size: 13px; color: var(--muted); }
+.trace { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.trace li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 6px; font-size: 14px; align-items: baseline; }
+.trace li i { font-style: normal; font-weight: 700; text-align: center; color: var(--muted); }
+.trace li.ok i { color: var(--good); }
+.trace li.no i { color: var(--bad); }
+.trace li code { font-family: var(--mono); background: var(--soft); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; overflow-wrap: anywhere; }
+.acc-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.acc-row .big-num { font-size: 28px; }
+.acc-row .lbl { font-size: 13px; color: var(--muted); }
+.tbl-wrap { max-height: 560px; overflow: auto; }
+.tbl-wrap thead th { position: sticky; top: 0; z-index: 1; box-shadow: inset 0 -1px 0 var(--line); }
+.gl-in { display: none; font-family: var(--font); font-size: 12px; color: var(--muted); white-space: normal; }
+@media (max-width: 600px) {
+  table.grid td.gl, table.grid th.glh { display: none; }
+  .gl-in { display: block; }
+  .tbl-wrap table.grid td, .tbl-wrap table.grid th { padding: 4px 5px; }
+}
+</style>
+
+<section class="part" id="p1">
+  <h2>Взрыв словоформ</h2>
+  <p class="intro">Выберите корень и включайте суффиксные позиции. Каждая позиция умножает число форм. «Пуск» включает позиции по одной. Нажмите на любую форму в списке, чтобы разобрать её.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <div id="fx-pos"></div>
+        <div id="fx-root"></div>
+        <div class="slots" id="fx-slots"></div>
+        <div class="spacer"></div>
+        <div id="fx-player"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <h3>Словоформа</h3>
+        <div class="word-big" id="fx-word"></div>
+        <div id="fx-gloss"></div>
+        <p class="small muted" id="fx-rules" style="margin:10px 0 0"></p>
+      </div>
+      <div class="panel">
+        <h3>Сколько форм</h3>
+        <div class="count-big" id="fx-count"></div>
+        <div class="count-eq" id="fx-eq"></div>
+        <p class="tiny muted" style="margin:6px 0 0">Произведение числа вариантов в каждой включённой позиции (пустой вариант тоже считается).</p>
+      </div>
+      <div class="panel">
+        <h3>Формы одного слова в разных языках</h3>
+        <div id="fx-compare"></div>
+        <p class="tiny muted" style="margin:8px 0 0">В генераторе только часть узбекских суффиксов. Есть ещё сказуемостные окончания (uydaman «я дома»), -chi, -gina, деепричастия, причастия, наклонения. Реальное число форм глагола исчисляется тысячами.</p>
+      </div>
+    </div>
+  </div>
+  <div class="panel" style="margin-top:16px">
+    <h3>Все формы</h3>
+    <p class="small muted" id="fx-forms-n" style="margin:-6px 0 8px"></p>
+    <div class="forms" id="fx-forms"></div>
+  </div>
+</section>
+
+<section class="part" id="p2">
+  <h2>Закон Хипса и слова вне словаря</h2>
+  <p class="intro">Три смоделированных корпуса: в «англоподобном» у слова 4 формы, в «русскоподобном» 12, в «узбекоподобном» 168 (как у существительного в генераторе выше). Нажмите «Пуск»: корпус растёт на 8 тыс. словоупотреблений за шаг, а графики показывают размер словаря и долю незнакомых слов в тестовом тексте.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <h3>Размер словаря V в зависимости от размера корпуса N (N в тыс. словоупотреблений)</h3>
+        <div id="hp-legend"></div>
+        <div id="hp-heaps"></div>
+        <h3 style="margin-top:14px">Доля слов тестового текста, которых нет в словаре (OOV), по тому же N</h3>
+        <div id="hp-oov"></div>
+        <div class="spacer"></div>
+        <div class="status note small" id="hp-status"></div>
+        <div class="spacer"></div>
+        <div id="hp-player"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <div id="hp-count"></div>
+        <p class="small" id="hp-n" style="margin:0 0 8px"></p>
+        <div id="hp-table"></div>
+        <p class="tiny muted" style="margin:8px 0 0">β — показатель в законе Хипса V ≈ K · N^β, найденный по точкам графика (прямая на логарифмической шкале). Чем ближе β к 1, тем быстрее растёт словарь.</p>
+      </div>
+      <div class="panel"><p class="small muted" style="margin:0">Это симуляция, а не настоящие корпуса. Леммы во всех трёх языках выбираются одинаково, по закону Ципфа из 4000 лемм; отличается только число форм у леммы. Тестовый текст: 5000 словоупотреблений из того же распределения.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="part" id="p3">
+  <h2>Токенизаторы против морфем</h2>
+  <p class="intro">BPE учится на 30 узбекских предложениях. Каждый «Шаг» — одно слияние самой частой пары. Следите, как режутся длинные формы (большинства из них в корпусе нет): зелёная граница совпадает с границей морфем, красная проходит внутри морфемы, серый штрих — пропущенная граница.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <div id="bp-words"></div>
+        <div class="spacer"></div>
+        <label class="small" for="bp-own" style="display:block;margin-bottom:4px">Своё слово (морфемы через дефис)</label>
+        <input type="text" id="bp-own" value="kitob-lar-imiz-ning">
+        <div id="bp-ownseg" style="margin-top:6px"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <div id="bp-slider"></div>
+        <div class="status note small" id="bp-last"></div>
+        <div class="spacer"></div>
+        <div id="bp-player"></div>
+      </div>
+      <div class="panel">
+        <h3>Сравнение токенизаторов</h3>
+        <div id="bp-table"></div>
+        <p class="tiny muted" style="margin:8px 0 0">Точность: какая доля границ токенизатора совпадает с границами морфем. Полнота: какая доля границ морфем найдена.</p>
+      </div>
+    </div>
+  </div>
+  <div class="stage even" style="margin-top:16px">
+    <div class="panel">
+      <h3>Токенов на слово</h3>
+      <div id="bp-fert-legend"></div>
+      <div id="bp-fert"></div>
+    </div>
+    <div class="panel">
+      <h3>Точность и полнота границ</h3>
+      <div id="bp-pr-legend"></div>
+      <div id="bp-pr"></div>
+    </div>
+  </div>
+</section>
+
+<section class="part" id="p4">
+  <h2>Стресс-тест: опечатки, письменности и чередования</h2>
+  <p class="intro">Две наивные системы ищут лемму слова: точный поиск в словаре и стеммер, отрезающий суффиксы. На них подаются 26 трудных форм. Включайте исправления справа и смотрите, как растёт точность. «Пуск» прогоняет тест по одному слову.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <div class="tbl-wrap" id="st-table"></div>
+        <div class="spacer"></div>
+        <div class="status note small" id="st-status"></div>
+        <div class="spacer"></div>
+        <div id="st-player"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <h3>Исправления</h3>
+        <div id="st-fixes"></div>
+        <p class="tiny muted" style="margin:6px 0 0">Первые три исправления — нормализация (тема 2), последние два — морфологические правила (тема 3). Поиск в словаре пользуется только нормализацией.</p>
+      </div>
+      <div class="panel">
+        <h3>Точность</h3>
+        <div class="acc-row" id="st-acc"></div>
+        <h3 style="margin-top:14px">Стеммер по видам трудностей</h3>
+        <div id="st-cats"></div>
+      </div>
+      <div class="panel">
+        <h3>Как система обработала слово</h3>
+        <div id="st-trace"></div>
+      </div>
+    </div>
+  </div>
+  <div class="status small" id="st-still" style="margin-top:16px">Даже со всеми исправлениями стеммер не справляется со словообразовательными суффиксами (-cha, -jon): их нет в его списке. Каждый новый суффикс — новое правило, поэтому на практике нужен морфологический анализатор (тема 3) или подсловная модель (тема 2).</div>
+</section>
+
+</main>
+<div class="notes">
+  <section><h2>Как это устроено</h2><div class="text">
+<p>В <b>агглютинативном</b> языке каждое грамматическое значение выражено отдельным суффиксом, а суффиксы нанизываются в строгом порядке: корень → число → принадлежность → падеж → частицы (kitob-lar-imiz-dan «из наших книг»). У глагола свои позиции: залог, отрицание, время, лицо, вопрос. Число форм равно произведению числа вариантов в каждой позиции:</p>
+<div class="formula">2 (число) × 6 (принадлежность) × 7 (падеж и -dagi) × 2 (-mi) = 168 форм одного существительного</div>
+<p>Суффиксы меняют облик на стыках: после гласного -(i)m теряет гласный (bola-m), k и q перед гласным озвончаются (terak → teragi, qishloq → qishlogʻi), в некоторых корнях выпадает гласный (ogʻiz → ogʻzi, burun → burni, shahar → shahri), дательный -ga после k и q становится -ka и -qa.</p>
+<p>Для NLP это значит, что словарь словоформ растёт почти без предела. <b>Закон Хипса</b> описывает рост числа разных слов V с размером корпуса N:</p>
+<div class="formula">V ≈ K · N^β,   0 &lt; β &lt; 1</div>
+<p>Чем больше форм у слова, тем ближе β к 1 и тем больше в новом тексте слов, которых модель не видела (<b>OOV</b>, out of vocabulary). Если считать не формы, а леммы, кривые трёх языков совпадают: лемматизация (тема 3) или разбиение на подслова (тема 2) возвращают задачу к размеру словаря английского.</p>
+<p><b>Фертильность токенизатора</b> — среднее число токенов на слово. Токенизатор по пробелам даёт 1 токен, но каждая новая форма для него неизвестна. BPE режет слово на частые куски, но эти куски не обязаны совпадать с морфемами: граница может пройти внутри суффикса (-l|ar), а частые цепочки суффиксов сливаются в один токен (-larimiz). Качество разбиения измеряют <b>точностью и полнотой границ</b> относительно морфемной разметки.</p>
+<p><b>Стресс-тест</b> проверяет систему на трудных, но реальных входах. Для узбекского это варианты апострофа (oʻ, o', o`, o‘), две письменности (латиница и кириллица), заглавные буквы, длинные цепочки суффиксов и чередования в основе. Наивный конвейер «точное совпадение со словарём» проваливает почти все случаи. Каждое исправление — нормализация или правило — чинит свою группу ошибок. Таблица по видам трудностей показывает, что ещё сломано, а не только общую точность.</p>
+<p>Русский — флективный язык: одно окончание выражает сразу падеж и число (книг-ами), форм у слова меньше (12 клеток у существительного), но окончания многозначны. Поэтому кривая Хипса у русского лежит между английской и узбекской.</p></div></section>
+  <section><h2>Эксперименты</h2><ol class="exp"><li>В части 1 выберите «qishloq» и включите только «Принадлежность». Какие формы изменили корень и по какому правилу? Добавьте «Число»: почему чередование исчезло?</li>
+<li>Нажмите «Пуск» в части 1 для существительного, затем для глагола. Какая позиция дала самый большой прирост числа форм? Сравните итог со столбиком русской «книги».</li>
+<li>В части 2 нажмите «Пуск» и дождитесь конца. Во сколько раз OOV узбекоподобного корпуса больше англоподобного при N = 256 тыс.? Переключитесь на «леммы»: что случилось с кривыми и почему?</li>
+<li>В части 3 нажимайте «Шаг» и следите за словом kitoblarimizdagilardan. После скольких слияний -lar впервые становится одним токеном? Найдите число слияний, при котором точность границ максимальна, и посмотрите, что при этом с полнотой.</li>
+<li>Введите в части 3 своё слово с морфемами через дефис, например «doʻst-lar-ingiz-dan». Какие границы BPE нашёл, а какие пропустил?</li>
+<li>В части 4 включайте исправления по одному и записывайте точность стеммера. Какое исправление дало самый большой прирост? Какие две строки остаются красными при всех исправлениях и почему?</li></ol></section>
+  <section><h2>Проверь себя</h2><div class="quiz" id="quiz"></div></section>
+  <section><h2>Практикум</h2>
+    <div class="practice" style="margin-top:14px"><p>Тот же алгоритм на настоящем коде Python. Ноутбук открывается в Google Colab, ничего устанавливать не нужно.</p><a class="btn" id="colab" href="../notebooks/17_agglutinative_stress.ipynb">Скачать практикум (.ipynb)</a></div>
+  </section>
+</div>
+<footer>Виртуальная лаборатория курса «Алгоритмы NLP». Работает в браузере, без установки и без интернета. <a href="../../uz/labs/17_agglutinative_stress.html" lang="uz">Oʻzbekcha</a></footer>
+</div>
+<script src="../../config.js"></script>
+<script>
+const LANG = "ru";
+const META = {"n":17,"slug":"17_agglutinative_stress","total":18};
+const UI = {"toc": "Оглавление",
+"prev": "Назад",
+"next": "Далее",
+"labOf": (n, total) => `Лаборатория ${n} из ${total}`,
+"topic": "Тема курса",
+"play": "Пуск",
+"pause": "Пауза",
+"step": "Шаг",
+"reset": "Сначала",
+"speed": "Скорость",
+"how": "Как это устроено",
+"experiments": "Эксперименты",
+"quiz": "Проверь себя",
+"correct": "Верно.",
+"wrong": "Не совсем.",
+"tryAgain": "Попробуйте другой вариант.",
+"score": (a, b) => `Правильных ответов: ${a} из ${b}`,
+"colab": "Открыть практикум в Colab",
+"nbDownload": "Скачать практикум (.ipynb)",
+"practice": "Практикум",
+"practiceText": "Тот же алгоритм на настоящем коде Python. Ноутбук открывается в Google Colab, ничего устанавливать не нужно.",
+"langName": "Русский",
+"otherLang": "Oʻzbekcha",
+"footer": "Виртуальная лаборатория курса «Алгоритмы NLP». Работает в браузере, без установки и без интернета."};
+const L = {"title":"Стресс-тест NLP на узбекской морфологии","lead":"Почему методы, придуманные для английского, ломаются на агглютинативном языке: взрыв числа словоформ, закон Хипса и слова вне словаря, токенизаторы, режущие поперёк морфем, и простые опечатки, которые валят наивный конвейер.","m":{"nouns":[{"w":"kitob"},{"w":"uy"},{"w":"bola"},{"w":"maktab"},{"w":"qishloq"},{"w":"terak"},{"w":"ogʻiz","drop":"ogʻz"},{"w":"burun","drop":"burn"},{"w":"shahar","drop":"shahr"},{"w":"oʻgʻil","drop":"oʻgʻl"}],"verbs":[{"w":"yoz","caus":"dir"},{"w":"oʻqi","caus":"t"},{"w":"kel","caus":"tir"},{"w":"ishla","caus":"t"}],"noun_slots":[{"id":"pl","opts":[null,"lar"],"labs":["—","-lar"]},{"id":"poss","opts":[null,["m","im"],["ng","ing"],["si","i"],["miz","imiz"],["ngiz","ingiz"]],"labs":["—","-(i)m","-(i)ng","-(s)i","-(i)miz","-(i)ngiz"]},{"id":"case","opts":[null,"ning","ni","ga","da","dan","dagi"],"labs":["—","-ning","-ni","-ga","-da","-dan","-dagi"]},{"id":"q","opts":[null,"mi"],"labs":["—","-mi"]}],"verb_slots":[{"id":"caus","opts":[null,"caus"],"labs":["—","-dir/-t/-tir"]},{"id":"neg","opts":[null,"ma"],"labs":["—","-ma"]},{"id":"tense","req":true,"def":0,"opts":["past","pres","prog"],"labs":["-di","-a/-y","-yap"]},{"id":"pers","req":true,"def":2,"opts":[0,1,2,3,4,5],"labs":["1 sg","2 sg","3 sg","1 pl","2 pl","3 pl"]},{"id":"q","opts":[null,"mi"],"labs":["—","-mi"]}],"person":{"past":["m","ng","","k","ngiz","lar"],"pres":["man","san","di","miz","siz","dilar"],"prog":["man","san","ti","miz","siz","tilar"]},"corpus":["kitoblar stol ustida turibdi","bu kitobni kutubxonadan oldim","kitobimiz juda qiziqarli ekan","talabalar kutubxonaga bordilar","biz uyimizda kitob oʻqiymiz","uylarimiz maktabga yaqin","maktabimizda katta kutubxona bor","oʻqituvchimiz talabalarga kitob berdi","talabalarimiz imtihondan oʻtdilar","doʻstlarim shahardan keldilar","shahrimizdagi maktablar yangi","kutubxonadagi kitoblarni oʻqidingizmi","bolalar hovlida oʻynayaptilar","bolalarimiz maktabdan qaytdilar","men xat yozdim","u kitob yozyapti","biz maktabda ishlaymiz","oʻqituvchilar yigʻilishda gapirdilar","qishlogʻimizdagi uylar chiroyli","doʻstimning kitobini oʻqidim","ular kutubxonada ishlayaptilar","kitoblaringizni stolga qoʻying","talabaning daftari qayerda","maktablarda imtihonlar boshlandi","bolalarning daftarlari stolda","uyingizdan maktabgacha uzoqmi","doʻstlarimizga xat yozdik","kutubxonamizdagi kitoblar eski","talabalar uylariga qaytdilar","oʻqituvchimizning kitobi yangi"],"seg_words":["kitob-lar-imiz-dagi-lar-dan","uy-lar-imiz-da","oʻqituvchi-lar-imiz-ga","maktab-lar-imiz-dagi","talaba-lar-ingiz-ning","kutubxona-lar-imiz-dan","doʻst-lar-imiz-ga","bola-lar-ingiz-ni","shahr-imiz-dagi-lar","qishlogʻ-imiz-da","yoz-dir-ma-di-ngiz-mi","oʻqi-yap-ti-lar","talaba-lar-imiz","maktab-imiz-da"],"lexicon":["kitob","maktab","uy","bola","oʻqituvchi","oʻquvchi","qishloq","terak","yurak","ogʻiz","burun","shahar","oʻgʻil","sheʼr","maʼno","toshkent","samarqand","daftar","talaba"],"suffixes":["lar","im","ing","i","si","imiz","ingiz","m","ng","miz","ngiz","ning","ni","ga","ka","qa","da","dan","dagi","mi"],"cyr":{"а":"a","б":"b","в":"v","г":"g","д":"d","е":"e","ё":"yo","ж":"j","з":"z","и":"i","й":"y","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r","с":"s","т":"t","у":"u","ф":"f","х":"x","ц":"ts","ч":"ch","ш":"sh","ъ":"ʼ","ь":"","э":"e","ю":"yu","я":"ya","ў":"oʻ","қ":"q","ғ":"gʻ","ҳ":"h"},"cases":[["kitob","kitob","clean"],["maktabda","maktab","suf"],["terakka","terak","suf"],["kitoblarimizdan","kitob","stack"],["uylarimizdagilardan","uy","stack"],["bolalaringizning","bola","stack"],["o'qituvchi","oʻqituvchi","apos"],["o`g`il","oʻgʻil","apos"],["she'r","sheʼr","apos"],["ma’nosi","maʼno","apos"],["o‘quvchilar","oʻquvchi","apos"],["китоб","kitob","cyr"],["мактабда","maktab","cyr"],["ўқитувчи","oʻqituvchi","cyr"],["Toshkentda","toshkent","caps"],["SAMARQANDGA","samarqand","caps"],["teragi","terak","alt"],["yuragim","yurak","alt"],["qishlogʻimizda","qishloq","alt"],["ogʻzi","ogʻiz","vow"],["burnimda","burun","vow"],["shahrimizdagi","shahar","vow"],["qishlog'imizga","qishloq","mix"],["ўғлим","oʻgʻil","mix"],["kitobcham","kitob","deriv"],["bolajonim","bola","deriv"]]},"p1_title":"Взрыв словоформ","p1_intro":"Выберите корень и включайте суффиксные позиции. Каждая позиция умножает число форм. «Пуск» включает позиции по одной. Нажмите на любую форму в списке, чтобы разобрать её.","pos_label":"Часть речи","pos_noun":"существительное","pos_verb":"глагол","root_label":"Корень","noun_g":["книга","дом","ребёнок","школа","село","тополь","рот","нос","город","сын"],"verb_g":["писать","читать","приходить","работать"],"slot_names":{"pl":"Число","poss":"Принадлежность","case":"Падеж и -dagi","q":"Вопрос -mi","caus":"Понудительный залог","neg":"Отрицание","tense":"Время","pers":"Лицо и число"},"slot_g":{"pl":["","мн. ч."],"poss":["","мой","твой","его, её","наш","ваш"],"case":["","род. п.","вин. п.","дат. п.","мест. п.","исх. п.","«находящийся в»"],"q":["","вопрос"],"caus":["","понуд."],"neg":["","не"],"tense":["прош. вр.","наст.-буд. вр.","наст. длит."],"pers":["я","ты","он, она","мы","вы","они"]},"word_title":"Словоформа","rules_none":"Суффиксы присоединились без изменений.","rule_vowel":"Основа кончается на гласный: суффикс без начального гласного, \u003cb>-%s\u003c/b>.","rule_kq":"Чередование перед гласным: \u003cb>%a → %b\u003c/b>.","rule_drop":"Выпадение гласного перед гласным суффиксом: \u003cb>%a → %b\u003c/b>.","rule_dat":"После k и q дательный -ga уподобляется: \u003cb>-%s\u003c/b>.","rule_pres":"После гласного показатель настоящего времени \u003cb>-y\u003c/b>, после согласного \u003cb>-a\u003c/b>.","count_title":"Сколько форм","count_hint":"Произведение числа вариантов в каждой включённой позиции (пустой вариант тоже считается).","compare_title":"Формы одного слова в разных языках","compare":[{"label":"Английский book","value":2,"note":"book, books"},{"label":"Русский «книга»","value":9,"note":"12 клеток парадигмы, 9 разных строк: книга, книги, книге, книгу, книгой, книг, книгам, книгами, книгах"}],"cmp_noun":"Узбекский, этот генератор: сущ.","cmp_verb":"Узбекский, этот генератор: глагол","compare_note":"В генераторе только часть узбекских суффиксов. Есть ещё сказуемостные окончания (uydaman «я дома»), -chi, -gina, деепричастия, причастия, наклонения. Реальное число форм глагола исчисляется тысячами.","forms_title":"Все формы","forms_count":"%n форм. Новые формы последнего шага выделены.","p2_title":"Закон Хипса и слова вне словаря","p2_intro":"Три смоделированных корпуса: в «англоподобном» у слова 4 формы, в «русскоподобном» 12, в «узбекоподобном» 168 (как у существительного в генераторе выше). Нажмите «Пуск»: корпус растёт на 8 тыс. словоупотреблений за шаг, а графики показывают размер словаря и долю незнакомых слов в тестовом тексте.","sim_note":"Это симуляция, а не настоящие корпуса. Леммы во всех трёх языках выбираются одинаково, по закону Ципфа из 4000 лемм; отличается только число форм у леммы. Тестовый текст: 5000 словоупотреблений из того же распределения.","count_label":"Что считаем","count_forms":"словоформы","count_lemmas":"леммы (после лемматизации)","langs":["англоподобный (4 формы)","русскоподобный (12 форм)","узбекоподобный (168 форм)"],"heaps_title":"Размер словаря V в зависимости от размера корпуса N (N в тыс. словоупотреблений)","oov_title":"Доля слов тестового текста, которых нет в словаре (OOV), по тому же N","table_cols":["Корпус","V","OOV","β"],"at_n":"Корпус: N = %n словоупотреблений.","beta_note":"β — показатель в законе Хипса V ≈ K · N^β, найденный по точкам графика (прямая на логарифмической шкале). Чем ближе β к 1, тем быстрее растёт словарь.","status_start":"Корпус пуст. Каждый «Шаг» добавляет %n словоупотреблений.","status_step":"Прочитано %n словоупотреблений. Словарь узбекоподобного корпуса: V = %v, прирост за шаг: +%d.","p3_title":"Токенизаторы против морфем","p3_intro":"BPE учится на 30 узбекских предложениях. Каждый «Шаг» — одно слияние самой частой пары. Следите, как режутся длинные формы (большинства из них в корпусе нет): зелёная граница совпадает с границей морфем, красная проходит внутри морфемы, серый штрих — пропущенная граница.","merges_label":"Число слияний BPE","last_merge":"Слияние №%n: «%a» + «%b» → «%c» (встречается %f раз).","no_merge":"Слияний ещё нет: каждое слово разбито на буквы.","seg_stat":"%t ток. · границ %b из %g","your_word":"Своё слово (морфемы через дефис)","your_default":"kitob-lar-imiz-ning","methods_title":"Сравнение токенизаторов","methods":["По пробелам","BPE","Морфемы (эталон)"],"m_cols":["Способ","Токенов на слово","Точность границ","Полнота границ"],"m_hint":"Точность: какая доля границ токенизатора совпадает с границами морфем. Полнота: какая доля границ морфем найдена.","fert_title":"Токенов на слово","pr_title":"Точность и полнота границ","leg_bpe":"BPE","leg_morph":"морфемы","leg_p":"точность","leg_r":"полнота","seg_g":["из тех, что в наших книгах","в наших домах","нашим учителям","те, что в наших школах","ваших студентов","из наших библиотек","нашим друзьям","ваших детей (вин. п.)","те, что в нашем городе","в нашем селе","вы не заставили (его) написать?","они читают (сейчас)","наши студенты","в нашей школе"],"p4_title":"Стресс-тест: опечатки, письменности и чередования","p4_intro":"Две наивные системы ищут лемму слова: точный поиск в словаре и стеммер, отрезающий суффиксы. На них подаются 26 трудных форм. Включайте исправления справа и смотрите, как растёт точность. «Пуск» прогоняет тест по одному слову.","sys":["Поиск в словаре","Стеммер"],"fixes_title":"Исправления","fix":{"lower":"Нижний регистр","apos":"Апострофы: ' ` ‘ ’ → ʻ и ʼ","cyr":"Кириллица → латиница","stack":"Отрезать суффиксы многократно","alt":"Правила чередований: g→k, gʻ→q, вставка гласного"},"fix_note":"Первые три исправления — нормализация (тема 2), последние два — морфологические правила (тема 3). Поиск в словаре пользуется только нормализацией.","cols":["Вход и трудность","Перевод","Поиск","Стеммер"],"cat":{"clean":"без изменений","suf":"один суффикс","stack":"цепочка суффиксов","apos":"варианты апострофа","cyr":"кириллица","caps":"заглавные буквы","alt":"k→g, q→gʻ","vow":"выпадение гласного","mix":"смешанное","deriv":"словообразование"},"case_g":["книга","в школе","к тополю","из наших книг","от тех, что в наших домах","ваших детей","учитель","сын","стихотворение","его смысл","ученики","книга","в школе","учитель","в Ташкенте","в Самарканд","его тополь","моё сердце","в нашем селе","его рот","в моём носу","что в нашем городе","в наше село","мой сын","моя книжечка","мой дорогой ребёнок"],"acc_title":"Точность","cat_title":"Стеммер по видам трудностей","trace_title":"Как система обработала слово","trace_hint":"Нажмите на строку таблицы или на «Шаг».","tr":{"in":"вход","lower":"нижний регистр","cyr":"кириллица → латиница","apos":"апострофы","found":"есть в словаре","miss":"нет в словаре","strip":"отрезаем -%s","alt":"чередование: %a → %b","nosuf":"известный суффикс не найден","expect":"ожидалось: %s"},"status_run":"Проверено %n из %t. Поиск: %a верно, стеммер: %b верно.","still":"Даже со всеми исправлениями стеммер не справляется со словообразовательными суффиксами (-cha, -jon): их нет в его списке. Каждый новый суффикс — новое правило, поэтому на практике нужен морфологический анализатор (тема 3) или подсловная модель (тема 2).","theory":"\n\u003cp>В \u003cb>агглютинативном\u003c/b> языке каждое грамматическое значение выражено отдельным суффиксом, а суффиксы нанизываются в строгом порядке: корень → число → принадлежность → падеж → частицы (kitob-lar-imiz-dan «из наших книг»). У глагола свои позиции: залог, отрицание, время, лицо, вопрос. Число форм равно произведению числа вариантов в каждой позиции:\u003c/p>\n\u003cdiv class=\"formula\">2 (число) × 6 (принадлежность) × 7 (падеж и -dagi) × 2 (-mi) = 168 форм одного существительного\u003c/div>\n\u003cp>Суффиксы меняют облик на стыках: после гласного -(i)m теряет гласный (bola-m), k и q перед гласным озвончаются (terak → teragi, qishloq → qishlogʻi), в некоторых корнях выпадает гласный (ogʻiz → ogʻzi, burun → burni, shahar → shahri), дательный -ga после k и q становится -ka и -qa.\u003c/p>\n\u003cp>Для NLP это значит, что словарь словоформ растёт почти без предела. \u003cb>Закон Хипса\u003c/b> описывает рост числа разных слов V с размером корпуса N:\u003c/p>\n\u003cdiv class=\"formula\">V ≈ K · N^β,   0 &lt; β &lt; 1\u003c/div>\n\u003cp>Чем больше форм у слова, тем ближе β к 1 и тем больше в новом тексте слов, которых модель не видела (\u003cb>OOV\u003c/b>, out of vocabulary). Если считать не формы, а леммы, кривые трёх языков совпадают: лемматизация (тема 3) или разбиение на подслова (тема 2) возвращают задачу к размеру словаря английского.\u003c/p>\n\u003cp>\u003cb>Фертильность токенизатора\u003c/b> — среднее число токенов на слово. Токенизатор по пробелам даёт 1 токен, но каждая новая форма для него неизвестна. BPE режет слово на частые куски, но эти куски не обязаны совпадать с морфемами: граница может пройти внутри суффикса (-l|ar), а частые цепочки суффиксов сливаются в один токен (-larimiz). Качество разбиения измеряют \u003cb>точностью и полнотой границ\u003c/b> относительно морфемной разметки.\u003c/p>\n\u003cp>\u003cb>Стресс-тест\u003c/b> проверяет систему на трудных, но реальных входах. Для узбекского это варианты апострофа (oʻ, o', o`, o‘), две письменности (латиница и кириллица), заглавные буквы, длинные цепочки суффиксов и чередования в основе. Наивный конвейер «точное совпадение со словарём» проваливает почти все случаи. Каждое исправление — нормализация или правило — чинит свою группу ошибок. Таблица по видам трудностей показывает, что ещё сломано, а не только общую точность.\u003c/p>\n\u003cp>Русский — флективный язык: одно окончание выражает сразу падеж и число (книг-ами), форм у слова меньше (12 клеток у существительного), но окончания многозначны. Поэтому кривая Хипса у русского лежит между английской и узбекской.\u003c/p>","experiments":["В части 1 выберите «qishloq» и включите только «Принадлежность». Какие формы изменили корень и по какому правилу? Добавьте «Число»: почему чередование исчезло?","Нажмите «Пуск» в части 1 для существительного, затем для глагола. Какая позиция дала самый большой прирост числа форм? Сравните итог со столбиком русской «книги».","В части 2 нажмите «Пуск» и дождитесь конца. Во сколько раз OOV узбекоподобного корпуса больше англоподобного при N = 256 тыс.? Переключитесь на «леммы»: что случилось с кривыми и почему?","В части 3 нажимайте «Шаг» и следите за словом kitoblarimizdagilardan. После скольких слияний -lar впервые становится одним токеном? Найдите число слияний, при котором точность границ максимальна, и посмотрите, что при этом с полнотой.","Введите в части 3 своё слово с морфемами через дефис, например «doʻst-lar-ingiz-dan». Какие границы BPE нашёл, а какие пропустил?","В части 4 включайте исправления по одному и записывайте точность стеммера. Какое исправление дало самый большой прирост? Какие две строки остаются красными при всех исправлениях и почему?"],"quiz":[{"q":"Почему qishloq + -im даёт qishlogʻim, а qishloq + -lar + -im даёт qishloqlarim?","a":["-lar отменяет принадлежность","Чередование q → gʻ происходит только перед гласным, а -lar начинается с согласного","Во множественном числе корень всегда пишется по-другому","Это исключение, его нужно запоминать"],"correct":1,"why":"q озвончается в gʻ между гласными. В qishloq-im суффикс начинается с гласного, а в qishloq-lar-im за q идёт согласный l.","hint":"Посмотрите, с какой буквы начинается суффикс сразу после корня."},{"q":"Показатель β в законе Хипса у узбекоподобного корпуса больше, чем у англоподобного. Что из этого следует?","a":["Узбекский корпус короче","Словарь словоформ растёт быстрее, и в новом тексте больше незнакомых слов","В узбекском меньше лемм","Модели для узбекского обучаются быстрее"],"correct":1,"why":"V ≈ K · N^β: при большом β новые формы продолжают появляться даже в большом корпусе, поэтому доля OOV падает медленно.","hint":"Сравните кривые OOV в части 2."},{"q":"BPE разрезал слово kitoblarimizda как kitob | l | arimiz | da, а эталон kitob | lar | imiz | da. Чему равны точность и полнота границ?","a":["Точность 2/3, полнота 2/3","Точность 1, полнота 1/3","Точность 2/3, полнота 1","Точность 1/3, полнота 2/3"],"correct":0,"why":"У BPE 3 границы: после kitob (верно), после l (неверно), перед da (верно), значит точность 2/3. Из 3 эталонных границ найдены 2 (пропущена граница lar|imiz), значит полнота 2/3.","hint":"Выпишите позиции границ обоих разбиений и найдите общие."},{"q":"Какое исправление нужно, чтобы стеммер нашёл лемму ogʻiz в слове ogʻzi?","a":["Перевод в нижний регистр","Замена апострофов","Правило, восстанавливающее выпавший гласный","Многократное отсечение суффиксов"],"correct":2,"why":"После отсечения -i остаётся ogʻz: такой основы нет в словаре. Нужно правило, которое вставляет выпавший гласный между двумя последними согласными: ogʻz → ogʻiz.","hint":"Посмотрите на трассировку слова ogʻzi в части 4."}]};
+</script>
+<script>
+/* NLP labs: shared helpers. Globals provided by the build before this file: LANG, UI, L, META. */
+"use strict";
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+
+/* h("div", {class: "x", onclick: fn, style: {...}}, child, [children], "text") */
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  if (props) {
+    for (const [k, v] of Object.entries(props)) {
+      if (v == null || v === false) continue;
+      if (k === "class") el.className = v;
+      else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
+      else if (k === "html") el.innerHTML = v;
+      else if (k === "text") el.textContent = v;
+      else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
+      else if (k in el && typeof v !== "string") el[k] = v;
+      else el.setAttribute(k, v === true ? "" : v);
+    }
+  }
+  const add = (c) => {
+    if (c == null || c === false) return;
+    if (Array.isArray(c)) c.forEach(add);
+    else el.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
+  };
+  kids.forEach(add);
+  return el;
+}
+function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
+function mount(target) { return typeof target === "string" ? $(target) : target; }
+
+/* numbers */
+function fmt(x, d = 2) {
+  if (x == null || Number.isNaN(x)) return "–";
+  if (!Number.isFinite(x)) return x > 0 ? "∞" : "−∞";
+  return Number(x).toFixed(d).replace(".", ",").replace("-", "−");
+}
+function pct(x, d = 0) { return fmt(100 * x, d) + "%"; }
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const sum = (a) => a.reduce((s, x) => s + x, 0);
+const argmax = (a) => a.reduce((bi, x, i) => (x > a[bi] ? i : bi), 0);
+function softmax(arr, T = 1) {
+  const m = Math.max(...arr.map((x) => x / T));
+  const e = arr.map((x) => Math.exp(x / T - m));
+  const s = sum(e);
+  return e.map((x) => x / s);
+}
+function dot(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; }
+function norm(a) { return Math.sqrt(dot(a, a)); }
+function cosine(a, b) { const n = norm(a) * norm(b); return n ? dot(a, b) / n : 0; }
+/* deterministic random numbers: const r = rng(42); r() in [0,1) */
+function rng(seed = 1) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function sample(probs, r = Math.random) {
+  let x = r() * sum(probs);
+  for (let i = 0; i < probs.length; i++) { x -= probs[i]; if (x <= 0) return i; }
+  return probs.length - 1;
+}
+
+/* colors */
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+const PALETTE = ["--c1", "--c2", "--c3", "--c4", "--c5", "--c6", "--c7", "--c8"];
+function color(i) { return cssVar(PALETTE[((i % PALETTE.length) + PALETTE.length) % PALETTE.length]); }
+function hexToRgb(hex) {
+  const m = hex.replace("#", "");
+  const n = parseInt(m.length === 3 ? m.split("").map((c) => c + c).join("") : m, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function alpha(hex, a) { const [r, g, b] = hexToRgb(hex); return `rgba(${r},${g},${b},${a})`; }
+/* white -> pen blue scale for heatmaps, t in [0,1] */
+function heatColor(t, base = "--pen") {
+  const [r, g, b] = hexToRgb(cssVar(base));
+  t = clamp(t, 0, 1);
+  return `rgb(${Math.round(lerp(255, r, t))},${Math.round(lerp(255, g, t))},${Math.round(lerp(255, b, t))})`;
+}
+function inkOn(t) { return t > 0.55 ? "#fff" : cssVar("--ink"); }
+
+/* controls ---------------------------------------------------------------- */
+function slider(parent, o) {
+  const fmtv = o.format || ((v) => String(v));
+  const val = h("span", { class: "val" }, fmtv(o.value));
+  const input = h("input", { type: "range", min: o.min, max: o.max, step: o.step ?? 1, value: o.value, "aria-label": o.label });
+  const box = h("div", { class: "ctl" }, h("label", null, h("span", null, o.label), val), input);
+  input.addEventListener("input", () => {
+    const v = parseFloat(input.value);
+    val.textContent = fmtv(v);
+    o.onInput && o.onInput(v);
+  });
+  mount(parent).appendChild(box);
+  return {
+    el: box, input,
+    get value() { return parseFloat(input.value); },
+    set value(v) { input.value = v; val.textContent = fmtv(parseFloat(input.value)); },
+  };
+}
+
+function segmented(parent, o) {
+  let current = o.value;
+  const btns = o.options.map((opt) =>
+    h("button", { type: "button", "aria-pressed": String(opt.value === current), onclick: () => api.set(opt.value, true) }, opt.label));
+  const seg = h("div", { class: "seg", role: "group", "aria-label": o.label || "" }, btns);
+  const box = h("div", { class: "ctl" }, o.label ? h("div", { class: "lbl" }, h("span", null, o.label)) : null, seg);
+  const api = {
+    el: box,
+    get value() { return current; },
+    set(v, fire) {
+      current = v;
+      btns.forEach((b, i) => b.setAttribute("aria-pressed", String(o.options[i].value === v)));
+      if (fire && o.onChange) o.onChange(v);
+    },
+  };
+  mount(parent).appendChild(box);
+  return api;
+}
+
+function button(parent, label, onClick, variant = "") {
+  const b = h("button", { type: "button", class: "btn " + variant, onclick: onClick }, label);
+  mount(parent).appendChild(b);
+  return b;
+}
+
+function checkbox(parent, label, checked, onChange) {
+  const input = h("input", { type: "checkbox", checked: !!checked });
+  input.addEventListener("change", () => onChange && onChange(input.checked));
+  const box = h("label", { class: "check" }, input, h("span", null, label));
+  mount(parent).appendChild(box);
+  return input;
+}
+
+/* Play / Pause / Step / Reset with a speed slider.
+   o.step() advances one step and returns false when the process is finished.
+   o.reset() restores the initial state. o.interval: base delay in ms. */
+function player(parent, o) {
+  let timer = null;
+  let speed = o.speed ?? 3;
+  const delay = () => (o.interval ?? 700) * Math.pow(0.6, speed - 3);
+  const playBtn = h("button", { type: "button", class: "btn", onclick: () => (timer ? stop() : start()) }, UI.play);
+  const stepBtn = h("button", { type: "button", class: "btn ghost", onclick: () => { stop(); doStep(); } }, UI.step);
+  const resetBtn = h("button", { type: "button", class: "btn ghost", onclick: () => { stop(); o.reset(); } }, UI.reset);
+  const sp = h("input", { type: "range", min: 1, max: 5, step: 1, value: speed, "aria-label": UI.speed });
+  sp.addEventListener("input", () => { speed = +sp.value; if (timer) { stop(); start(); } });
+  const box = h("div", { class: "player" }, playBtn, stepBtn, resetBtn, o.noSpeed ? null : h("span", { class: "speed" }, UI.speed, sp));
+  mount(parent).appendChild(box);
+  function doStep() { const more = o.step(); if (more === false) stop(); return more; }
+  function start() {
+    if (o.canStep && !o.canStep()) o.reset();
+    playBtn.textContent = UI.pause;
+    timer = setInterval(() => { if (doStep() === false) stop(); }, delay());
+    o.onPlay && o.onPlay();
+  }
+  function stop() { if (timer) clearInterval(timer); timer = null; playBtn.textContent = UI.play; }
+  return { el: box, start, stop, get playing() { return !!timer; } };
+}
+
+/* Responsive HiDPI canvas.
+   o.height (px) or o.aspect (h/w); o.draw(ctx, w, h); pointer callbacks get {x, y} in CSS pixels. */
+function canvasBox(parent, o) {
+  const cv = h("canvas", { class: "viz", role: "img", "aria-label": o.label || "" });
+  const wrap = h("div", { class: "viz-wrap" }, cv);
+  mount(parent).appendChild(wrap);
+  const ctx = cv.getContext("2d");
+  let W = 0, H = 0;
+  function size() {
+    const w = Math.max(10, wrap.clientWidth);
+    const hh = o.height ? (typeof o.height === "function" ? o.height(w) : o.height) : Math.round(w * (o.aspect || 0.6));
+    const dpr = window.devicePixelRatio || 1;
+    if (w !== W || hh !== H || cv.width !== Math.round(w * dpr)) {
+      W = w; H = hh;
+      cv.width = Math.round(w * dpr); cv.height = Math.round(hh * dpr);
+      cv.style.height = hh + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+  }
+  function redraw() { size(); ctx.clearRect(0, 0, W, H); o.draw && o.draw(ctx, W, H); }
+  const pos = (e) => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  let down = false;
+  cv.addEventListener("pointerdown", (e) => { down = true; try { cv.setPointerCapture(e.pointerId); } catch (_) {} o.onDown && o.onDown(pos(e), e); });
+  cv.addEventListener("pointermove", (e) => { if (down) o.onDrag && o.onDrag(pos(e), e); else o.onHover && o.onHover(pos(e), e); });
+  cv.addEventListener("pointerup", (e) => { down = false; o.onUp && o.onUp(pos(e), e); });
+  cv.addEventListener("pointerleave", () => { if (!down && o.onLeave) o.onLeave(); });
+  if (window.ResizeObserver) new ResizeObserver(() => redraw()).observe(wrap);
+  else window.addEventListener("resize", redraw);
+  requestAnimationFrame(redraw);
+  return { canvas: cv, wrap, ctx, redraw, get w() { return W; }, get h() { return H; } };
+}
+
+/* canvas text helpers */
+function font(px, weight = 400, mono = false) { return `${weight} ${px}px ${mono ? cssVar("--mono") : cssVar("--font")}`; }
+function text(ctx, s, x, y, o = {}) {
+  ctx.save();
+  ctx.font = font(o.size || 13, o.weight || 400, o.mono);
+  ctx.fillStyle = o.color || cssVar("--ink");
+  ctx.textAlign = o.align || "left";
+  ctx.textBaseline = o.base || "middle";
+  if (o.bg) {
+    const m = ctx.measureText(s), pad = 3, tw = m.width, th = (o.size || 13) + 4;
+    let bx = x - (o.align === "center" ? tw / 2 : o.align === "right" ? tw : 0);
+    ctx.fillStyle = o.bg; ctx.fillRect(bx - pad, y - th / 2, tw + 2 * pad, th);
+    ctx.fillStyle = o.color || cssVar("--ink");
+  }
+  ctx.fillText(s, x, y);
+  ctx.restore();
+}
+function roundRect(ctx, x, y, w, hh, r) {
+  r = Math.min(r, w / 2, hh / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + hh, r); ctx.arcTo(x + w, y + hh, x, y + hh, r);
+  ctx.arcTo(x, y + hh, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function arrow(ctx, x1, y1, x2, y2, o = {}) {
+  ctx.save();
+  ctx.strokeStyle = ctx.fillStyle = o.color || cssVar("--ink");
+  ctx.lineWidth = o.width || 1.5;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  const a = Math.atan2(y2 - y1, x2 - x1), s = o.head || 8;
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - s * Math.cos(a - 0.4), y2 - s * Math.sin(a - 0.4));
+  ctx.lineTo(x2 - s * Math.cos(a + 0.4), y2 - s * Math.sin(a + 0.4));
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+/* Simple line chart on a canvas. series: [{values:[...], color, label, dash}] ; o: {xLabels, yMin, yMax, yFmt, title, markX} */
+function lineChart(ctx, W, H, series, o = {}) {
+  const pad = { l: 44, r: 12, t: o.title ? 24 : 10, b: 26 };
+  const n = Math.max(1, ...series.map((s) => s.values.length));
+  const all = series.flatMap((s) => s.values.filter((v) => Number.isFinite(v)));
+  let y0 = o.yMin ?? Math.min(0, ...all), y1 = o.yMax ?? Math.max(1e-9, ...all);
+  if (y1 === y0) y1 = y0 + 1;
+  const X = (i) => pad.l + (n === 1 ? 0 : (i / (n - 1)) * (W - pad.l - pad.r));
+  const Y = (v) => H - pad.b - ((v - y0) / (y1 - y0)) * (H - pad.t - pad.b);
+  ctx.save();
+  ctx.strokeStyle = cssVar("--line"); ctx.lineWidth = 1;
+  for (let k = 0; k <= 4; k++) {
+    const v = y0 + (k / 4) * (y1 - y0), y = Y(v);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+    text(ctx, (o.yFmt || ((x) => fmt(x, 2)))(v), pad.l - 6, y, { align: "right", size: 11, color: cssVar("--muted") });
+  }
+  if (o.title) text(ctx, o.title, pad.l, 10, { size: 12.5, weight: 600, color: cssVar("--muted") });
+  const labels = o.xLabels || [];
+  const every = Math.ceil(labels.length / Math.max(1, Math.floor((W - pad.l) / 46)));
+  labels.forEach((lab, i) => { if (i % every === 0) text(ctx, String(lab), X(i), H - pad.b + 13, { align: "center", size: 11, color: cssVar("--muted") }); });
+  if (o.markX != null) {
+    ctx.strokeStyle = cssVar("--mark"); ctx.lineWidth = 6; ctx.globalAlpha = 0.7;
+    ctx.beginPath(); ctx.moveTo(X(o.markX), pad.t); ctx.lineTo(X(o.markX), H - pad.b); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  for (const s of series) {
+    ctx.strokeStyle = s.color || cssVar("--pen"); ctx.lineWidth = s.width || 2; ctx.setLineDash(s.dash || []);
+    ctx.beginPath();
+    let started = false;
+    s.values.forEach((v, i) => { if (!Number.isFinite(v)) return; if (!started) { ctx.moveTo(X(i), Y(v)); started = true; } else ctx.lineTo(X(i), Y(v)); });
+    ctx.stroke(); ctx.setLineDash([]);
+    if (s.dots) s.values.forEach((v, i) => { if (Number.isFinite(v)) { ctx.fillStyle = s.color || cssVar("--pen"); ctx.beginPath(); ctx.arc(X(i), Y(v), 3, 0, 7); ctx.fill(); } });
+  }
+  ctx.restore();
+  return { X, Y };
+}
+
+/* DOM widgets ------------------------------------------------------------- */
+/* items: [{label, value, color, note}] ; o: {max, format} */
+function bars(parent, items, o = {}) {
+  const el = clear(mount(parent));
+  el.classList.add("bars");
+  const max = o.max ?? Math.max(1e-9, ...items.map((i) => Math.abs(i.value)));
+  for (const it of items) {
+    const w = clamp(Math.abs(it.value) / max, 0, 1) * 100;
+    el.appendChild(h("div", { class: "bar", title: it.note || "" },
+      h("span", { class: "lab" + (o.mono ? " mono" : "") }, it.label),
+      h("span", { class: "track" }, h("span", { class: "fill", style: { width: w + "%", display: "block", background: it.color || cssVar("--pen") } })),
+      h("span", { class: "num" }, (o.format || ((v) => fmt(v, 2)))(it.value))));
+  }
+  return el;
+}
+
+/* tokens: array of strings or {text, sub, cls, title, onclick} */
+function tokens(parent, toks, o = {}) {
+  const el = clear(mount(parent));
+  el.classList.add("tokens");
+  toks.forEach((t, i) => {
+    const d = typeof t === "string" ? { text: t } : t;
+    const tag = d.onclick ? "button" : "span";
+    const attrs = { class: "tok " + (d.cls || ""), title: d.title || null, type: d.onclick ? "button" : null, onclick: d.onclick || null };
+    if (d.color) attrs.style = { background: d.color, borderColor: d.color, color: d.ink || "#fff" };
+    el.appendChild(h(tag, attrs, d.text, d.sub != null ? h("span", { class: "sub" }, d.sub) : null));
+  });
+  return el;
+}
+
+/* heatmap table. matrix[r][c]; o: {format, max, min, rowHead, colHead, highlight:(r,c)=>bool} */
+function heatTable(parent, rows, cols, matrix, o = {}) {
+  const el = clear(mount(parent));
+  const flat = matrix.flat().filter(Number.isFinite);
+  const mx = o.max ?? Math.max(...flat), mn = o.min ?? Math.min(0, ...flat);
+  const t = (v) => (mx === mn ? 0 : (v - mn) / (mx - mn));
+  const head = h("tr", null, h("th", { class: "l" }, o.corner || ""), cols.map((c) => h("th", null, c)));
+  const body = rows.map((r, i) => h("tr", null, h("th", { class: "l" }, r), cols.map((_, j) => {
+    const v = matrix[i][j];
+    const tv = Number.isFinite(v) ? t(v) : 0;
+    const style = { background: o.plain ? "" : heatColor(tv * 0.85), color: o.plain ? "" : inkOn(tv * 0.85) };
+    if (o.highlight && o.highlight(i, j)) { style.outline = "3px solid " + cssVar("--mark"); style.outlineOffset = "-3px"; }
+    return h("td", { class: "num", style }, (o.format || ((x) => fmt(x, 2)))(v));
+  })));
+  el.appendChild(h("div", { class: "scroll-x" }, h("table", { class: "grid" }, h("thead", null, head), h("tbody", null, body))));
+  return el;
+}
+
+function legend(parent, items) {
+  const el = clear(mount(parent));
+  el.classList.add("legend");
+  items.forEach((it) => el.appendChild(h("span", null, h("i", { style: { background: it.color } }), it.label)));
+  return el;
+}
+
+/* page sections built from L.theory, L.experiments, L.quiz ----------------- */
+function renderNotes() {
+  const q = $("#quiz");
+  if (!q || !Array.isArray(L.quiz)) return;
+  let right = 0, answered = 0;
+  const score = h("p", { class: "quiz-score" });
+  const upd = () => { score.textContent = answered ? UI.score(right, L.quiz.length) : ""; };
+  L.quiz.forEach((item, qi) => {
+    const fb = h("div", { class: "fb", "aria-live": "polite" });
+    let done = false;
+    const opts = item.a.map((txt, ai) => h("button", {
+      type: "button", class: "opt", html: txt,
+      onclick: (e) => {
+        const ok = ai === item.correct;
+        e.currentTarget.classList.add(ok ? "right" : "wrong");
+        clear(fb).appendChild(h("span", { html: `<b>${ok ? UI.correct : UI.wrong}</b>` + (ok ? (item.why || "") : (item.hint || UI.tryAgain)) }));
+        if (!done) { done = true; answered++; if (ok) right++; upd(); }
+      },
+    }));
+    q.appendChild(h("div", { class: "q" }, h("p", { html: `${qi + 1}. ${item.q}` }), h("div", { class: "opts" }, opts), fb));
+  });
+  q.appendChild(score);
+}
+
+/* Colab link: on *.github.io the repository and the folder are read from the address;
+   elsewhere config.js (window.NLP_LABS = {repo, branch, folder}) is used; otherwise the .ipynb is offered as a download. */
+function colabTarget(lang, slug) {
+  const cfg = window.NLP_LABS || {};
+  const branch = cfg.branch || "main";
+  let repo = cfg.repo || "", folder = (cfg.folder || "").replace(/^\/+|\/+$/g, "");
+  if (!repo && /\.github\.io$/.test(location.hostname)) {
+    const user = location.hostname.replace(/\.github\.io$/, "");
+    const seg = location.pathname.split("/").filter(Boolean);
+    const li = seg.findIndex((x) => x === "ru" || x === "uz");
+    const before = li >= 0 ? seg.slice(0, li) : [];
+    // project site: user.github.io/<repo>/…  ;  user site: user.github.io/…
+    if (before.length && before[0] !== user + ".github.io") { repo = `${user}/${before[0]}`; folder = before.slice(1).join("/"); }
+    else { repo = `${user}/${location.hostname}`; folder = before.join("/"); }
+  }
+  if (!repo) return null;
+  const nb = (folder ? folder + "/" : "") + `${lang}/notebooks/${slug}.ipynb`;
+  return `https://colab.research.google.com/github/${repo}/blob/${branch}/${nb}`;
+}
+
+function setupPractice() {
+  const a = $("#colab");
+  if (!a) return;
+  const url = colabTarget(LANG, META.slug);
+  if (url) {
+    a.href = url;
+    a.textContent = UI.colab;
+    a.target = "_blank"; a.rel = "noopener";
+  } else {
+    a.href = `../notebooks/${META.slug}.ipynb`;
+    a.textContent = UI.nbDownload;
+    a.setAttribute("download", "");
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => { renderNotes(); setupPractice(); });
+
+</script>
+<script>
+/* Lab 17: form explosion, Heaps' law and OOV, BPE vs morpheme boundaries, perturbation stress test. */
+
+function tpl(s, o) { return String(s).replace(/%(\w+)/g, (m, k) => (k in o ? String(o[k]) : m)); }
+const M = L.m;
+const isVowelEnd = (s) => /[aeiou]$/.test(s) || /oʻ$/.test(s);
+const group = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, "\u202F");
+
+/* ---------- Part 1: combinatorial form explosion ---------- */
+(function explosion() {
+  const st = { pos: "noun", root: 0, on: {}, ch: {}, fresh: null };
+  const slots = () => (st.pos === "noun" ? M.noun_slots : M.verb_slots);
+  const roots = () => (st.pos === "noun" ? M.nouns : M.verbs);
+  const gl = () => (st.pos === "noun" ? L.noun_g : L.verb_g);
+
+  // build one form from choices {slotId: optionIndex}; returns {morphs:[{t,g}], rules:[]}
+  function buildNoun(root, ch) {
+    const rules = [];
+    const morphs = [{ t: root.w, g: gl()[M.nouns.indexOf(root)], root: true }];
+    const stem = () => morphs.map((m) => m.t).join("");
+    const pl = ch.pl || 0, ps = ch.poss || 0, cs = ch.case || 0, q = ch.q || 0;
+    if (pl) morphs.push({ t: "lar", g: L.slot_g.pl[1] });
+    if (ps) {
+      const opt = M.noun_slots[1].opts[ps];
+      const v = isVowelEnd(stem());
+      if (!v && !pl) {
+        if (root.drop) { morphs[0].t = root.drop; rules.push(tpl(L.rule_drop, { a: root.w, b: root.drop })); }
+        else if (/[kq]$/.test(root.w) && root.w.length > 3) {
+          morphs[0].t = root.w.endsWith("k") ? root.w.slice(0, -1) + "g" : root.w.slice(0, -1) + "gʻ";
+          rules.push(tpl(L.rule_kq, { a: root.w, b: morphs[0].t }));
+        }
+      }
+      if (v) rules.push(tpl(L.rule_vowel, { s: opt[0] }));
+      morphs.push({ t: v ? opt[0] : opt[1], g: L.slot_g.poss[ps] });
+    }
+    if (cs) {
+      let c = M.noun_slots[2].opts[cs];
+      if (c === "ga" && /[kq]$/.test(stem())) { c = stem().endsWith("k") ? "ka" : "qa"; rules.push(tpl(L.rule_dat, { s: c })); }
+      morphs.push({ t: c, g: L.slot_g.case[cs] });
+    }
+    if (q) morphs.push({ t: "mi", g: L.slot_g.q[1] });
+    return { morphs, rules };
+  }
+  function buildVerb(root, ch) {
+    const rules = [];
+    const morphs = [{ t: root.w, g: gl()[M.verbs.indexOf(root)], root: true }];
+    const stem = () => morphs.map((m) => m.t).join("");
+    const tense = M.verb_slots[2].opts[ch.tense ?? 0], pers = ch.pers ?? 2;
+    if (ch.caus) morphs.push({ t: root.caus, g: L.slot_g.caus[1] });
+    if (ch.neg) morphs.push({ t: "ma", g: L.slot_g.neg[1] });
+    const tg = L.slot_g.tense[ch.tense ?? 0];
+    if (tense === "past") morphs.push({ t: "di", g: tg });
+    else if (tense === "pres") { morphs.push({ t: isVowelEnd(stem()) ? "y" : "a", g: tg }); rules.push(L.rule_pres); }
+    else morphs.push({ t: "yap", g: tg });
+    const p = M.person[tense][pers];
+    if (p) morphs.push({ t: p, g: L.slot_g.pers[pers] });
+    if (ch.q) morphs.push({ t: "mi", g: L.slot_g.q[1] });
+    return { morphs, rules };
+  }
+  const build = (ch) => (st.pos === "noun" ? buildNoun : buildVerb)(roots()[st.root], ch);
+  const word = (ch) => build(ch).morphs.map((m) => m.t).join("");
+
+  // all choice combinations over enabled slots (disabled optional slots = 0, required = default)
+  function combos() {
+    let out = [{}];
+    for (const s of slots()) {
+      const idx = st.on[s.id] ? s.opts.map((_, i) => i) : [s.req ? s.def : 0];
+      out = out.flatMap((c) => idx.map((i) => ({ ...c, [s.id]: i })));
+    }
+    return out;
+  }
+  const countFor = (pos, all) => {
+    const ss = pos === "noun" ? M.noun_slots : M.verb_slots;
+    return ss.reduce((p, s) => p * (all || s.req ? s.opts.length : 1), 1);
+  };
+
+  segmented("#fx-pos", { label: L.pos_label, value: "noun", options: [{ value: "noun", label: L.pos_noun }, { value: "verb", label: L.pos_verb }],
+    onChange: (v) => { st.pos = v; st.root = 0; resetSlots(); buildUI(); render(); } });
+  let rootSel = null;
+
+  function resetSlots() {
+    st.on = {}; st.ch = {}; st.fresh = null;
+    slots().forEach((s) => { st.on[s.id] = !!s.req; st.ch[s.id] = s.req ? s.def : 0; });
+  }
+
+  const slotUI = {};
+  function buildUI() {
+    clear($("#fx-root"));
+    rootSel = segmented("#fx-root", { label: L.root_label, value: st.root, options: roots().map((r, i) => ({ value: i, label: r.w })),
+      onChange: (v) => { st.root = v; buildUI(); render(); } });
+    const box = clear($("#fx-slots"));
+    slots().forEach((s) => {
+      const el = h("div", { class: "slot" });
+      const top = h("div", { class: "top" });
+      const cb = h("input", { type: "checkbox", checked: !!st.on[s.id], disabled: !!s.req });
+      cb.addEventListener("change", () => toggle(s.id, cb.checked));
+      top.append(h("label", { class: "check" }, cb, h("span", null, L.slot_names[s.id])), h("span", { class: "mult" }, "×" + s.opts.length));
+      el.appendChild(top);
+      const labs = s.id === "pers" ? L.slot_g.pers : s.id === "caus" ? ["—", "-" + roots()[st.root].caus] : s.labs;
+      const seg = segmented(el, { value: st.ch[s.id], options: labs.map((lab, i) => ({ value: i, label: lab })),
+        onChange: (v) => { if (!st.on[s.id] && v) toggle(s.id, true); st.ch[s.id] = v; st.fresh = null; render(); } });
+      box.appendChild(el);
+      slotUI[s.id] = { el, cb, seg };
+    });
+  }
+
+  function toggle(id, on) {
+    st.on[id] = on;
+    if (!on) st.ch[id] = 0;
+    st.fresh = on ? id : null;
+    render();
+  }
+
+  function render() {
+    rootSel.set(st.root);
+    slots().forEach((s) => {
+      const u = slotUI[s.id];
+      u.cb.checked = !!st.on[s.id];
+      u.el.className = "slot " + (st.on[s.id] ? "on" : "off") + (st.fresh === s.id ? " fresh" : "");
+      u.seg.set(st.ch[s.id]);
+    });
+    const { morphs, rules } = build(st.ch);
+    const w = clear($("#fx-word"));
+    morphs.forEach((m, i) => {
+      if (i) w.appendChild(h("span", { class: "b" }, "·"));
+      w.appendChild(h("span", { style: m.root ? null : { color: color(i) } }, m.t));
+    });
+    tokens("#fx-gloss", morphs.map((m) => ({ text: m.t, sub: m.g, cls: m.root ? "" : "hl" })));
+    $("#fx-rules").innerHTML = rules.length ? rules.join("<br>") : L.rules_none;
+    // count
+    const on = slots().filter((s) => st.on[s.id]);
+    const n = on.reduce((p, s) => p * s.opts.length, 1);
+    $("#fx-count").textContent = group(n);
+    $("#fx-eq").textContent = on.length ? on.map((s) => s.opts.length + " (" + L.slot_names[s.id] + ")").join(" × ") + " = " + group(n) : "";
+    // forms list
+    const list = combos();
+    const box = clear($("#fx-forms"));
+    const cur = word(st.ch);
+    list.forEach((c) => {
+      const f = word(c);
+      const isNew = st.fresh && c[st.fresh] !== 0 && !slots().find((s) => s.id === st.fresh).req;
+      box.appendChild(h("button", { type: "button", class: (isNew ? "new" : "") + (f === cur ? " cur" : ""), onclick: () => { st.ch = { ...c }; st.fresh = null; render(); } }, f));
+    });
+    $("#fx-forms-n").textContent = tpl(L.forms_count, { n: group(new Set(list.map(word)).size) });
+    // comparison across languages
+    const items = L.compare.map((c) => ({ label: c.label, value: c.value, color: cssVar("--faint"), note: c.note }))
+      .concat([{ label: L.cmp_noun, value: countFor("noun", true), color: cssVar(st.pos === "noun" ? "--pen" : "--faint") },
+        { label: L.cmp_verb, value: countFor("verb", true), color: cssVar(st.pos === "verb" ? "--pen" : "--faint") }]);
+    bars("#fx-compare", items, { format: (v) => String(v) });
+    $$("#fx-compare .lab").forEach((el) => { el.style.whiteSpace = "normal"; });
+  }
+
+  // animation: switch on optional slots one by one, show a form that uses the new slot
+  const R = rng(17);
+  player("#fx-player", { interval: 1500,
+    step: () => {
+      const next = slots().find((s) => !st.on[s.id]);
+      if (!next) return false;
+      st.on[next.id] = true;
+      st.ch[next.id] = 1 + Math.floor(R() * (next.opts.length - 1));
+      st.fresh = next.id;
+      render();
+      return slots().some((s) => !st.on[s.id]);
+    },
+    canStep: () => slots().some((s) => !st.on[s.id]),
+    reset: () => { resetSlots(); render(); } });
+
+  // start with every slot switched on and one long form selected
+  resetSlots();
+  slots().forEach((s) => { st.on[s.id] = true; });
+  Object.assign(st.ch, { pl: 1, poss: 4, case: 5 });
+  buildUI();
+  render();
+})();
+
+/* ---------- Part 2: Heaps' law and OOV on simulated corpora ---------- */
+(function heaps() {
+  const FORMS = [4, 12, 168], NLEM = 4000, STEP = 8000, NSTEP = 32, NTEST = 5000;
+  const Ns = Array.from({ length: NSTEP }, (_, i) => (i + 1) * STEP);
+  function zipfCdf(n, s) { const w = []; let S = 0; for (let i = 1; i <= n; i++) { S += 1 / Math.pow(i, s); w.push(S); } return w.map((x) => x / S); }
+  function pickCdf(cdf, u) { let lo = 0, hi = cdf.length - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (cdf[m] < u) lo = m + 1; else hi = m; } return lo; }
+  const lemCdf = zipfCdf(NLEM, 1.0);
+
+  // same lemma stream for all languages (separate generators for lemma and form)
+  const sim = FORMS.map((F) => {
+    const fc = zipfCdf(F, 1.0);
+    const rl = rng(17), rf = rng(18 + F), tl = rng(99), tf = rng(100 + F);
+    const test = [];
+    for (let i = 0; i < NTEST; i++) { const l = pickCdf(lemCdf, tl()); test.push([l * 1000 + pickCdf(fc, tf()), l]); }
+    const seen = new Set(), seenL = new Set();
+    const V = [], VL = [], O = [], OL = [];
+    let n = 0;
+    for (const c of Ns) {
+      while (n < c) { const l = pickCdf(lemCdf, rl()); seen.add(l * 1000 + pickCdf(fc, rf())); seenL.add(l); n++; }
+      let o = 0, oL = 0;
+      for (const [f, l] of test) { if (!seen.has(f)) o++; if (!seenL.has(l)) oL++; }
+      V.push(seen.size); VL.push(seenL.size); O.push(o / NTEST); OL.push(oL / NTEST);
+    }
+    return { V, VL, O, OL };
+  });
+
+  let k = 0, mode = "forms";
+  const COLS = [color(0), color(1), color(2)];
+  const series = (i) => (mode === "forms" ? { V: sim[i].V, O: sim[i].O } : { V: sim[i].VL, O: sim[i].OL });
+  function beta(vals, upto) {
+    if (upto < 2) return NaN;
+    const xs = Ns.slice(0, upto).map(Math.log), ys = vals.slice(0, upto).map(Math.log);
+    const mx = sum(xs) / upto, my = sum(ys) / upto;
+    let sxy = 0, sxx = 0;
+    xs.forEach((x, i) => { sxy += (x - mx) * (ys[i] - my); sxx += (x - mx) ** 2; });
+    return sxy / sxx;
+  }
+
+  segmented("#hp-count", { label: L.count_label, value: mode, options: [{ value: "forms", label: L.count_forms }, { value: "lemmas", label: L.count_lemmas }],
+    onChange: (v) => { mode = v; render(); } });
+  legend("#hp-legend", L.langs.map((lab, i) => ({ label: lab, color: COLS[i] })));
+  const xl = Ns.map((n) => String(n / 1000));
+  const vmax = Math.max(...sim[2].V);
+  const heapsC = canvasBox("#hp-heaps", { height: (w) => (w < 500 ? 190 : 230), label: L.heaps_title, draw: (ctx, W, H) => {
+    lineChart(ctx, W, H, FORMS.map((_, i) => ({ values: series(i).V.map((v, j) => (j < k ? v : NaN)), color: COLS[i], dots: k <= 12 })),
+      { xLabels: xl, yMin: 0, yMax: Math.ceil(vmax / 20000) * 20000, yFmt: (v) => group(v), markX: k ? k - 1 : null });
+  } });
+  const oovC = canvasBox("#hp-oov", { height: (w) => (w < 500 ? 170 : 200), label: L.oov_title, draw: (ctx, W, H) => {
+    lineChart(ctx, W, H, FORMS.map((_, i) => ({ values: series(i).O.map((v, j) => (j < k ? v : NaN)), color: COLS[i], dots: k <= 12 })),
+      { xLabels: xl, yMin: 0, yMax: 1, yFmt: (v) => pct(v, 0), markX: k ? k - 1 : null });
+  } });
+
+  function render() {
+    const j = Math.max(0, k - 1);
+    $("#hp-n").textContent = tpl(L.at_n, { n: group(k ? Ns[j] : 0) });
+    const rows = FORMS.map((_, i) => {
+      const s = series(i);
+      return h("tr", null, h("td", { class: "l" }, h("i", { style: { display: "inline-block", width: "10px", height: "10px", borderRadius: "2px", background: COLS[i], marginRight: "6px" } }), L.langs[i]),
+        h("td", { class: "num" }, k ? group(s.V[j]) : "0"), h("td", { class: "num" }, k ? pct(s.O[j], 1) : "100%"), h("td", { class: "num" }, fmt(beta(s.V, k), 2)));
+    });
+    clear($("#hp-table")).appendChild(h("div", { class: "scroll-x" }, h("table", { class: "grid" },
+      h("thead", null, h("tr", null, L.table_cols.map((c, i) => h("th", { class: i ? "" : "l" }, c)))), h("tbody", null, rows))));
+    const st = $("#hp-status");
+    if (!k) st.textContent = tpl(L.status_start, { n: group(STEP) });
+    else {
+      const s = series(2);
+      st.textContent = tpl(L.status_step, { n: group(Ns[j]), v: group(s.V[j]), d: group(s.V[j] - (j ? s.V[j - 1] : 0)) });
+    }
+    heapsC.redraw(); oovC.redraw();
+  }
+
+  player("#hp-player", { interval: 450,
+    step: () => { if (k >= NSTEP) return false; k++; render(); return k < NSTEP; },
+    canStep: () => k < NSTEP,
+    reset: () => { k = 0; render(); } });
+  k = NSTEP;
+  render();
+})();
+
+/* ---------- Part 3: BPE vs morpheme boundaries ---------- */
+(function bpeBoundaries() {
+  const words = (s) => s.toLowerCase().split(/\s+/).filter(Boolean);
+  // train BPE to exhaustion, record every merge
+  const freq = new Map();
+  M.corpus.flatMap(words).forEach((w) => freq.set(w, (freq.get(w) || 0) + 1));
+  const types = [...freq.entries()].map(([w, f]) => ({ s: [...w].concat("</w>"), f }));
+  const merges = [];
+  for (;;) {
+    const pc = new Map();
+    for (const t of types) for (let i = 0; i < t.s.length - 1; i++) { const key = t.s[i] + "\u0001" + t.s[i + 1]; pc.set(key, (pc.get(key) || 0) + t.f); }
+    let best = null, bv = 0;
+    for (const [key, v] of pc) if (v > bv) { bv = v; best = key; }
+    if (!best || bv < 2) break;
+    const [a, b] = best.split("\u0001");
+    merges.push({ a, b, f: bv });
+    for (const t of types) {
+      const s = [];
+      for (let i = 0; i < t.s.length; i++) { if (i < t.s.length - 1 && t.s[i] === a && t.s[i + 1] === b) { s.push(a + b); i++; } else s.push(t.s[i]); }
+      t.s = s;
+    }
+  }
+  const MAXM = merges.length;
+  function tokenize(word, n) {
+    let s = [...word].concat("</w>");
+    for (let m = 0; m < n; m++) {
+      const { a, b } = merges[m];
+      if (s.length < 2) break;
+      const o = [];
+      for (let i = 0; i < s.length; i++) { if (i < s.length - 1 && s[i] === a && s[i + 1] === b) { o.push(a + b); i++; } else o.push(s[i]); }
+      s = o;
+    }
+    return s.map((x) => x.replace("</w>", "")).filter(Boolean);
+  }
+  const bounds = (pieces) => { const out = new Set(); let o = 0; pieces.slice(0, -1).forEach((p) => { o += [...p].length; out.add(o); }); return out; };
+  const gold = M.seg_words.map((g) => ({ morphs: g.split("-"), word: g.replace(/-/g, "") }));
+
+  function score(n) {
+    let tok = 0, tp = 0, pb = 0, gb = 0;
+    gold.forEach((g) => {
+      const p = tokenize(g.word, n), B = bounds(p), G = bounds(g.morphs);
+      tok += p.length; pb += B.size; gb += G.size;
+      B.forEach((b) => { if (G.has(b)) tp++; });
+    });
+    return { fert: tok / gold.length, P: pb ? tp / pb : NaN, R: gb ? tp / gb : NaN };
+  }
+  const curve = Array.from({ length: MAXM + 1 }, (_, n) => score(n));
+  const morphFert = sum(gold.map((g) => g.morphs.length)) / gold.length;
+
+  let n = MAXM;
+  const sl = slider("#bp-slider", { label: L.merges_label, min: 0, max: MAXM, step: 1, value: n, onInput: (v) => { n = v; render(); } });
+
+  // one word drawn with BPE pieces and boundary markers against gold morphemes
+  function segLine(wordStr, morphs, showStat) {
+    const pieces = tokenize(wordStr, n), chars = [...wordStr];
+    const B = bounds(pieces), G = bounds(morphs);
+    const line = h("div", { class: "segline" });
+    let pi = 0, acc = [...pieces[0] || ""].length, run = "";
+    const SOFT = ["#E6ECFA", "#FFF2B8"];
+    const flush = () => { if (run) line.appendChild(h("span", { class: "pc", style: { background: SOFT[pi % 2] } }, run)); run = ""; };
+    line.appendChild(h("span", { class: "bd edge" }));
+    chars.forEach((c, i) => {
+      if (i > 0 && (B.has(i) || G.has(i))) {
+        flush();
+        line.appendChild(h("span", { class: "bd " + (B.has(i) && G.has(i) ? "ok" : B.has(i) ? "bad" : "miss") }));
+      }
+      if (i >= acc && pi < pieces.length - 1) { pi++; acc += [...pieces[pi]].length; }
+      run += c;
+    });
+    flush();
+    line.appendChild(h("span", { class: "bd edge" }));
+    if (showStat) {
+      let tp = 0; B.forEach((b) => { if (G.has(b)) tp++; });
+      line.appendChild(h("span", { class: "stat" }, tpl(L.seg_stat, { t: pieces.length, b: tp, g: G.size })));
+    }
+    return line;
+  }
+
+  const ownIn = $("#bp-own");
+  ownIn.addEventListener("input", renderOwn);
+  function renderOwn() {
+    const raw = ownIn.value.trim().toLowerCase().replace(/([og])['`‘’ʼʻ]/g, "$1ʻ").replace(/['`‘’]/g, "ʼ").replace(/[^\p{L}ʻʼ-]/gu, "");
+    const morphs = raw.split("-").filter(Boolean);
+    const box = clear($("#bp-ownseg"));
+    if (morphs.length) box.appendChild(segLine(morphs.join(""), morphs, true));
+  }
+
+  function render() {
+    sl.value = n;
+    const box = clear($("#bp-words"));
+    gold.forEach((g, i) => box.appendChild(h("div", { class: "segw" }, segLine(g.word, g.morphs, true), h("span", { class: "g" }, M.seg_words[i] + " · " + L.seg_g[i]))));
+    renderOwn();
+    $("#bp-last").textContent = n ? tpl(L.last_merge, { n, a: merges[n - 1].a, b: merges[n - 1].b, c: (merges[n - 1].a + merges[n - 1].b).replace("</w>", "_"), f: merges[n - 1].f }).replace(/<\/w>/g, "_") : L.no_merge;
+    const c = curve[n];
+    const rows = [[L.methods[0], 1, NaN, 0], [L.methods[1], c.fert, c.P, c.R], [L.methods[2], morphFert, 1, 1]];
+    clear($("#bp-table")).appendChild(h("div", { class: "scroll-x" }, h("table", { class: "grid" },
+      h("thead", null, h("tr", null, L.m_cols.map((t, i) => h("th", { class: i ? "" : "l" }, t)))),
+      h("tbody", null, rows.map((r, i) => h("tr", { class: i === 1 ? "sel" : "" }, h("td", { class: "l" }, r[0]),
+        h("td", { class: "num" }, fmt(r[1], 2)), h("td", { class: "num" }, Number.isFinite(r[2]) ? pct(r[2], 0) : "–"), h("td", { class: "num" }, pct(r[3], 0))))))));
+    fert.redraw(); prc.redraw();
+  }
+
+  const xs = curve.map((_, i) => i);
+  legend("#bp-fert-legend", [{ label: L.leg_bpe, color: cssVar("--pen") }, { label: L.leg_morph, color: cssVar("--c3") }]);
+  const fert = canvasBox("#bp-fert", { height: 190, label: L.fert_title, draw: (ctx, W, H) => {
+    lineChart(ctx, W, H, [{ values: curve.map((c) => c.fert), color: cssVar("--pen") }, { values: curve.map(() => morphFert), color: cssVar("--c3"), dash: [5, 4] }],
+      { xLabels: xs, yMin: 0, yFmt: (v) => fmt(v, 0), markX: n });
+  } });
+  legend("#bp-pr-legend", [{ label: L.leg_p, color: cssVar("--c4") }, { label: L.leg_r, color: cssVar("--c5") }]);
+  const prc = canvasBox("#bp-pr", { height: 190, label: L.pr_title, draw: (ctx, W, H) => {
+    lineChart(ctx, W, H, [{ values: curve.map((c) => c.P), color: cssVar("--c4") }, { values: curve.map((c) => c.R), color: cssVar("--c5") }],
+      { xLabels: xs, yMin: 0, yMax: 1, yFmt: (v) => pct(v, 0), markX: n });
+  } });
+
+  player("#bp-player", { interval: 260,
+    step: () => { if (n >= MAXM) return false; n++; render(); return n < MAXM; },
+    canStep: () => n < MAXM,
+    reset: () => { n = 0; render(); } });
+  render();
+})();
+
+/* ---------- Part 4: perturbation stress test ---------- */
+(function stress() {
+  const lex = new Set(M.lexicon);
+  const SUF = M.suffixes.slice().sort((a, b) => b.length - a.length);
+  const fx = { lower: false, apos: false, cyr: false, stack: false, alt: false };
+  const units = (s) => s.match(/oʻ|gʻ|sh|ch|ng|./gu) || [];
+  const isCons = (u) => !/^(a|e|i|o|u|oʻ)$/.test(u) && u !== "ʼ";
+
+  // candidate lemmas for a stem under the alternation rules
+  function variants(stem) {
+    const out = [stem];
+    if (!fx.alt) return out;
+    if (/g$/.test(stem)) out.push(stem.slice(0, -1) + "k");
+    if (/gʻ$/.test(stem)) out.push(stem.slice(0, -2) + "q");
+    const u = units(stem);
+    if (u.length >= 3 && isCons(u[u.length - 1]) && isCons(u[u.length - 2]))
+      for (const v of ["a", "i", "u"]) out.push(u.slice(0, -1).join("") + v + u[u.length - 1]);
+    return out;
+  }
+  // returns {lemma, tr: [[kind, ...args]]}; mode "lookup" stops after the dictionary check
+  function run(w, mode) {
+    const tr = [["in", w]];
+    if (fx.lower) { const x = w.toLowerCase(); if (x !== w) tr.push(["lower", x]); w = x; }
+    if (fx.cyr && /[Ѐ-ӿ]/.test(w)) { w = [...w].map((c) => M.cyr[c] ?? M.cyr[c.toLowerCase()] ?? c).join(""); tr.push(["cyr", w]); }
+    if (fx.apos && /['`‘’]/.test(w)) { const x = w.replace(/([oOgG])['`‘’ʼʻ]/g, "$1ʻ").replace(/['`‘’]/g, "ʼ"); if (x !== w) tr.push(["apos", x]); w = x; }
+    if (lex.has(w)) { tr.push(["found", w]); return { lemma: w, tr }; }
+    tr.push(["miss", w]);
+    if (mode === "lookup") return { lemma: null, tr };
+    let stem = w;
+    for (let it = 0; it < (fx.stack ? 8 : 1); it++) {
+      const s = SUF.find((x) => stem.endsWith(x) && [...stem].length - [...x].length >= 2);
+      if (!s) { tr.push(["nosuf", stem]); break; }
+      stem = stem.slice(0, -s.length);
+      tr.push(["strip", s, stem]);
+      for (const v of variants(stem)) {
+        if (lex.has(v)) { if (v !== stem) tr.push(["alt", stem, v]); tr.push(["found", v]); return { lemma: v, tr }; }
+      }
+      tr.push(["miss", stem]);
+    }
+    return { lemma: null, tr };
+  }
+
+  let results = [], cursor = M.cases.length, sel = 3;
+  function compute() {
+    results = M.cases.map(([w, exp, cat]) => {
+      const a = run(w, "lookup"), b = run(w, "stem");
+      return { w, exp, cat, a: a.lemma === exp, b: b.lemma === exp, tr: b.tr };
+    });
+  }
+
+  Object.keys(fx).forEach((k) => checkbox("#st-fixes", L.fix[k], false, (v) => { fx[k] = v; compute(); render(); }));
+
+  function cell(done, ok) { return h("td", { class: done ? (ok ? "pass" : "fail") : "wait" }, done ? (ok ? "✓" : "✗") : "…"); }
+  function render() {
+    const rows = results.map((r, i) => {
+      const done = i < cursor;
+      return h("tr", { class: "click" + (i === sel ? " cur" : ""), onclick: () => { sel = i; render(); } },
+        h("td", { class: "inp" }, r.w, h("span", { class: "gl-in" }, L.case_g[i]), h("span", { class: "cat-pill" }, L.cat[r.cat])),
+        h("td", { class: "gl" }, L.case_g[i]), cell(done, r.a), cell(done, r.b));
+    });
+    clear($("#st-table")).appendChild(h("table", { class: "grid" },
+      h("thead", null, h("tr", null, L.cols.map((c, i) => h("th", { class: (i < 2 ? "l" : "") + (i === 1 ? " glh" : "") }, c)))), h("tbody", null, rows)));
+    // keep the current row visible by scrolling only the table box, never the page
+    const wrap = $("#st-table"), cur = $("#st-table tr.cur");
+    if (cur) {
+      const head = wrap.querySelector("thead").offsetHeight;
+      if (cur.offsetTop + cur.offsetHeight > wrap.scrollTop + wrap.clientHeight) wrap.scrollTop = cur.offsetTop + cur.offsetHeight - wrap.clientHeight;
+      else if (cur.offsetTop - head < wrap.scrollTop) wrap.scrollTop = Math.max(0, cur.offsetTop - head);
+    }
+    const done = results.slice(0, cursor);
+    const na = done.filter((r) => r.a).length, nb = done.filter((r) => r.b).length;
+    const acc = clear($("#st-acc"));
+    [[L.sys[0], na], [L.sys[1], nb]].forEach(([lab, v]) => acc.appendChild(h("div", null, h("div", { class: "lbl" }, lab),
+      h("div", { class: "big-num" }, cursor ? pct(v / cursor, 0) : "–", h("small", null, v + "/" + cursor)))));
+    // stemmer accuracy per category (checked rows)
+    const cats = [...new Set(M.cases.map((c) => c[2]))];
+    bars("#st-cats", cats.map((c) => {
+      const rs = done.filter((r) => r.cat === c), ok = rs.filter((r) => r.b).length;
+      return { label: L.cat[c], value: rs.length ? ok / rs.length : 0, color: cssVar(rs.length && ok === rs.length ? "--good" : ok ? "--c5" : "--bad"), note: ok + "/" + rs.length };
+    }), { max: 1, format: (v) => pct(v, 0) });
+    $$("#st-cats .lab").forEach((el) => { el.style.whiteSpace = "normal"; });
+    $("#st-status").textContent = tpl(L.status_run, { n: cursor, t: results.length, a: na, b: nb });
+    renderTrace();
+  }
+
+  function renderTrace() {
+    const r = results[sel];
+    const T = L.tr;
+    const code = (s) => h("code", null, s);
+    const items = r.tr.map(([k, a, b]) => {
+      let cls = "", icon = "·", body;
+      if (k === "in") body = [T.in + ": ", code(a)];
+      else if (k === "lower" || k === "cyr" || k === "apos") { icon = "→"; body = [T[k] + ": ", code(a)]; }
+      else if (k === "found") { cls = "ok"; icon = "✓"; body = [T.found + ": ", code(a)]; }
+      else if (k === "miss") { icon = "✗"; body = [T.miss + ": ", code(a)]; }
+      else if (k === "strip") { icon = "✂"; body = [tpl(T.strip, { s: a }) + " → ", code(b)]; }
+      else if (k === "alt") { icon = "↺"; body = [h("span", { html: tpl(T.alt, { a: "<code>" + a + "</code>", b: "<code>" + b + "</code>" }) })]; }
+      else { cls = "no"; icon = "✗"; body = [T.nosuf + ": ", code(a)]; }
+      return h("li", { class: cls }, h("i", null, icon), h("span", null, body));
+    });
+    items.push(h("li", { class: r.b ? "ok" : "no" }, h("i", null, r.b ? "✓" : "✗"), h("span", null, tpl(T.expect, { s: "" }), code(r.exp))));
+    const box = clear($("#st-trace"));
+    box.appendChild(h("ul", { class: "trace" }, items));
+    box.appendChild(h("p", { class: "tiny muted", style: { margin: "8px 0 0" } }, L.trace_hint));
+  }
+
+  player("#st-player", { interval: 700,
+    step: () => { if (cursor >= results.length) return false; sel = cursor; cursor++; render(); return cursor < results.length; },
+    canStep: () => cursor < results.length,
+    reset: () => { cursor = 0; sel = 0; render(); } });
+
+  compute();
+  render();
+})();
+
+</script>
+</body>
+</html>

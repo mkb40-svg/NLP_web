@@ -1,0 +1,1415 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>15. Диалоговая система: интенты, слоты и сценарий</title>
+<meta name="description" content="Диалоговые системы: интенты (Intent) и слоты (Slot), сценарии и генеративные модели">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=PT+Mono&display=swap" rel="stylesheet">
+<style>
+/* NLP labs: shared style. Light theme only (labs are often projected in class). */
+:root {
+  color-scheme: light;
+  --paper: #EDF1F6;
+  --panel: #FFFFFF;
+  --soft: #F5F7FA;
+  --ink: #1C2A43;
+  --muted: #56637C;
+  --faint: #8C97AB;
+  --line: #D2D9E4;
+  --pen: #2B55C9;
+  --pen-dark: #1F3F9A;
+  --mark: #FFD84D;
+  --mark-soft: #FFF2B8;
+  --good: #1A8F5F;
+  --good-soft: #DDF3E8;
+  --bad: #C2413A;
+  --bad-soft: #FBE3E1;
+  --c1: #2B55C9;
+  --c2: #D04A55;
+  --c3: #17907E;
+  --c4: #9157BF;
+  --c5: #DB8F1F;
+  --c6: #5B7A2A;
+  --c7: #C1508F;
+  --c8: #5E6B85;
+  --font: "Golos Text", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --mono: "PT Mono", Consolas, "Liberation Mono", "Courier New", monospace;
+  --r: 10px;
+  --r-sm: 5px;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.55 var(--font);
+}
+a { color: var(--pen); }
+a:hover { color: var(--pen-dark); }
+:focus-visible { outline: 3px solid var(--mark); outline-offset: 2px; border-radius: 3px; }
+img, svg, canvas { max-width: 100%; }
+
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+
+/* top navigation */
+.topnav { background: var(--ink); color: #fff; font-size: 14px; }
+.topnav .wrap { display: flex; align-items: center; gap: 12px; min-height: 46px; flex-wrap: wrap; }
+.topnav a { color: #fff; text-decoration: none; padding: 6px 10px; border-radius: var(--r-sm); }
+.topnav a:hover { background: rgba(255,255,255,.12); color: #fff; }
+.topnav .course { font-weight: 600; margin-right: auto; }
+.topnav .pager { display: flex; gap: 4px; }
+.topnav .disabled { opacity: .35; pointer-events: none; }
+
+/* header */
+.lab-head { padding: 28px 0 8px; }
+.lab-no { margin: 0 0 6px; color: var(--muted); font-size: 15px; }
+.lab-head h1 { margin: 0; font-size: clamp(28px, 4.2vw, 42px); line-height: 1.12; font-weight: 700; letter-spacing: -.01em; max-width: 26ch; }
+.lab-head .lead { margin: 14px 0 0; font-size: 18px; max-width: 70ch; color: var(--ink); }
+.lab-head .topic { margin: 12px 0 0; font-size: 14px; color: var(--muted); max-width: 90ch; }
+
+/* sections and the highlighter heading: the one decorative motif */
+.part { margin: 34px 0 0; }
+.part > h2, .notes h2 {
+  font-size: 23px; line-height: 1.25; margin: 0 0 6px; font-weight: 700;
+  display: inline;
+  background: linear-gradient(transparent 58%, var(--mark) 58%, var(--mark) 92%, transparent 92%);
+  box-decoration-break: clone; -webkit-box-decoration-break: clone;
+  padding: 0 3px;
+}
+.part > .hint, .part > p.intro { margin: 10px 0 14px; color: var(--muted); max-width: 75ch; }
+.part > h2 + .stage { margin-top: 16px; }
+
+/* stage: visual on the left, controls and readouts on the right */
+.stage { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.stage.even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.stage.single { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 900px) { .stage, .stage.even { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; min-width: 0; }
+.panel + .panel { margin-top: 16px; }
+.stage > .panel + .panel { margin-top: 0; }
+.panel h3 { margin: 0 0 10px; font-size: 16px; font-weight: 600; }
+.panel h3 + .muted { margin-top: -6px; }
+.col > .panel + .panel { margin-top: 16px; }
+.stage > .panel + .panel { margin-top: 0; }
+
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+.tiny { font-size: 12.5px; }
+.mono { font-family: var(--mono); }
+.center { text-align: center; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row + .row { margin-top: 10px; }
+.grow { flex: 1 1 auto; }
+.spacer { height: 10px; }
+
+/* controls */
+.btn {
+  font: inherit; font-size: 15px; font-weight: 500;
+  border: 1px solid var(--pen); background: var(--pen); color: #fff;
+  border-radius: 999px; padding: 7px 16px; cursor: pointer; line-height: 1.3;
+  min-height: 36px; touch-action: manipulation;
+}
+.btn:hover { background: var(--pen-dark); border-color: var(--pen-dark); }
+.btn.ghost { background: transparent; color: var(--pen); }
+.btn.ghost:hover { background: #E6ECFA; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.small { font-size: 14px; padding: 5px 12px; min-height: 32px; }
+
+.player { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.player .speed { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.player .speed input { width: 110px; }
+
+.ctl { margin: 0 0 14px; }
+.panel > .ctl:last-child, .panel > div:last-child > .ctl:last-child { margin-bottom: 0; }
+.ctl label, .ctl .lbl { display: flex; justify-content: space-between; gap: 8px; font-size: 14.5px; margin-bottom: 4px; }
+.ctl .val { font-family: var(--mono); font-weight: 700; color: var(--pen); white-space: nowrap; }
+input[type=range] { width: 100%; accent-color: var(--pen); margin: 0; height: 26px; }
+
+.seg { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
+.seg button { font: inherit; font-size: 14px; border: 1px solid #B8C6EA; background: var(--panel); color: var(--pen); padding: 5px 12px; cursor: pointer; min-height: 34px; border-radius: 999px; }
+.seg button:hover { border-color: var(--pen); }
+.seg button[aria-pressed=true] { background: var(--pen); color: #fff; border-color: var(--pen); }
+
+input[type=text], textarea, select {
+  font: inherit; font-size: 15px; color: var(--ink); background: #fff;
+  border: 1px solid var(--line); border-radius: var(--r-sm); padding: 7px 10px; width: 100%; max-width: 100%;
+}
+textarea { min-height: 76px; resize: vertical; }
+input[type=text]:focus, textarea:focus, select:focus { border-color: var(--pen); outline: none; box-shadow: 0 0 0 3px #D7E1FA; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 14.5px; cursor: pointer; margin: 6px 0; }
+.check input { width: 17px; height: 17px; accent-color: var(--pen); }
+
+/* tokens: strings of text are the material of this course */
+.tokens { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tok {
+  font-family: var(--mono); font-size: 15px; line-height: 1.2;
+  border: 1px solid var(--line); background: var(--soft); border-radius: var(--r-sm);
+  padding: 4px 7px; white-space: pre; display: inline-flex; flex-direction: column; align-items: center;
+}
+.tok .sub { font-family: var(--font); font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.tok.hl { background: var(--mark-soft); border-color: #E8C33A; }
+.tok.on { background: var(--pen); color: #fff; border-color: var(--pen); }
+.tok.on .sub { color: #DCE4FA; }
+button.tok { cursor: pointer; font-family: var(--mono); color: var(--ink); }
+.morph { font-family: var(--mono); }
+.morph .b { color: var(--faint); padding: 0 1px; }
+
+mark, .hl-text { background: var(--mark-soft); color: inherit; border-radius: 3px; padding: 0 2px; }
+
+/* readouts */
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 14.5px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-family: var(--mono); font-weight: 700; text-align: right; }
+.big-num { font-size: 30px; font-weight: 700; line-height: 1.1; }
+.big-num small { font-size: 15px; font-weight: 400; color: var(--muted); margin-left: 6px; }
+
+.bars { display: grid; gap: 6px; }
+.bar { display: grid; grid-template-columns: minmax(70px, 34%) 1fr auto; gap: 8px; align-items: center; font-size: 14px; }
+.bar .lab { overflow-wrap: anywhere; line-height: 1.3; }
+.bar .track { background: var(--soft); border: 1px solid var(--line); border-radius: 4px; height: 16px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--pen); border-radius: 3px 0 0 3px; transition: width .35s ease; }
+.bar .num { font-family: var(--mono); font-size: 13px; min-width: 46px; text-align: right; }
+
+table.grid { border-collapse: collapse; font-size: 14px; width: 100%; }
+table.grid th, table.grid td { border: 1px solid var(--line); padding: 5px 7px; text-align: center; }
+table.grid th { background: var(--soft); font-weight: 600; }
+table.grid td.l, table.grid th.l { text-align: left; }
+table.grid td.num { font-family: var(--mono); }
+table.grid tr.sel td { background: var(--mark-soft); }
+.scroll-x { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+.status { border-radius: var(--r-sm); padding: 8px 12px; font-size: 14.5px; background: var(--soft); border: 1px solid var(--line); }
+.status.good { background: var(--good-soft); border-color: #A9DCC2; }
+.status.bad { background: var(--bad-soft); border-color: #F0B7B2; }
+.status.note { background: var(--mark-soft); border-color: #E8C33A; }
+
+canvas.viz { display: block; width: 100%; touch-action: none; border-radius: var(--r-sm); }
+.viz-wrap { position: relative; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; font-size: 13px; padding: 4px 8px; border-radius: 4px; white-space: nowrap; transform: translate(-50%, -120%); }
+
+/* notes: theory, experiments, quiz */
+.notes { margin: 44px 0 0; }
+.notes > section { margin: 0 0 34px; }
+.notes .text { margin-top: 14px; max-width: 76ch; }
+.notes .text p { margin: 0 0 12px; }
+.notes .text code, .notes li code { font-family: var(--mono); background: var(--soft); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; font-size: 14.5px; }
+.formula { font-family: var(--mono); background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--pen); border-radius: var(--r-sm); padding: 10px 14px; margin: 10px 0 14px; overflow-x: auto; white-space: pre-wrap; }
+ol.exp { margin: 14px 0 0; padding-left: 26px; max-width: 76ch; }
+ol.exp li { margin: 0 0 10px; padding-left: 4px; }
+
+.quiz { display: grid; gap: 14px; margin-top: 16px; max-width: 820px; }
+.quiz .q { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
+.quiz .q p { margin: 0 0 10px; font-weight: 600; }
+.quiz .opts { display: grid; gap: 6px; }
+.quiz .opt { font: inherit; text-align: left; background: var(--soft); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 12px; cursor: pointer; color: var(--ink); }
+.quiz .opt:hover { border-color: var(--pen); }
+.quiz .opt.right { background: var(--good-soft); border-color: var(--good); }
+.quiz .opt.wrong { background: var(--bad-soft); border-color: var(--bad); }
+.quiz .fb { margin-top: 10px; font-size: 14.5px; }
+.quiz .fb b { margin-right: 4px; }
+.quiz-score { font-weight: 600; margin-top: 4px; }
+
+.practice { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--mark); border-radius: var(--r); padding: 16px 18px; max-width: 820px; }
+.practice p { margin: 0 0 12px; }
+.practice a.btn { text-decoration: none; display: inline-block; }
+
+footer { margin: 50px 0 0; padding: 22px 0 40px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+
+@media (max-width: 600px) {
+  body { font-size: 15.5px; }
+  .lab-head .lead { font-size: 16.5px; }
+  .panel { padding: 13px; }
+  .part > h2, .notes h2 { font-size: 21px; }
+  .bar { grid-template-columns: minmax(60px, 38%) 1fr auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+</style>
+</head>
+<body>
+<nav class="topnav" aria-label="Оглавление"><div class="wrap">
+  <a class="course" href="../index.html">Оглавление</a>
+  <span class="pager">
+    <a href="14_qa_dpr.html" class="" rel="prev">‹ Назад</a>
+    <a href="16_llm_prompting.html" class="" rel="next">Далее ›</a>
+  </span>
+</div></nav>
+<div class="wrap">
+<header class="lab-head">
+  <p class="lab-no">Лаборатория 15 из 18</p>
+  <h1>Диалоговая система: интенты, слоты и сценарий</h1>
+  <p class="lead">Как бот продаёт билет на поезд: распознаёт намерение пользователя, вытаскивает из фразы города, дату и время, заполняет фрейм и задаёт вопросы по сценарию. И почему свободная генерация звучит живее, но может выдумывать.</p>
+  <p class="topic">Тема курса: Диалоговые системы: интенты (Intent) и слоты (Slot), сценарии и генеративные модели</p>
+</header>
+<main id="lab">
+<style>
+.nlu-presets { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.nlu-presets button, .chips button { font: inherit; font-size: 13.5px; text-align: left; border: 1px solid #B8C6EA; background: var(--panel); color: var(--pen); padding: 4px 10px; border-radius: 999px; cursor: pointer; }
+.nlu-presets button:hover, .chips button:hover { border-color: var(--pen); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button.off { border-style: dashed; color: var(--muted); }
+.bio .tok { transition: background .2s, border-color .2s; }
+.bio .tok.cur { box-shadow: 0 0 0 3px var(--mark); }
+.bio .tok.wait { opacity: .45; }
+.bio .tok .sub { font-family: var(--mono); font-size: 11px; }
+.bio .tok.tb .sub { color: rgba(255,255,255,.9); }
+.bio .tok.ti .sub { color: var(--ink); }
+.reason { min-height: 44px; }
+table.grid.compact td, table.grid.compact th { padding: 4px 6px; font-size: 13px; }
+table.grid td.best, table.grid th.best { box-shadow: inset 0 0 0 2px var(--mark); font-weight: 700; }
+table.grid tr.sumrow td, table.grid tr.sumrow th { border-top: 2px solid var(--ink); }
+table.grid td.unk { color: var(--faint); }
+.slot-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+details.train { margin-top: 12px; font-size: 14px; }
+details.train summary { cursor: pointer; color: var(--pen); }
+details.train ul { margin: 6px 0 0; padding-left: 18px; }
+details.train li { margin: 2px 0; }
+details.train b { display: block; margin-top: 8px; }
+.chat { display: flex; flex-direction: column; gap: 8px; max-height: 360px; min-height: 160px; overflow-y: auto; padding: 4px 2px; }
+.msg { max-width: 86%; padding: 7px 11px; border-radius: 12px; font-size: 14.5px; line-height: 1.4; overflow-wrap: anywhere; }
+.msg.user { align-self: flex-end; background: var(--pen); color: #fff; border-bottom-right-radius: 4px; }
+.msg.bot { align-self: flex-start; background: var(--soft); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.msg.bot.fb { background: var(--bad-soft); border-color: #F0B7B2; }
+.msg.new { animation: pop .3s ease; }
+@keyframes pop { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
+.msg .who { display: block; font-size: 11.5px; opacity: .75; margin-bottom: 1px; }
+.send-row { display: flex; gap: 8px; margin-top: 10px; }
+.send-row input { flex: 1 1 auto; min-width: 0; }
+table.frame td.val { font-family: var(--mono); font-weight: 700; }
+table.frame tr.fresh td { background: var(--mark-soft); }
+table.frame td.empty { color: var(--faint); font-weight: 400; }
+.gen-cards { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 12px; }
+@media (max-width: 600px) { .gen-cards { grid-template-columns: minmax(0, 1fr); } }
+.gen-card { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 12px; background: var(--soft); }
+.gen-card h4 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+.gen-card .resp { font-size: 15px; line-height: 1.5; min-height: 48px; }
+.gen-card .resp .frag { border-radius: 3px; padding: 0 1px; }
+.gen-card .resp .frag.last { background: var(--mark); }
+.gen-card .resp .frag.bad { background: var(--bad-soft); color: var(--bad); text-decoration: underline wavy var(--bad); }
+.gen-card .resp .cursor { display: inline-block; width: 8px; height: 16px; background: var(--pen); vertical-align: -2px; animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.fr-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.fr-chips span { font-size: 13px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; background: var(--panel); }
+.fr-chips span.miss { color: var(--faint); border-style: dashed; }
+.samples { display: grid; gap: 4px; font-size: 13.5px; margin-top: 8px; }
+.samples div { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 6px; }
+.samples .n { font-family: var(--mono); color: var(--muted); text-align: right; }
+.samples .bad { color: var(--bad); }
+</style>
+
+<section class="part" id="p1">
+  <h2>Понимание фразы: интент и слоты</h2>
+  <p class="intro">Наберите фразу или выберите готовую. Классификатор определяет намерение (интент), а разметчик ставит каждому слову BIO-тег слота. «Шаг» обрабатывает по одному слову: видно, как копятся свидетельства.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <div class="ctl">
+          <label for="nlu-q"><span>Фраза пользователя</span></label>
+          <input type="text" id="nlu-q" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="nlu-presets" id="nlu-presets"></div>
+        <h3>BIO-разметка</h3>
+        <p class="tiny muted" style="margin:-6px 0 8px">B — начало слота, I — его продолжение, O — не слот. Наведите на слово, чтобы увидеть правило.</p>
+        <div class="tokens bio" id="nlu-bio"></div>
+        <div class="spacer"></div>
+        <div class="status note small reason" id="nlu-reason"></div>
+        <div class="spacer"></div>
+        <div id="nlu-player"></div>
+        <div class="spacer"></div>
+        <div id="nlu-legend"></div>
+      </div>
+      <div class="panel">
+        <h3>Извлечённые слоты</h3>
+        <div id="nlu-slots"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <h3>Интент</h3>
+        <div id="nlu-bars"></div>
+        <div class="spacer"></div>
+        <div id="nlu-alpha"></div>
+      </div>
+      <div class="panel">
+        <h3>Наивный Байес по словам</h3>
+        <p class="tiny muted" style="margin:-6px 0 8px">В ячейке log P(слово | интент). Сумма столбца с log P(интент) — счёт интента, побеждает самый большой.</p>
+        <div id="nlu-table"></div>
+        <details class="train" id="nlu-train"></details>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="part" id="p2">
+  <h2>Менеджер диалога: фрейм и сценарий</h2>
+  <p class="intro">Бот держит фрейм из пяти слотов и всегда спрашивает первый незаполненный. «Пуск» проигрывает пример диалога по репликам, а можно отвечать самому: кнопками или своим текстом.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <div id="dm-graph"></div>
+        <p class="small" id="dm-move" style="margin:8px 0 0"></p>
+      </div>
+      <div class="panel">
+        <h3>Фрейм (слоты заказа)</h3>
+        <div id="dm-frame"></div>
+        <div class="spacer"></div>
+        <h3>Что понял бот в последней реплике</h3>
+        <div class="tokens bio" id="dm-nlu"></div>
+        <p class="tiny muted" id="dm-nlu-int" style="margin:6px 0 0"></p>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <div id="dm-script"></div>
+        <div id="dm-player"></div>
+      </div>
+      <div class="panel">
+        <h3>Диалог</h3>
+        <div class="chat" id="dm-chat" aria-live="polite"></div>
+        <div class="send-row">
+          <input type="text" id="dm-input" autocomplete="off" spellcheck="false" aria-label="Ваш ответ">
+          <button type="button" class="btn small" id="dm-send">Отправить</button>
+        </div>
+        <p class="tiny muted" style="margin:10px 0 6px">Подсказки для текущего вопроса:</p>
+        <div class="chips" id="dm-chips"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="part" id="p3">
+  <h2>Сценарий или генерация</h2>
+  <p class="intro">Одна и та же реплика пользователя: шаблонный ответ из фрейма и ответ игрушечной генеративной модели, которая собирает фразу по кусочкам, выбирая каждый с вероятностью. Двигайте температуру и сравнивайте.</p>
+  <div class="stage">
+    <div class="col">
+      <div class="panel">
+        <div id="gen-turn"></div>
+        <div class="msg user" id="gen-user" style="margin-left:auto;width:fit-content"></div>
+        <div class="spacer"></div>
+        <div class="fr-chips" id="gen-frame"></div>
+        <div class="gen-cards">
+          <div class="gen-card">
+            <h4>Шаблон из сценария</h4>
+            <div class="resp" id="gen-tpl"></div>
+            <p class="tiny muted" style="margin:8px 0 0">Всегда один и тот же ответ. Берёт значения только из фрейма, поэтому ничего не выдумывает.</p>
+          </div>
+          <div class="gen-card">
+            <h4>Генеративная модель (игрушка)</h4>
+            <div class="resp" id="gen-out"></div>
+            <div class="spacer"></div>
+            <div class="small" id="gen-verdict"></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <h3 id="gen-step-title"></h3>
+        <div id="gen-bars"></div>
+        <p class="tiny muted" style="margin:8px 0 0">Игрушечная модель: варианты фрагментов и их логиты заданы вручную. Настоящая модель выбирает по одному токену из десятков тысяч, но принцип тот же.</p>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <div id="gen-T"></div>
+        <div id="gen-player"></div>
+        <div class="spacer"></div>
+        <div class="row" id="gen-many-row"></div>
+        <div class="samples" id="gen-samples"></div>
+      </div>
+      <div class="panel">
+        <h3>Точно, без выборки</h3>
+        <dl class="kv" id="gen-kv"></dl>
+        <div class="spacer"></div>
+        <div id="gen-chart"></div>
+        <div id="gen-legend"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div class="notes">
+  <section><h2>Как это устроено</h2><div class="text">
+<p><b>Диалоговая система</b>, которая выполняет задачу (продать билет, забронировать столик), обычно состоит из трёх блоков: <b>понимание</b> (NLU), <b>менеджер диалога</b> и <b>генерация ответа</b>.</p>
+<p><b>NLU</b> решает две задачи. Классификация <b>интента</b>: чего хочет пользователь (купить, отменить, спросить). Здесь это наивный Байес по словам (тема 7):</p>
+<div class="formula">интент = argmax_c [ log P(c) + Σ log P(wᵢ | c) ],   P(w | c) = (n(w, c) + α) / (N_c + α·|V|)</div>
+<p><b>Заполнение слотов</b>: какие значения названы (откуда, куда, дата, время, пассажиры). Это разметка последовательности с BIO-тегами, как в NER (тема 9): «из/O Ташкента/B-from в/O Самарканд/B-to». В русском роль города задаёт предлог (из, в, до), в узбекском падежное окончание (Toshkent<b>dan</b>, Samarqand<b>ga</b>), поэтому порядок слов может быть любым.</p>
+<p><b>Менеджер диалога</b> хранит <b>фрейм</b>: таблицу слотов, которые нужно заполнить. Стратегия простая: спросить первый пустой слот, а когда всё заполнено, подтвердить. Состояния и переходы образуют конечный автомат (сценарий). Если пользователь называет несколько слотов сразу, бот перепрыгивает через вопросы. Контекст диалога помогает пониманию: ответ «Самарканд» без предлога бот относит к слоту, о котором только что спросил.</p>
+<p><b>Генерация ответа</b> бывает двух видов. <b>Шаблоны</b> («Проверим: {from} → {to}…») предсказуемы и подставляют только то, что есть во фрейме, но звучат однообразно. <b>Генеративная модель</b> (тема 16) пишет живые и разнообразные ответы, выбирая продолжение с вероятностью:</p>
+<div class="formula">p(фрагмент) = softmax(логиты / T)</div>
+<p>Чем выше температура T, тем разнообразнее ответы и тем чаще модель выбирает маловероятные фрагменты: другой город, выдуманное время, «билет уже отправлен». Такие ошибки называют <b>галлюцинациями</b>. Поэтому в задачах, где важна точность (деньги, билеты, медицина), значения берут из фрейма или базы данных, а генерацию оставляют для вежливых фраз.</p>
+<p>Качество каждого блока проверяют отдельно: точность интентов (accuracy), F1 по слотам (тема 18) и долю диалогов, которые закончились успешной бронью.</p></div></section>
+  <section><h2>Эксперименты</h2><ol class="exp"><li>В части 1 выберите «Хочу два билета из Ташкента в Самарканд на завтра» и нажимайте «Шаг». После какого слова интент «купить билет» вырвался вперёд? Какие слова тянули к интенту «сообщить данные»?</li>
+<li>Наберите «Самарканд Ташкент 25 октября на троих», затем «из Самарканда в Ташкент». Как разметчик решает, какой город откуда, если предлога нет?</li>
+<li>Поставьте α = 0,1, затем α = 2 для фразы «Отмените мою бронь, пожалуйста». Как меняется уверенность классификатора и почему слова «пожалуйста» нет в таблице?</li>
+<li>В части 2 запустите «всё сразу». Через сколько состояний перепрыгнул бот на первой реплике? Затем запустите «по шагам» и найдите реплику, где слот заполнен только благодаря контексту.</li>
+<li>Начните диалог сами: заполните все слоты, а на подтверждении нажмите «Нет, в Бухару». Что изменилось во фрейме? Затем попробуйте «Отмените всё» посреди диалога.</li>
+<li>В части 3 для реплики «билет без времени» поставьте T = 0,3 и T = 2 и нажмите «Сгенерировать 10 ответов». Сравните долю выдумок и разнообразие с шаблоном. Почему для «вопроса о местах» не помогает даже T = 0,1, а для «спасибо» генерация безопасна при любой температуре?</li></ol></section>
+  <section><h2>Проверь себя</h2><div class="quiz" id="quiz"></div></section>
+  <section><h2>Практикум</h2>
+    <div class="practice" style="margin-top:14px"><p>Тот же алгоритм на настоящем коде Python. Ноутбук открывается в Google Colab, ничего устанавливать не нужно.</p><a class="btn" id="colab" href="../notebooks/15_dialogue_intent_slot.ipynb">Скачать практикум (.ipynb)</a></div>
+  </section>
+</div>
+<footer>Виртуальная лаборатория курса «Алгоритмы NLP». Работает в браузере, без установки и без интернета. <a href="../../uz/labs/15_dialogue_intent_slot.html" lang="uz">Oʻzbekcha</a></footer>
+</div>
+<script src="../../config.js"></script>
+<script>
+const LANG = "ru";
+const META = {"n":15,"slug":"15_dialogue_intent_slot","total":18};
+const UI = {"toc": "Оглавление",
+"prev": "Назад",
+"next": "Далее",
+"labOf": (n, total) => `Лаборатория ${n} из ${total}`,
+"topic": "Тема курса",
+"play": "Пуск",
+"pause": "Пауза",
+"step": "Шаг",
+"reset": "Сначала",
+"speed": "Скорость",
+"how": "Как это устроено",
+"experiments": "Эксперименты",
+"quiz": "Проверь себя",
+"correct": "Верно.",
+"wrong": "Не совсем.",
+"tryAgain": "Попробуйте другой вариант.",
+"score": (a, b) => `Правильных ответов: ${a} из ${b}`,
+"colab": "Открыть практикум в Colab",
+"nbDownload": "Скачать практикум (.ipynb)",
+"practice": "Практикум",
+"practiceText": "Тот же алгоритм на настоящем коде Python. Ноутбук открывается в Google Colab, ничего устанавливать не нужно.",
+"langName": "Русский",
+"otherLang": "Oʻzbekcha",
+"footer": "Виртуальная лаборатория курса «Алгоритмы NLP». Работает в браузере, без установки и без интернета."};
+const L = {"title":"Диалоговая система: интенты, слоты и сценарий","lead":"Как бот продаёт билет на поезд: распознаёт намерение пользователя, вытаскивает из фразы города, дату и время, заполняет фрейм и задаёт вопросы по сценарию. И почему свободная генерация звучит живее, но может выдумывать.","nlu":{"apos":false,"norm":[["ё","е"]],"maxStrip":1,"minStem":3,"suffixes":["иями","ями","ами","ого","его","ому","ему","ыми","ими","ией","ила","ило","или","ела","ело","ели","ала","ало","али","ий","ый","ой","ая","яя","ое","ее","ые","ие","ую","юю","ей","ом","ем","ам","ям","ах","ях","ов","ев","ия","ию","ии","ла","ло","ли","ил","ел","ал","ся","сь","те","а","я","о","е","у","ю","ы","и","ь","й"],"cities":[{"name":"Ташкент","stem":"ташкент"},{"name":"Самарканд","stem":"самарканд"},{"name":"Бухара","stem":"бухар"},{"name":"Хива","stem":"хив"},{"name":"Карши","stem":"карши"},{"name":"Андижан","stem":"андижан"},{"name":"Наманган","stem":"наманган"},{"name":"Фергана","stem":"ферган"},{"name":"Термез","stem":"термез"},{"name":"Ургенч","stem":"ургенч"},{"name":"Нукус","stem":"нукус"}],"city_tails":["","а","у","е","ом","ы","ой"],"from_prev":["из","от","с"],"to_prev":["в","во","до","на"],"from_tail":[],"to_tail":[],"date_words":["сегодня","завтра","послезавтра","понедельник","вторник","среду","четверг","пятницу","субботу","воскресенье"],"date_cont":[],"months":["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"],"time_words":["утром","днем","вечером","ночью"],"time_prev":[],"time_cont":["утра","дня","вечера","часов","часа"],"num_words":[["один",1],["одна",1],["одного",1],["два",2],["две",2],["двух",2],["двоих",2],["три",3],["трех",3],["троих",3],["четыре",4],["четверых",4],["пять",5],["шесть",6],["семь",7],["восемь",8],["девять",9],["десять",10]],"num_tails":[],"pax_coll":["двоих","троих","четверых"],"pax_nouns":["билет","человек","пассажир","мест"],"yes":["да","верно","конечно","ага","подтверждаю"],"no":["нет","неверно"]},"intents":[{"id":"buy","label":"купить билет","short":"купить"},{"id":"schedule","label":"узнать о поездах","short":"узнать"},{"id":"cancel","label":"отменить","short":"отменить"},{"id":"inform","label":"сообщить данные","short":"данные"},{"id":"greet","label":"приветствие, спасибо","short":"привет"}],"train":{"buy":["хочу купить билет до самарканда","купите мне билет на поезд","нужен билет на афросиаб в бухару","забронируйте два билета на завтра","можно взять билет на поезд в хиву","хочу билет из ташкента в самарканд","оформите билет на поезд"],"schedule":["когда отправляется поезд в самарканд","во сколько ближайший поезд","какое расписание поездов до бухары","когда приходит афросиаб","сколько едет поезд до хивы","есть ли поезд вечером","есть ли свободные места"],"cancel":["хочу вернуть билет","отмените мою бронь","как сдать билет","верните деньги за билет","я передумал отмените заказ","нужно отменить поездку","отмените все"],"inform":["из ташкента","в самарканд","завтра утром","на двоих","в восемь утра","послезавтра вечером","из бухары в ташкент","один билет"],"greet":["здравствуйте","привет","добрый день","спасибо","спасибо большое до свидания","хорошо спасибо"]},"slots":[{"id":"from","label":"откуда","ask":"Откуда вы поедете?"},{"id":"to","label":"куда","ask":"Куда едем?"},{"id":"date","label":"дата","ask":"На какой день нужен билет?"},{"id":"time","label":"время","ask":"В какое время удобно отправиться?"},{"id":"pax","label":"пассажиры","ask":"Сколько будет пассажиров?"}],"p1_title":"Понимание фразы: интент и слоты","p1_intro":"Наберите фразу или выберите готовую. Классификатор определяет намерение (интент), а разметчик ставит каждому слову BIO-тег слота. «Шаг» обрабатывает по одному слову: видно, как копятся свидетельства.","utt_label":"Фраза пользователя","presets":["Хочу два билета из Ташкента в Самарканд на завтра","В Бухару из Самарканда в пятницу в 18:30","Когда ближайший поезд до Хивы?","Отмените мою бронь, пожалуйста","Здравствуйте","Самарканд Ташкент 25 октября на троих"],"bio_title":"BIO-разметка","bio_hint":"B — начало слота, I — его продолжение, O — не слот. Наведите на слово, чтобы увидеть правило.","intent_title":"Интент","alpha_label":"Сглаживание Лапласа α","nb_title":"Наивный Байес по словам","nb_hint":"В ячейке log P(слово | интент). Сумма столбца с log P(интент) — счёт интента, побеждает самый большой.","col_word":"слово","row_prior":"log P(интент)","row_sum":"сумма","oov_label":"Нет в обучающих фразах, пропущены:","train_label":"Обучающие фразы","slots_title":"Извлечённые слоты","slot_empty":"—","no_words":"Введите фразу.","step_pending":"Нажмите «Шаг»: слова будут обработаны по одному.","step_now":"Слово {i} из {n} «{w}»: {r}","done_note":"Все слова размечены. Интент: \u003cb>{i}\u003c/b> ({p}).","tag_O":"не слот","r":{"city_prep":"город из словаря, слева предлог «{p}» → {tag}","city_suf":"город из словаря, окончание «-{s}» → {tag}","city_order":"город из словаря без предлога: роль по порядку, первый город — откуда → {tag}","city_ctx":"город без предлога, но бот только что спросил «{q}» → {tag}","num_ctx":"число без подсказки, но бот только что спросил «{q}» → {tag}","date_word":"слово-дата → {tag}","date_num":"число и следом месяц → {tag}","date_month":"месяц после числа → {tag}","date_cont":"продолжение даты → {tag}","time_hhmm":"время в формате ЧЧ:ММ → {tag}","time_word":"время суток → {tag}","time_num":"число и следом «утра», «часов»… → {tag}","time_prev":"слово «{p}» перед числом → {tag}","time_cont":"продолжение времени → {tag}","pax_num":"число и следом «билет», «человек»… → {tag}","pax_coll":"собирательное числительное → {tag}","pax_cont":"продолжение количества → {tag}","num_bare":"число без подсказки: непонятно, время это или количество → O","o":"не похоже ни на один слот → O"},"tagger_note":"Разметчик здесь — набор правил: словарь городов, предлоги, слова времени и чисел. Настоящие системы учат такие признаки по размеченным фразам (CRF или BERT, тема 9).","p2_title":"Менеджер диалога: фрейм и сценарий","p2_intro":"Бот держит фрейм из пяти слотов и всегда спрашивает первый незаполненный. «Пуск» проигрывает пример диалога по репликам, а можно отвечать самому: кнопками или своим текстом.","script_label":"Пример диалога","scripts":[{"label":"по шагам","turns":["Хочу купить билет на поезд","Из Ташкента","Самарканд","Завтра","Утром","На двоих","Да"]},{"label":"всё сразу","turns":["Два билета из Ташкента в Бухару на завтра вечером","Да","Спасибо"]},{"label":"сбои и исправления","turns":["Расскажи анекдот","Билет в Самарканд","Из Бухары","Послезавтра в 18:30","Один билет","Нет, из Ташкента","Да"]}],"states":{"start":"Старт","from":"Откуда?","to":"Куда?","date":"Дата?","time":"Время?","pax":"Пассажиры?","confirm":"Подтвердить","done":"Готово","cancel":"Отмена"},"cancel_any":"из любого состояния","frame_title":"Фрейм (слоты заказа)","col_slot":"слот","col_val":"значение","col_turn":"реплика","dm_nlu_title":"Что понял бот в последней реплике","dm_nlu_empty":"Пользователь ещё ничего не написал.","dm_intent":"Интент: {i} ({p})","chat_title":"Диалог","your_reply":"Ваш ответ","send":"Отправить","chips_hint":"Подсказки для текущего вопроса:","bot_name":"Бот","user_name":"Вы","bot_hello":"Здравствуйте. Я помогу купить билет на поезд.","ack":"Записал: {list}.","fix":"Исправил: {list}.","confirm_q":"Проверим: {from} → {to}, {date}, {time}, пассажиров: {pax}. Всё верно?","what_fix":"Что нужно исправить?","done_msg":"Готово, бронь оформлена. Это демо: настоящий билет не создаётся.","cancel_msg":"Хорошо, заказ отменён.","bye_msg":"Пожалуйста. Хорошей поездки.","fallback":"Извините, я не понял.","greet_msg":"Здравствуйте.","schedule_msg":"Расписания в этом демо нет, но билет оформить могу.","restart_hint":"Диалог окончен. Нажмите «Сначала», чтобы начать заново.","move":{"start":"Начало диалога.","same":"Реплика {t}: остались в состоянии «{a}».","next":"Реплика {t}: «{a}» → «{b}».","skip":"Реплика {t}: «{a}» → «{b}», пропущено состояний: {k}. Пользователь назвал несколько слотов сразу.","back":"Реплика {t}: «{a}» → «{b}». Бот возвращается к первому пустому слоту."},"chips":{"start":["Хочу купить билет","Два билета из Ташкента в Бухару на завтра вечером","Расскажи анекдот"],"from":["Из Ташкента","Из Бухары","Ташкент","Отмените всё"],"to":["В Самарканд","До Хивы","Самарканд"],"date":["Завтра","Послезавтра","25 октября"],"time":["Утром","В 18:30","Вечером"],"pax":["На двоих","Один билет","3"],"confirm":["Да","Нет, в Бухару","Нет","Отмените всё"],"done":["Спасибо"],"cancel":["Спасибо"]},"p3_title":"Сценарий или генерация","p3_intro":"Одна и та же реплика пользователя: шаблонный ответ из фрейма и ответ игрушечной генеративной модели, которая собирает фразу по кусочкам, выбирая каждый с вероятностью. Двигайте температуру и сравнивайте.","turn_label":"Реплика пользователя","gen_turns":[{"short":"билет без времени","user":"Два билета из Ташкента в Самарканд на завтра","frame":[["откуда","Ташкент"],["куда","Самарканд"],["дата","завтра"],["время",null],["пассажиры","2"]],"tpl":"Записал: Ташкент → Самарканд, завтра, 2 пассажира. В какое время удобно отправиться?","steps":[{"name":"начало","opts":[{"t":"Отлично,","w":2},{"t":"Хорошо,","w":1.6},{"t":"Конечно,","w":1.2},{"t":"С радостью","w":0.4}]},{"name":"действие","opts":[{"t":"оформляю","w":1.8},{"t":"бронирую","w":1.5},{"t":"уже забронировал","w":0.3,"bad":"бронь ещё не подтверждена"}]},{"name":"количество","opts":[{"t":"два билета","w":2.2},{"t":"билет","w":0.5,"bad":"пассажиров двое"},{"t":"три билета","w":-0.8,"bad":"пассажиров двое"}]},{"name":"куда","opts":[{"t":"до Самарканда","w":2.4},{"t":"до Бухары","w":0,"bad":"город назначения другой"},{"t":"до Хивы","w":-0.6,"bad":"город назначения другой"}]},{"name":"дата","opts":[{"t":"на завтра.","w":2.2},{"t":"на сегодня.","w":0,"bad":"дата другая"},{"t":"на пятницу.","w":-0.5,"bad":"дата другая"}]},{"name":"время","opts":[{"t":"Во сколько вам удобно?","w":2.1},{"t":"Поезд в 8:00.","w":0.7,"bad":"время не называлось"},{"t":"Взял утренний поезд.","w":0.3,"bad":"время не называлось"}]},{"name":"конец","opts":[{"t":"Хорошей поездки.","w":1},{"t":"","w":0.8},{"t":"Билеты уже у вас на почте.","w":0,"bad":"ничего не отправлено"}]}]},{"short":"вопрос о местах","user":"Есть свободные места на Афросиаб в пятницу?","frame":[["данные о местах",null],["дата","пятница"]],"tpl":"В этом демо нет данных о свободных местах. Могу оформить билет: откуда вы поедете?","steps":[{"name":"начало","opts":[{"t":"Да,","w":1.5,"bad":"данных о местах нет"},{"t":"Конечно,","w":1,"bad":"данных о местах нет"},{"t":"Сейчас посмотрю:","w":0.8}]},{"name":"уточнение","opts":[{"t":"на пятницу","w":1.2},{"t":"в бизнес-классе","w":0.6,"bad":"о классах вагонов ничего не известно"},{"t":"","w":0.5}]},{"name":"ответ","opts":[{"t":"мест достаточно.","w":1.4,"bad":"данных о местах нет"},{"t":"осталось несколько мест.","w":1,"bad":"данных о местах нет"},{"t":"данных о местах у меня нет.","w":0.2}]},{"name":"конец","opts":[{"t":"Оформить билет?","w":1.2},{"t":"Билет стоит недорого.","w":0.5,"bad":"цены нет в данных"}]}]},{"short":"спасибо","user":"Спасибо, вы очень помогли","frame":[],"tpl":"Пожалуйста. Хорошей поездки.","steps":[{"name":"начало","opts":[{"t":"Пожалуйста,","w":1.5},{"t":"Рад был помочь,","w":1.4},{"t":"Всегда рад,","w":0.8}]},{"name":"пожелание","opts":[{"t":"хорошей дороги","w":1.4},{"t":"приятной поездки","w":1.2},{"t":"лёгкого пути","w":0.6}]},{"name":"конец","opts":[{"t":".","w":1},{"t":"и до встречи.","w":0.8}]}]}],"frame_known":"Во фрейме:","tpl_title":"Шаблон из сценария","tpl_note":"Всегда один и тот же ответ. Берёт значения только из фрейма, поэтому ничего не выдумывает.","gen_title":"Генеративная модель (игрушка)","gen_toy_note":"Игрушечная модель: варианты фрагментов и их логиты заданы вручную. Настоящая модель выбирает по одному токену из десятков тысяч, но принцип тот же.","T_label":"Температура T","gen_step_title":"Шаг {k} из {n}: «{s}»","gen_wait_title":"Распределение следующего фрагмента","gen_ok":"Без выдумок.","gen_bad":"Выдумано: {list}.","gen_ready":"Нажмите «Шаг» или «Пуск»: модель выберет фрагменты по очереди.","many":"Сгенерировать 10 ответов","many_sum":"С выдумкой: {k} из 10.","empty_frag":"(ничего)","metrics_title":"Точно, без выборки","m_halluc":"P(ответ с выдумкой)","m_var":"разных ответов (exp H)","m_tpl":"у шаблона","m_tpl_v":"0% · 1","chart_h":"доля ответов с выдумкой","chart_v":"разнообразие: энтропия H / H_max","chart_title":"Зависимость от температуры","theory":"\n\u003cp>\u003cb>Диалоговая система\u003c/b>, которая выполняет задачу (продать билет, забронировать столик), обычно состоит из трёх блоков: \u003cb>понимание\u003c/b> (NLU), \u003cb>менеджер диалога\u003c/b> и \u003cb>генерация ответа\u003c/b>.\u003c/p>\n\u003cp>\u003cb>NLU\u003c/b> решает две задачи. Классификация \u003cb>интента\u003c/b>: чего хочет пользователь (купить, отменить, спросить). Здесь это наивный Байес по словам (тема 7):\u003c/p>\n\u003cdiv class=\"formula\">интент = argmax_c [ log P(c) + Σ log P(wᵢ | c) ],   P(w | c) = (n(w, c) + α) / (N_c + α·|V|)\u003c/div>\n\u003cp>\u003cb>Заполнение слотов\u003c/b>: какие значения названы (откуда, куда, дата, время, пассажиры). Это разметка последовательности с BIO-тегами, как в NER (тема 9): «из/O Ташкента/B-from в/O Самарканд/B-to». В русском роль города задаёт предлог (из, в, до), в узбекском падежное окончание (Toshkent\u003cb>dan\u003c/b>, Samarqand\u003cb>ga\u003c/b>), поэтому порядок слов может быть любым.\u003c/p>\n\u003cp>\u003cb>Менеджер диалога\u003c/b> хранит \u003cb>фрейм\u003c/b>: таблицу слотов, которые нужно заполнить. Стратегия простая: спросить первый пустой слот, а когда всё заполнено, подтвердить. Состояния и переходы образуют конечный автомат (сценарий). Если пользователь называет несколько слотов сразу, бот перепрыгивает через вопросы. Контекст диалога помогает пониманию: ответ «Самарканд» без предлога бот относит к слоту, о котором только что спросил.\u003c/p>\n\u003cp>\u003cb>Генерация ответа\u003c/b> бывает двух видов. \u003cb>Шаблоны\u003c/b> («Проверим: {from} → {to}…») предсказуемы и подставляют только то, что есть во фрейме, но звучат однообразно. \u003cb>Генеративная модель\u003c/b> (тема 16) пишет живые и разнообразные ответы, выбирая продолжение с вероятностью:\u003c/p>\n\u003cdiv class=\"formula\">p(фрагмент) = softmax(логиты / T)\u003c/div>\n\u003cp>Чем выше температура T, тем разнообразнее ответы и тем чаще модель выбирает маловероятные фрагменты: другой город, выдуманное время, «билет уже отправлен». Такие ошибки называют \u003cb>галлюцинациями\u003c/b>. Поэтому в задачах, где важна точность (деньги, билеты, медицина), значения берут из фрейма или базы данных, а генерацию оставляют для вежливых фраз.\u003c/p>\n\u003cp>Качество каждого блока проверяют отдельно: точность интентов (accuracy), F1 по слотам (тема 18) и долю диалогов, которые закончились успешной бронью.\u003c/p>","experiments":["В части 1 выберите «Хочу два билета из Ташкента в Самарканд на завтра» и нажимайте «Шаг». После какого слова интент «купить билет» вырвался вперёд? Какие слова тянули к интенту «сообщить данные»?","Наберите «Самарканд Ташкент 25 октября на троих», затем «из Самарканда в Ташкент». Как разметчик решает, какой город откуда, если предлога нет?","Поставьте α = 0,1, затем α = 2 для фразы «Отмените мою бронь, пожалуйста». Как меняется уверенность классификатора и почему слова «пожалуйста» нет в таблице?","В части 2 запустите «всё сразу». Через сколько состояний перепрыгнул бот на первой реплике? Затем запустите «по шагам» и найдите реплику, где слот заполнен только благодаря контексту.","Начните диалог сами: заполните все слоты, а на подтверждении нажмите «Нет, в Бухару». Что изменилось во фрейме? Затем попробуйте «Отмените всё» посреди диалога.","В части 3 для реплики «билет без времени» поставьте T = 0,3 и T = 2 и нажмите «Сгенерировать 10 ответов». Сравните долю выдумок и разнообразие с шаблоном. Почему для «вопроса о местах» не помогает даже T = 0,1, а для «спасибо» генерация безопасна при любой температуре?"],"quiz":[{"q":"Как в BIO-разметке выглядит фраза «до Нижнего Новгорода» для слота «куда»?","a":["до/O Нижнего/B-to Новгорода/I-to","до/B-to Нижнего/I-to Новгорода/I-to","до/O Нижнего/B-to Новгорода/B-to","до/O Нижнего/I-to Новгорода/I-to"],"correct":0,"why":"Предлог не входит в значение слота. Первое слово значения получает B, следующие слова того же слота I.","hint":"B ставится на первое слово значения, I на остальные."},{"q":"Пользователь сразу написал «Два билета из Ташкента в Бухару на завтра вечером». Что сделает фреймовый менеджер диалога?","a":["Всё равно задаст все пять вопросов по порядку","Заполнит пять слотов и сразу перейдёт к подтверждению","Попросит писать по одному слоту","Отправит фразу генеративной модели"],"correct":1,"why":"Менеджер спрашивает только незаполненные слоты. Если всё названо сразу, вопросы пропускаются.","hint":"Какой слот остался пустым?"},{"q":"Почему в узбекской фразе «Samarqandga Toshkentdan» разметчик правильно находит, откуда и куда, хотя порядок обратный?","a":["Он всегда считает первый город пунктом назначения","Роль задают падежные окончания -ga и -dan, а не порядок слов","Он смотрит на заглавные буквы","Toshkent есть в словаре только как пункт отправления"],"correct":1,"why":"В агглютинативном узбекском роль выражена окончанием: -dan (исходный падеж) — откуда, -ga (дательный) — куда.","hint":"Посмотрите на окончания городов."},{"q":"Генеративная модель при T = 1,8 ответила «Оформляю билет до Хивы», хотя пользователь просил Самарканд. Как это исправить в задачной системе?","a":["Повысить температуру","Брать значения слотов из фрейма (шаблон или проверка), а генерацию оставить для формы ответа","Добавить больше вариантов городов в модель","Убрать NLU"],"correct":1,"why":"Галлюцинации слотов опасны. Значения берут из фрейма, а свободная генерация отвечает только за вежливую форму. Снижение T тоже помогает, но не гарантирует.","hint":"Откуда шаблон берёт название города?"}]};
+</script>
+<script>
+/* NLP labs: shared helpers. Globals provided by the build before this file: LANG, UI, L, META. */
+"use strict";
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+
+/* h("div", {class: "x", onclick: fn, style: {...}}, child, [children], "text") */
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  if (props) {
+    for (const [k, v] of Object.entries(props)) {
+      if (v == null || v === false) continue;
+      if (k === "class") el.className = v;
+      else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
+      else if (k === "html") el.innerHTML = v;
+      else if (k === "text") el.textContent = v;
+      else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
+      else if (k in el && typeof v !== "string") el[k] = v;
+      else el.setAttribute(k, v === true ? "" : v);
+    }
+  }
+  const add = (c) => {
+    if (c == null || c === false) return;
+    if (Array.isArray(c)) c.forEach(add);
+    else el.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
+  };
+  kids.forEach(add);
+  return el;
+}
+function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
+function mount(target) { return typeof target === "string" ? $(target) : target; }
+
+/* numbers */
+function fmt(x, d = 2) {
+  if (x == null || Number.isNaN(x)) return "–";
+  if (!Number.isFinite(x)) return x > 0 ? "∞" : "−∞";
+  return Number(x).toFixed(d).replace(".", ",").replace("-", "−");
+}
+function pct(x, d = 0) { return fmt(100 * x, d) + "%"; }
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const sum = (a) => a.reduce((s, x) => s + x, 0);
+const argmax = (a) => a.reduce((bi, x, i) => (x > a[bi] ? i : bi), 0);
+function softmax(arr, T = 1) {
+  const m = Math.max(...arr.map((x) => x / T));
+  const e = arr.map((x) => Math.exp(x / T - m));
+  const s = sum(e);
+  return e.map((x) => x / s);
+}
+function dot(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; }
+function norm(a) { return Math.sqrt(dot(a, a)); }
+function cosine(a, b) { const n = norm(a) * norm(b); return n ? dot(a, b) / n : 0; }
+/* deterministic random numbers: const r = rng(42); r() in [0,1) */
+function rng(seed = 1) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function sample(probs, r = Math.random) {
+  let x = r() * sum(probs);
+  for (let i = 0; i < probs.length; i++) { x -= probs[i]; if (x <= 0) return i; }
+  return probs.length - 1;
+}
+
+/* colors */
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+const PALETTE = ["--c1", "--c2", "--c3", "--c4", "--c5", "--c6", "--c7", "--c8"];
+function color(i) { return cssVar(PALETTE[((i % PALETTE.length) + PALETTE.length) % PALETTE.length]); }
+function hexToRgb(hex) {
+  const m = hex.replace("#", "");
+  const n = parseInt(m.length === 3 ? m.split("").map((c) => c + c).join("") : m, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function alpha(hex, a) { const [r, g, b] = hexToRgb(hex); return `rgba(${r},${g},${b},${a})`; }
+/* white -> pen blue scale for heatmaps, t in [0,1] */
+function heatColor(t, base = "--pen") {
+  const [r, g, b] = hexToRgb(cssVar(base));
+  t = clamp(t, 0, 1);
+  return `rgb(${Math.round(lerp(255, r, t))},${Math.round(lerp(255, g, t))},${Math.round(lerp(255, b, t))})`;
+}
+function inkOn(t) { return t > 0.55 ? "#fff" : cssVar("--ink"); }
+
+/* controls ---------------------------------------------------------------- */
+function slider(parent, o) {
+  const fmtv = o.format || ((v) => String(v));
+  const val = h("span", { class: "val" }, fmtv(o.value));
+  const input = h("input", { type: "range", min: o.min, max: o.max, step: o.step ?? 1, value: o.value, "aria-label": o.label });
+  const box = h("div", { class: "ctl" }, h("label", null, h("span", null, o.label), val), input);
+  input.addEventListener("input", () => {
+    const v = parseFloat(input.value);
+    val.textContent = fmtv(v);
+    o.onInput && o.onInput(v);
+  });
+  mount(parent).appendChild(box);
+  return {
+    el: box, input,
+    get value() { return parseFloat(input.value); },
+    set value(v) { input.value = v; val.textContent = fmtv(parseFloat(input.value)); },
+  };
+}
+
+function segmented(parent, o) {
+  let current = o.value;
+  const btns = o.options.map((opt) =>
+    h("button", { type: "button", "aria-pressed": String(opt.value === current), onclick: () => api.set(opt.value, true) }, opt.label));
+  const seg = h("div", { class: "seg", role: "group", "aria-label": o.label || "" }, btns);
+  const box = h("div", { class: "ctl" }, o.label ? h("div", { class: "lbl" }, h("span", null, o.label)) : null, seg);
+  const api = {
+    el: box,
+    get value() { return current; },
+    set(v, fire) {
+      current = v;
+      btns.forEach((b, i) => b.setAttribute("aria-pressed", String(o.options[i].value === v)));
+      if (fire && o.onChange) o.onChange(v);
+    },
+  };
+  mount(parent).appendChild(box);
+  return api;
+}
+
+function button(parent, label, onClick, variant = "") {
+  const b = h("button", { type: "button", class: "btn " + variant, onclick: onClick }, label);
+  mount(parent).appendChild(b);
+  return b;
+}
+
+function checkbox(parent, label, checked, onChange) {
+  const input = h("input", { type: "checkbox", checked: !!checked });
+  input.addEventListener("change", () => onChange && onChange(input.checked));
+  const box = h("label", { class: "check" }, input, h("span", null, label));
+  mount(parent).appendChild(box);
+  return input;
+}
+
+/* Play / Pause / Step / Reset with a speed slider.
+   o.step() advances one step and returns false when the process is finished.
+   o.reset() restores the initial state. o.interval: base delay in ms. */
+function player(parent, o) {
+  let timer = null;
+  let speed = o.speed ?? 3;
+  const delay = () => (o.interval ?? 700) * Math.pow(0.6, speed - 3);
+  const playBtn = h("button", { type: "button", class: "btn", onclick: () => (timer ? stop() : start()) }, UI.play);
+  const stepBtn = h("button", { type: "button", class: "btn ghost", onclick: () => { stop(); doStep(); } }, UI.step);
+  const resetBtn = h("button", { type: "button", class: "btn ghost", onclick: () => { stop(); o.reset(); } }, UI.reset);
+  const sp = h("input", { type: "range", min: 1, max: 5, step: 1, value: speed, "aria-label": UI.speed });
+  sp.addEventListener("input", () => { speed = +sp.value; if (timer) { stop(); start(); } });
+  const box = h("div", { class: "player" }, playBtn, stepBtn, resetBtn, o.noSpeed ? null : h("span", { class: "speed" }, UI.speed, sp));
+  mount(parent).appendChild(box);
+  function doStep() { const more = o.step(); if (more === false) stop(); return more; }
+  function start() {
+    if (o.canStep && !o.canStep()) o.reset();
+    playBtn.textContent = UI.pause;
+    timer = setInterval(() => { if (doStep() === false) stop(); }, delay());
+    o.onPlay && o.onPlay();
+  }
+  function stop() { if (timer) clearInterval(timer); timer = null; playBtn.textContent = UI.play; }
+  return { el: box, start, stop, get playing() { return !!timer; } };
+}
+
+/* Responsive HiDPI canvas.
+   o.height (px) or o.aspect (h/w); o.draw(ctx, w, h); pointer callbacks get {x, y} in CSS pixels. */
+function canvasBox(parent, o) {
+  const cv = h("canvas", { class: "viz", role: "img", "aria-label": o.label || "" });
+  const wrap = h("div", { class: "viz-wrap" }, cv);
+  mount(parent).appendChild(wrap);
+  const ctx = cv.getContext("2d");
+  let W = 0, H = 0;
+  function size() {
+    const w = Math.max(10, wrap.clientWidth);
+    const hh = o.height ? (typeof o.height === "function" ? o.height(w) : o.height) : Math.round(w * (o.aspect || 0.6));
+    const dpr = window.devicePixelRatio || 1;
+    if (w !== W || hh !== H || cv.width !== Math.round(w * dpr)) {
+      W = w; H = hh;
+      cv.width = Math.round(w * dpr); cv.height = Math.round(hh * dpr);
+      cv.style.height = hh + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+  }
+  function redraw() { size(); ctx.clearRect(0, 0, W, H); o.draw && o.draw(ctx, W, H); }
+  const pos = (e) => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  let down = false;
+  cv.addEventListener("pointerdown", (e) => { down = true; try { cv.setPointerCapture(e.pointerId); } catch (_) {} o.onDown && o.onDown(pos(e), e); });
+  cv.addEventListener("pointermove", (e) => { if (down) o.onDrag && o.onDrag(pos(e), e); else o.onHover && o.onHover(pos(e), e); });
+  cv.addEventListener("pointerup", (e) => { down = false; o.onUp && o.onUp(pos(e), e); });
+  cv.addEventListener("pointerleave", () => { if (!down && o.onLeave) o.onLeave(); });
+  if (window.ResizeObserver) new ResizeObserver(() => redraw()).observe(wrap);
+  else window.addEventListener("resize", redraw);
+  requestAnimationFrame(redraw);
+  return { canvas: cv, wrap, ctx, redraw, get w() { return W; }, get h() { return H; } };
+}
+
+/* canvas text helpers */
+function font(px, weight = 400, mono = false) { return `${weight} ${px}px ${mono ? cssVar("--mono") : cssVar("--font")}`; }
+function text(ctx, s, x, y, o = {}) {
+  ctx.save();
+  ctx.font = font(o.size || 13, o.weight || 400, o.mono);
+  ctx.fillStyle = o.color || cssVar("--ink");
+  ctx.textAlign = o.align || "left";
+  ctx.textBaseline = o.base || "middle";
+  if (o.bg) {
+    const m = ctx.measureText(s), pad = 3, tw = m.width, th = (o.size || 13) + 4;
+    let bx = x - (o.align === "center" ? tw / 2 : o.align === "right" ? tw : 0);
+    ctx.fillStyle = o.bg; ctx.fillRect(bx - pad, y - th / 2, tw + 2 * pad, th);
+    ctx.fillStyle = o.color || cssVar("--ink");
+  }
+  ctx.fillText(s, x, y);
+  ctx.restore();
+}
+function roundRect(ctx, x, y, w, hh, r) {
+  r = Math.min(r, w / 2, hh / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + hh, r); ctx.arcTo(x + w, y + hh, x, y + hh, r);
+  ctx.arcTo(x, y + hh, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function arrow(ctx, x1, y1, x2, y2, o = {}) {
+  ctx.save();
+  ctx.strokeStyle = ctx.fillStyle = o.color || cssVar("--ink");
+  ctx.lineWidth = o.width || 1.5;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  const a = Math.atan2(y2 - y1, x2 - x1), s = o.head || 8;
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - s * Math.cos(a - 0.4), y2 - s * Math.sin(a - 0.4));
+  ctx.lineTo(x2 - s * Math.cos(a + 0.4), y2 - s * Math.sin(a + 0.4));
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+/* Simple line chart on a canvas. series: [{values:[...], color, label, dash}] ; o: {xLabels, yMin, yMax, yFmt, title, markX} */
+function lineChart(ctx, W, H, series, o = {}) {
+  const pad = { l: 44, r: 12, t: o.title ? 24 : 10, b: 26 };
+  const n = Math.max(1, ...series.map((s) => s.values.length));
+  const all = series.flatMap((s) => s.values.filter((v) => Number.isFinite(v)));
+  let y0 = o.yMin ?? Math.min(0, ...all), y1 = o.yMax ?? Math.max(1e-9, ...all);
+  if (y1 === y0) y1 = y0 + 1;
+  const X = (i) => pad.l + (n === 1 ? 0 : (i / (n - 1)) * (W - pad.l - pad.r));
+  const Y = (v) => H - pad.b - ((v - y0) / (y1 - y0)) * (H - pad.t - pad.b);
+  ctx.save();
+  ctx.strokeStyle = cssVar("--line"); ctx.lineWidth = 1;
+  for (let k = 0; k <= 4; k++) {
+    const v = y0 + (k / 4) * (y1 - y0), y = Y(v);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+    text(ctx, (o.yFmt || ((x) => fmt(x, 2)))(v), pad.l - 6, y, { align: "right", size: 11, color: cssVar("--muted") });
+  }
+  if (o.title) text(ctx, o.title, pad.l, 10, { size: 12.5, weight: 600, color: cssVar("--muted") });
+  const labels = o.xLabels || [];
+  const every = Math.ceil(labels.length / Math.max(1, Math.floor((W - pad.l) / 46)));
+  labels.forEach((lab, i) => { if (i % every === 0) text(ctx, String(lab), X(i), H - pad.b + 13, { align: "center", size: 11, color: cssVar("--muted") }); });
+  if (o.markX != null) {
+    ctx.strokeStyle = cssVar("--mark"); ctx.lineWidth = 6; ctx.globalAlpha = 0.7;
+    ctx.beginPath(); ctx.moveTo(X(o.markX), pad.t); ctx.lineTo(X(o.markX), H - pad.b); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  for (const s of series) {
+    ctx.strokeStyle = s.color || cssVar("--pen"); ctx.lineWidth = s.width || 2; ctx.setLineDash(s.dash || []);
+    ctx.beginPath();
+    let started = false;
+    s.values.forEach((v, i) => { if (!Number.isFinite(v)) return; if (!started) { ctx.moveTo(X(i), Y(v)); started = true; } else ctx.lineTo(X(i), Y(v)); });
+    ctx.stroke(); ctx.setLineDash([]);
+    if (s.dots) s.values.forEach((v, i) => { if (Number.isFinite(v)) { ctx.fillStyle = s.color || cssVar("--pen"); ctx.beginPath(); ctx.arc(X(i), Y(v), 3, 0, 7); ctx.fill(); } });
+  }
+  ctx.restore();
+  return { X, Y };
+}
+
+/* DOM widgets ------------------------------------------------------------- */
+/* items: [{label, value, color, note}] ; o: {max, format} */
+function bars(parent, items, o = {}) {
+  const el = clear(mount(parent));
+  el.classList.add("bars");
+  const max = o.max ?? Math.max(1e-9, ...items.map((i) => Math.abs(i.value)));
+  for (const it of items) {
+    const w = clamp(Math.abs(it.value) / max, 0, 1) * 100;
+    el.appendChild(h("div", { class: "bar", title: it.note || "" },
+      h("span", { class: "lab" + (o.mono ? " mono" : "") }, it.label),
+      h("span", { class: "track" }, h("span", { class: "fill", style: { width: w + "%", display: "block", background: it.color || cssVar("--pen") } })),
+      h("span", { class: "num" }, (o.format || ((v) => fmt(v, 2)))(it.value))));
+  }
+  return el;
+}
+
+/* tokens: array of strings or {text, sub, cls, title, onclick} */
+function tokens(parent, toks, o = {}) {
+  const el = clear(mount(parent));
+  el.classList.add("tokens");
+  toks.forEach((t, i) => {
+    const d = typeof t === "string" ? { text: t } : t;
+    const tag = d.onclick ? "button" : "span";
+    const attrs = { class: "tok " + (d.cls || ""), title: d.title || null, type: d.onclick ? "button" : null, onclick: d.onclick || null };
+    if (d.color) attrs.style = { background: d.color, borderColor: d.color, color: d.ink || "#fff" };
+    el.appendChild(h(tag, attrs, d.text, d.sub != null ? h("span", { class: "sub" }, d.sub) : null));
+  });
+  return el;
+}
+
+/* heatmap table. matrix[r][c]; o: {format, max, min, rowHead, colHead, highlight:(r,c)=>bool} */
+function heatTable(parent, rows, cols, matrix, o = {}) {
+  const el = clear(mount(parent));
+  const flat = matrix.flat().filter(Number.isFinite);
+  const mx = o.max ?? Math.max(...flat), mn = o.min ?? Math.min(0, ...flat);
+  const t = (v) => (mx === mn ? 0 : (v - mn) / (mx - mn));
+  const head = h("tr", null, h("th", { class: "l" }, o.corner || ""), cols.map((c) => h("th", null, c)));
+  const body = rows.map((r, i) => h("tr", null, h("th", { class: "l" }, r), cols.map((_, j) => {
+    const v = matrix[i][j];
+    const tv = Number.isFinite(v) ? t(v) : 0;
+    const style = { background: o.plain ? "" : heatColor(tv * 0.85), color: o.plain ? "" : inkOn(tv * 0.85) };
+    if (o.highlight && o.highlight(i, j)) { style.outline = "3px solid " + cssVar("--mark"); style.outlineOffset = "-3px"; }
+    return h("td", { class: "num", style }, (o.format || ((x) => fmt(x, 2)))(v));
+  })));
+  el.appendChild(h("div", { class: "scroll-x" }, h("table", { class: "grid" }, h("thead", null, head), h("tbody", null, body))));
+  return el;
+}
+
+function legend(parent, items) {
+  const el = clear(mount(parent));
+  el.classList.add("legend");
+  items.forEach((it) => el.appendChild(h("span", null, h("i", { style: { background: it.color } }), it.label)));
+  return el;
+}
+
+/* page sections built from L.theory, L.experiments, L.quiz ----------------- */
+function renderNotes() {
+  const q = $("#quiz");
+  if (!q || !Array.isArray(L.quiz)) return;
+  let right = 0, answered = 0;
+  const score = h("p", { class: "quiz-score" });
+  const upd = () => { score.textContent = answered ? UI.score(right, L.quiz.length) : ""; };
+  L.quiz.forEach((item, qi) => {
+    const fb = h("div", { class: "fb", "aria-live": "polite" });
+    let done = false;
+    const opts = item.a.map((txt, ai) => h("button", {
+      type: "button", class: "opt", html: txt,
+      onclick: (e) => {
+        const ok = ai === item.correct;
+        e.currentTarget.classList.add(ok ? "right" : "wrong");
+        clear(fb).appendChild(h("span", { html: `<b>${ok ? UI.correct : UI.wrong}</b>` + (ok ? (item.why || "") : (item.hint || UI.tryAgain)) }));
+        if (!done) { done = true; answered++; if (ok) right++; upd(); }
+      },
+    }));
+    q.appendChild(h("div", { class: "q" }, h("p", { html: `${qi + 1}. ${item.q}` }), h("div", { class: "opts" }, opts), fb));
+  });
+  q.appendChild(score);
+}
+
+/* Colab link: on *.github.io the repository and the folder are read from the address;
+   elsewhere config.js (window.NLP_LABS = {repo, branch, folder}) is used; otherwise the .ipynb is offered as a download. */
+function colabTarget(lang, slug) {
+  const cfg = window.NLP_LABS || {};
+  const branch = cfg.branch || "main";
+  let repo = cfg.repo || "", folder = (cfg.folder || "").replace(/^\/+|\/+$/g, "");
+  if (!repo && /\.github\.io$/.test(location.hostname)) {
+    const user = location.hostname.replace(/\.github\.io$/, "");
+    const seg = location.pathname.split("/").filter(Boolean);
+    const li = seg.findIndex((x) => x === "ru" || x === "uz");
+    const before = li >= 0 ? seg.slice(0, li) : [];
+    // project site: user.github.io/<repo>/…  ;  user site: user.github.io/…
+    if (before.length && before[0] !== user + ".github.io") { repo = `${user}/${before[0]}`; folder = before.slice(1).join("/"); }
+    else { repo = `${user}/${location.hostname}`; folder = before.join("/"); }
+  }
+  if (!repo) return null;
+  const nb = (folder ? folder + "/" : "") + `${lang}/notebooks/${slug}.ipynb`;
+  return `https://colab.research.google.com/github/${repo}/blob/${branch}/${nb}`;
+}
+
+function setupPractice() {
+  const a = $("#colab");
+  if (!a) return;
+  const url = colabTarget(LANG, META.slug);
+  if (url) {
+    a.href = url;
+    a.textContent = UI.colab;
+    a.target = "_blank"; a.rel = "noopener";
+  } else {
+    a.href = `../notebooks/${META.slug}.ipynb`;
+    a.textContent = UI.nbDownload;
+    a.setAttribute("download", "");
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => { renderNotes(); setupPractice(); });
+
+</script>
+<script>
+/* Lab 15: task-oriented dialogue. Part 1 NLU (Naive Bayes intent + rule-based BIO slot tagger),
+   part 2 frame-based dialogue manager with a finite-state scenario, part 3 template vs toy generative responses. */
+
+/* ---------- shared NLU (language data lives in L.nlu) ---------- */
+const NL = L.nlu;
+const NUMW = new Map(NL.num_words);   // number words -> value
+const SUF = NL.suffixes.slice().sort((a, b) => b.length - a.length);
+const SLOT_IDS = L.slots.map((s) => s.id);
+const SLOT_COLOR = { from: "--c1", to: "--c2", date: "--c3", time: "--c4", pax: "--c5" };
+const TOKEN_RE = /\d{1,2}:\d{2}[\p{L}ʻʼ]*|[\p{L}\p{N}ʻʼ]+(?:-[\p{L}\p{N}ʻʼ]+)*/gu;
+
+function normText(s) {
+  let t = String(s).toLowerCase();
+  for (const [a, b] of NL.norm) t = t.split(a).join(b);   // replacements keep the string length
+  if (NL.apos) t = t.replace(/([og])['‘’`]/g, "$1ʻ").replace(/['‘’`]/g, "ʼ");
+  return t;
+}
+function stem(w) {
+  if (/\d/.test(w)) return w;
+  for (let k = 0; k < NL.maxStrip; k++) {
+    const s = SUF.find((x) => w.endsWith(x) && w.length - x.length >= NL.minStem);
+    if (!s) break;
+    w = w.slice(0, -s.length);
+  }
+  return w;
+}
+// tokens: [{w: normalized, s: surface, st: stem}]
+function tokenize(text) {
+  const norm = normText(text), out = [];
+  for (const m of norm.matchAll(TOKEN_RE)) out.push({ w: m[0], s: String(text).slice(m.index, m.index + m[0].length), st: stem(m[0]) });
+  return out;
+}
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function tpl(s, o) { return s.replace(/\{(\w+)\}/g, (m, k) => (k in o ? o[k] : m)); }
+const slotById = (id) => L.slots.find((s) => s.id === id);
+const intentById = (id) => L.intents.find((x) => x.id === id);
+
+/* ---------- Naive Bayes intent classifier ---------- */
+const NB = (function () {
+  const C = L.intents.map((x) => x.id);
+  const counts = {}, total = {}, docs = {};
+  const vocab = new Set();
+  C.forEach((c) => {
+    counts[c] = {}; total[c] = 0; docs[c] = L.train[c].length;
+    L.train[c].forEach((s) => tokenize(s).forEach((t) => { counts[c][t.st] = (counts[c][t.st] || 0) + 1; total[c]++; vocab.add(t.st); }));
+  });
+  const nDocs = sum(C.map((c) => docs[c]));
+  function logp(w, c, a) { return Math.log(((counts[c][w] || 0) + a) / (total[c] + a * vocab.size)); }
+  function prior(c) { return Math.log(docs[c] / nDocs); }
+  // classify the first `upto` tokens
+  function classify(toks, a, upto = toks.length) {
+    const used = toks.slice(0, upto).filter((t) => vocab.has(t.st));
+    const oov = toks.slice(0, upto).filter((t) => !vocab.has(t.st));
+    const scores = C.map((c) => prior(c) + sum(used.map((t) => logp(t.st, c, a))));
+    const probs = softmax(scores);
+    return { C, used, oov, scores, probs, best: argmax(scores), rows: used.map((t) => C.map((c) => logp(t.st, c, a))) };
+  }
+  return { C, classify, prior, vocab };
+})();
+
+/* ---------- rule-based BIO slot tagger ---------- */
+function cityOf(w) {
+  for (const c of NL.cities) {
+    if (!w.startsWith(c.stem)) continue;
+    const tail = w.slice(c.stem.length);
+    if (NL.city_tails.includes(tail)) return { name: c.name, tail };
+  }
+  return null;
+}
+function numOf(w) {
+  const d = w.match(/^(\d+)(\p{L}*)$/u);
+  if (d && (!d[2] || NL.num_tails.includes(d[2]))) return parseInt(d[1], 10);
+  if (NUMW.has(w)) return NUMW.get(w);
+  for (const t of NL.num_tails) if (w.endsWith(t) && NUMW.has(w.slice(0, -t.length))) return NUMW.get(w.slice(0, -t.length));
+  return null;
+}
+const isHHMM = (w) => /^\d{1,2}:\d{2}/.test(w);
+const monthRe = new RegExp("^\\d{1,2}-(" + NL.months.join("|") + ")");
+const isPaxNoun = (w) => NL.pax_nouns.some((n) => w.startsWith(n));
+
+/* ctx: {expect: slot id the bot just asked for, filled: {slot: true}} */
+function tagSlots(toks, ctx = {}) {
+  const n = toks.length;
+  const tags = Array(n).fill("O"), why = Array(n).fill(null);
+  const set = (i, tag, key, extra = {}) => { tags[i] = tag; why[i] = tpl(L.r[key], Object.assign({ tag }, extra)); };
+  const cities = [];
+  for (let i = 0; i < n; i++) {
+    const w = toks[i].w, prev = i ? toks[i - 1].w : "", next = i + 1 < n ? toks[i + 1].w : "";
+    if (tags[i] !== "O") continue;
+    const c = cityOf(w);
+    if (c) {
+      if (NL.from_prev.includes(prev)) { cities.push({ i, role: "from", key: "city_prep", extra: { p: prev } }); continue; }
+      if (NL.to_prev.includes(prev)) { cities.push({ i, role: "to", key: "city_prep", extra: { p: prev } }); continue; }
+      if (NL.from_tail.includes(c.tail)) { cities.push({ i, role: "from", key: "city_suf", extra: { s: c.tail } }); continue; }
+      if (NL.to_tail.includes(c.tail)) { cities.push({ i, role: "to", key: "city_suf", extra: { s: c.tail } }); continue; }
+      cities.push({ i, role: null });
+      continue;
+    }
+    if (NL.date_words.includes(w)) {
+      set(i, "B-date", "date_word");
+      if (NL.date_cont.includes(next)) set(i + 1, "I-date", "date_cont");
+      continue;
+    }
+    if (monthRe.test(w)) { set(i, "B-date", "date_num"); continue; }
+    if (isHHMM(w)) { set(i, "B-time", "time_hhmm"); continue; }
+    if (NL.time_words.includes(w)) { set(i, "B-time", "time_word"); continue; }
+    if (NL.time_prev.includes(w) && next && (isHHMM(next) || numOf(next) != null)) {
+      set(i, "B-time", "time_prev", { p: toks[i].s }); set(i + 1, "I-time", "time_cont"); continue;
+    }
+    if (NL.pax_coll.includes(w)) { set(i, "B-pax", "pax_coll"); continue; }
+    const num = numOf(w);
+    if (num != null) {
+      if (NL.months.includes(next)) { set(i, "B-date", "date_num"); set(i + 1, "I-date", "date_month"); continue; }
+      if (NL.time_cont.includes(next)) { set(i, "B-time", "time_num"); set(i + 1, "I-time", "time_cont"); continue; }
+      if (next && isPaxNoun(next)) { set(i, "B-pax", "pax_num"); set(i + 1, "I-pax", "pax_cont"); continue; }
+      if (ctx.expect === "pax" || ctx.expect === "time") { set(i, "B-" + ctx.expect, "num_ctx", { q: slotById(ctx.expect).ask }); continue; }
+      why[i] = L.r.num_bare;
+      continue;
+    }
+  }
+  // cities without a marker: the slot the bot asked for, else the free roles in order
+  const free = ["from", "to"].filter((r) => !cities.some((c) => c.role === r));
+  if (ctx.filled) free.sort((a, b) => (ctx.filled[a] ? 1 : 0) - (ctx.filled[b] ? 1 : 0));
+  const bare = cities.filter((c) => !c.role);
+  bare.forEach((c, k) => {
+    if (bare.length === 1 && (ctx.expect === "from" || ctx.expect === "to")) { c.role = ctx.expect; c.key = "city_ctx"; c.extra = { q: slotById(ctx.expect).ask }; }
+    else { c.role = free[k] || "to"; c.key = "city_order"; c.extra = {}; }
+  });
+  cities.forEach((c) => set(c.i, "B-" + c.role, c.key, c.extra));
+  for (let i = 0; i < n; i++) if (!why[i]) why[i] = L.r.o;
+  // slot values from the first span of every slot
+  const slots = {};
+  for (let i = 0; i < n; i++) {
+    if (!tags[i].startsWith("B-")) continue;
+    const id = tags[i].slice(2);
+    if (slots[id]) continue;
+    let j = i + 1;
+    while (j < n && tags[j] === "I-" + id) j++;
+    const span = toks.slice(i, j);
+    let v = span.map((t) => t.s).join(" ");
+    if (id === "from" || id === "to") v = cityOf(toks[i].w).name;
+    else if (id === "pax") v = String(numOf(span[0].w) ?? (NL.pax_coll.includes(span[0].w) ? NUMW.get(span[0].w) : v));
+    else if (id === "time" && span.some((t) => isHHMM(t.w))) v = span.find((t) => isHHMM(t.w)).w.match(/^\d{1,2}:\d{2}/)[0];
+    else if (id === "date" && monthRe.test(span[0].w)) v = span[0].w.match(monthRe)[0];
+    else v = v.toLowerCase();
+    slots[id] = v;
+  }
+  return { tags, why, slots };
+}
+const hasWord = (toks, list) => toks.some((t) => list.includes(t.w));
+
+function tagToken(t, tag, extra = {}) {
+  const id = tag === "O" ? null : tag.slice(2);
+  const c = id ? cssVar(SLOT_COLOR[id]) : null;
+  const isB = tag.startsWith("B-");
+  const tok = { text: t.s, sub: tag, title: extra.title || null, cls: (extra.cls || "") + (id ? (isB ? " tb" : " ti") : "") };
+  if (c) { tok.color = isB ? c : alpha(c, 0.22); tok.ink = isB ? "#fff" : cssVar("--ink"); }
+  return tok;
+}
+
+/* ---------- Part 1: NLU ---------- */
+(function nlu() {
+  let text = L.presets[0], alphaV = 1, k = null;   // k = number of processed words, null = all
+  const input = $("#nlu-q");
+  input.value = text;
+  input.addEventListener("input", () => { text = input.value; k = null; render(); });
+  const pb = $("#nlu-presets");
+  L.presets.forEach((p) => pb.appendChild(h("button", { type: "button", onclick: () => { input.value = p; text = p; k = null; render(); } }, p)));
+  slider("#nlu-alpha", { label: L.alpha_label, min: 0.1, max: 2, step: 0.1, value: alphaV, format: (v) => fmt(v, 1), onInput: (v) => { alphaV = v; render(); } });
+  legend("#nlu-legend", L.slots.map((s) => ({ label: s.label, color: cssVar(SLOT_COLOR[s.id]) })));
+  const tr = $("#nlu-train");
+  tr.appendChild(h("summary", null, L.train_label));
+  L.intents.forEach((it) => { tr.appendChild(h("b", null, it.label)); tr.appendChild(h("ul", null, L.train[it.id].map((s) => h("li", null, s)))); });
+
+  function render() {
+    const toks = tokenize(text);
+    const n = toks.length, upto = k == null ? n : k;
+    const tg = tagSlots(toks);
+    const cl = NB.classify(toks, alphaV, upto);
+    // BIO tokens
+    const box = $("#nlu-bio");
+    if (!n) { clear(box).appendChild(h("span", { class: "small muted" }, L.no_words)); }
+    else tokens(box, toks.map((t, i) => (i < upto
+      ? tagToken(t, tg.tags[i], { title: tg.why[i], cls: k != null && i === upto - 1 ? "cur" : "" })
+      : { text: t.s, sub: "?", cls: "wait" })));
+    // explanation
+    const rs = $("#nlu-reason");
+    if (!n) rs.innerHTML = L.no_words;
+    else if (k === 0) rs.innerHTML = L.step_pending;
+    else if (k != null && k < n) rs.innerHTML = tpl(L.step_now, { i: upto, n, w: esc(toks[upto - 1].s), r: esc(tg.why[upto - 1]) });
+    else rs.innerHTML = (k != null ? tpl(L.step_now, { i: n, n, w: esc(toks[n - 1].s), r: esc(tg.why[n - 1]) }) + "<br>" : "") +
+      tpl(L.done_note, { i: esc(intentById(NB.C[cl.best]).label), p: pct(cl.probs[cl.best]) });
+    // intent bars
+    bars("#nlu-bars", L.intents.map((it, c) => ({ label: it.label, value: cl.probs[c], color: c === cl.best ? cssVar("--pen") : cssVar("--faint") })),
+      { max: 1, format: (v) => pct(v, 0) });
+    // NB table
+    const head = h("tr", null, h("th", { class: "l" }, L.col_word), L.intents.map((it, c) => h("th", { class: c === cl.best ? "best" : "" }, it.short)));
+    const usedIdx = toks.slice(0, upto).map((t, i) => (NB.vocab.has(t.st) ? i : -1)).filter((i) => i >= 0);
+    const rows = cl.rows.map((r, j) => {
+      const mx = argmax(r);
+      return h("tr", { class: k != null && usedIdx[j] === upto - 1 ? "sel" : "" }, h("td", { class: "l mono" }, cl.used[j].st),
+        r.map((v, c) => h("td", { class: "num", style: c === mx ? { fontWeight: 700 } : null }, fmt(v, 2))));
+    });
+    rows.push(h("tr", null, h("td", { class: "l" }, L.row_prior), NB.C.map((c) => h("td", { class: "num" }, fmt(NB.prior(c), 2)))));
+    rows.push(h("tr", { class: "sumrow" }, h("th", { class: "l" }, L.row_sum), cl.scores.map((v, c) => h("td", { class: "num" + (c === cl.best ? " best" : "") }, fmt(v, 2)))));
+    const tb = clear($("#nlu-table"));
+    tb.appendChild(h("div", { class: "scroll-x" }, h("table", { class: "grid compact" }, h("thead", null, head), h("tbody", null, rows))));
+    if (cl.oov.length) tb.appendChild(h("p", { class: "tiny muted", style: { margin: "6px 0 0" } }, L.oov_label + " " + cl.oov.map((t) => t.s).join(", ")));
+    // slots
+    const filled = {};
+    toks.slice(0, upto).forEach((t, i) => { const tag = tg.tags[i]; if (tag.startsWith("B-") && !filled[tag.slice(2)]) filled[tag.slice(2)] = true; });
+    const dl = h("dl", { class: "kv" });
+    L.slots.forEach((s) => {
+      dl.appendChild(h("dt", null, h("span", { class: "slot-dot", style: { background: cssVar(SLOT_COLOR[s.id]) } }), s.label));
+      dl.appendChild(h("dd", null, filled[s.id] && tg.slots[s.id] ? tg.slots[s.id] : L.slot_empty));
+    });
+    const sb = clear($("#nlu-slots"));
+    sb.appendChild(dl);
+    sb.appendChild(h("p", { class: "tiny muted", style: { margin: "10px 0 0" } }, L.tagger_note));
+  }
+
+  player("#nlu-player", {
+    interval: 900,
+    step: () => {
+      const n = tokenize(text).length;
+      if (k == null || k >= n) k = 0;
+      k++;
+      render();
+      return k < n;
+    },
+    canStep: () => k != null && k < tokenize(text).length,
+    reset: () => { k = 0; render(); },
+  });
+  render();
+})();
+
+/* ---------- Part 2: frame-based dialogue manager ---------- */
+(function manager() {
+  const CHAIN = ["start", "from", "to", "date", "time", "pax", "confirm", "done"];
+  let cur, frame, turn, prev, visited, lastNLU, chips, scriptIdx = 0, pos = 0;
+  const chat = $("#dm-chat");
+
+  function say(who, text, fallback) {
+    const m = h("div", { class: "msg " + who + " new" + (fallback ? " fb" : "") }, h("span", { class: "who" }, who === "bot" ? L.bot_name : L.user_name), text);
+    chat.appendChild(m);
+    chat.scrollTop = chat.scrollHeight;
+  }
+  function resetDialog() {
+    cur = "start"; prev = null; turn = 0; frame = {}; visited = new Set(["start"]); lastNLU = null;
+    clear(chat);
+    say("bot", L.bot_hello);
+    render();
+  }
+  const firstEmpty = () => SLOT_IDS.find((s) => !frame[s]) || "confirm";
+  function confirmText() {
+    const o = {};
+    SLOT_IDS.forEach((s) => (o[s] = frame[s].v));
+    return tpl(L.confirm_q, o);
+  }
+  function ask(state) { return state === "confirm" ? confirmText() : slotById(state).ask; }
+
+  function process(text) {
+    text = String(text).trim();
+    if (!text) return;
+    turn++;
+    say("user", text);
+    const toks = tokenize(text);
+    const expect = SLOT_IDS.includes(cur) ? cur : null;
+    const filledNow = {};
+    SLOT_IDS.forEach((s) => (filledNow[s] = !!frame[s]));
+    const tg = tagSlots(toks, { expect, filled: filledNow });
+    const cl = NB.classify(toks, 1);
+    const intent = NB.C[cl.best];
+    lastNLU = { toks, tg, cl };
+    prev = cur;
+    const got = SLOT_IDS.filter((s) => s in tg.slots);   // frame order, not phrase order
+    const list = () => got.map((s) => slotById(s).label + " — " + tg.slots[s]).join(", ");
+    const apply = () => got.forEach((s) => (frame[s] = { v: tg.slots[s], turn }));
+    const parts = [];
+    let fb = false;
+    if (cur === "done" || cur === "cancel") {
+      parts.push(intent === "greet" ? L.bye_msg : L.restart_hint);
+    } else if (intent === "cancel" && !got.length) {
+      cur = "cancel"; parts.push(L.cancel_msg);
+    } else if (cur === "confirm") {
+      if (hasWord(toks, NL.yes) && !got.length) { cur = "done"; parts.push(L.done_msg); }
+      else if (got.length) { apply(); parts.push(tpl(L.fix, { list: list() })); cur = firstEmpty(); parts.push(ask(cur)); }
+      else if (hasWord(toks, NL.no)) parts.push(L.what_fix);
+      else { fb = true; parts.push(L.fallback, confirmText()); }
+    } else {
+      if (got.length) { apply(); parts.push(tpl(L.ack, { list: list() })); }
+      else if (!cl.used.length || intent === "inform") { fb = true; parts.push(L.fallback); }
+      else if (intent === "greet") parts.push(L.greet_msg);
+      else if (intent === "schedule") parts.push(L.schedule_msg);
+      cur = firstEmpty();
+      parts.push(ask(cur));
+    }
+    visited.add(cur);
+    say("bot", parts.join(" "), fb);
+    render();
+  }
+
+  // scenario graph -------------------------------------------------------
+  function layout(W) {
+    const cols = W < 560 ? 3 : 4, gap = W < 560 ? 22 : 34, pad = 4;
+    const nw = Math.min(132, (W - 2 * pad - gap * (cols - 1)) / cols), nh = 34, rowH = 74;
+    const total = (nw * cols + gap * (cols - 1));
+    const x0 = (W - total) / 2;
+    const pos = {};
+    CHAIN.forEach((s, i) => {
+      const r = Math.floor(i / cols), c0 = i % cols, c = r % 2 ? cols - 1 - c0 : c0;
+      pos[s] = { x: x0 + c * (nw + gap), y: 14 + r * rowH, w: nw, h: nh };
+    });
+    const rows = Math.ceil(CHAIN.length / cols);
+    pos.cancel = { x: x0 + total - nw, y: 14 + rows * rowH, w: nw, h: nh };
+    return { pos, H: 14 + rows * rowH + nh + 14, cols };
+  }
+  const graph = canvasBox("#dm-graph", { height: (w) => layout(w).H, draw: drawGraph, label: L.p2_title });
+  const center = (p) => [p.x + p.w / 2, p.y + p.h / 2];
+  const inside = (p, x, y) => x > p.x - 2 && x < p.x + p.w + 2 && y > p.y - 2 && y < p.y + p.h + 2;
+
+  function curve(ctx, a, b, bend, o) {
+    const [x1, y1] = center(a), [x2, y2] = center(b);
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, dx = x2 - x1, dy = y2 - y1, L0 = Math.hypot(dx, dy) || 1;
+    const cx = mx - (dy / L0) * bend, cy = my + (dx / L0) * bend;
+    const pt = (t) => [(1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * cx + t * t * x2, (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * cy + t * t * y2];
+    let t1 = 1; while (t1 > 0.5 && inside(b, ...pt(t1))) t1 -= 0.01;
+    let t0 = 0; while (t0 < 0.5 && inside(a, ...pt(t0))) t0 += 0.01;
+    ctx.save();
+    ctx.strokeStyle = o.color; ctx.lineWidth = o.width; ctx.setLineDash(o.dash || []);
+    ctx.beginPath();
+    for (let t = t0; t <= t1 + 1e-9; t += 0.02) { const [x, y] = pt(Math.min(t, t1)); if (t === t0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+    ctx.stroke(); ctx.setLineDash([]);
+    const [ex, ey] = pt(t1), [px, py] = pt(t1 - 0.03);
+    const ang = Math.atan2(ey - py, ex - px), s = o.head || 8;
+    ctx.fillStyle = o.color; ctx.beginPath(); ctx.moveTo(ex, ey);
+    ctx.lineTo(ex - s * Math.cos(ang - 0.4), ey - s * Math.sin(ang - 0.4)); ctx.lineTo(ex - s * Math.cos(ang + 0.4), ey - s * Math.sin(ang + 0.4));
+    ctx.closePath(); ctx.fill(); ctx.restore();
+  }
+
+  function drawGraph(ctx, W) {
+    const { pos } = layout(W);
+    // chain edges
+    for (let i = 0; i + 1 < CHAIN.length; i++) curve(ctx, pos[CHAIN[i]], pos[CHAIN[i + 1]], 0, { color: cssVar("--muted"), width: 1.6, head: 8 });
+    // "from any state" to cancel
+    const cp = pos.cancel;
+    ctx.save(); ctx.font = font(12);
+    const tw = ctx.measureText(L.cancel_any).width; ctx.restore();
+    const lx = Math.max(4, cp.x - tw - 40);
+    text(ctx, L.cancel_any, lx, cp.y + cp.h / 2, { size: 12, color: cssVar("--muted") });
+    arrow(ctx, lx + tw + 6, cp.y + cp.h / 2, cp.x - 3, cp.y + cp.h / 2, { color: cssVar("--faint"), width: 1.5, head: 7 });
+    // last transition
+    if (prev && prev !== cur) {
+      const ia = CHAIN.indexOf(prev), ib = CHAIN.indexOf(cur);
+      const bend = cur === "cancel" || Math.abs(ib - ia) === 1 ? 0 : (ib > ia ? -28 : 28);
+      curve(ctx, pos[prev], pos[cur], bend, { color: cssVar("--pen"), width: 3, head: 10 });
+    }
+    // nodes
+    CHAIN.concat(["cancel"]).forEach((s) => {
+      const p = pos[s];
+      const isCur = s === cur, seen = visited.has(s);
+      ctx.fillStyle = isCur ? cssVar("--mark") : seen ? "#E6ECFA" : cssVar("--panel");
+      ctx.strokeStyle = isCur ? "#C9A10F" : s === "cancel" ? cssVar("--bad") : seen ? cssVar("--pen") : cssVar("--line");
+      ctx.lineWidth = isCur ? 2.5 : 1.5;
+      roundRect(ctx, p.x, p.y, p.w, p.h, 17); ctx.fill(); ctx.stroke();
+      const label = L.states[s];
+      let size = 13;
+      ctx.save(); ctx.font = font(size, 600); while (size > 10 && ctx.measureText(label).width > p.w - 10) { size -= 0.5; ctx.font = font(size, 600); } ctx.restore();
+      text(ctx, label, p.x + p.w / 2, p.y + p.h / 2 + 0.5, { size, weight: 600, align: "center", color: s === "cancel" && !isCur ? cssVar("--bad") : cssVar("--ink") });
+      // filled slot value under the slot node
+      if (SLOT_IDS.includes(s) && frame[s]) {
+        const v = frame[s].v;
+        text(ctx, v.length > 16 ? v.slice(0, 15) + "…" : v, p.x + p.w / 2, p.y + p.h + 11, { size: 11.5, align: "center", color: cssVar(SLOT_COLOR[s]), weight: 600 });
+      }
+    });
+  }
+
+  function render() {
+    // frame table
+    const head = h("tr", null, h("th", { class: "l" }, L.col_slot), h("th", { class: "l" }, L.col_val), h("th", null, L.col_turn));
+    const rows = L.slots.map((s) => h("tr", { class: frame[s.id] && frame[s.id].turn === turn && turn > 0 ? "fresh" : "" },
+      h("td", { class: "l" }, h("span", { class: "slot-dot", style: { background: cssVar(SLOT_COLOR[s.id]) } }), s.label),
+      h("td", { class: "l val" + (frame[s.id] ? "" : " empty") }, frame[s.id] ? frame[s.id].v : L.slot_empty),
+      h("td", { class: "num" }, frame[s.id] ? String(frame[s.id].turn) : "")));
+    clear($("#dm-frame")).appendChild(h("div", { class: "scroll-x" }, h("table", { class: "grid compact frame" }, h("thead", null, head), h("tbody", null, rows))));
+    // last NLU
+    if (lastNLU) {
+      tokens("#dm-nlu", lastNLU.toks.map((t, i) => tagToken(t, lastNLU.tg.tags[i], { title: lastNLU.tg.why[i] })));
+      const cl = lastNLU.cl;
+      $("#dm-nlu-int").textContent = tpl(L.dm_intent, { i: intentById(NB.C[cl.best]).label, p: pct(cl.probs[cl.best]) });
+    } else { clear($("#dm-nlu")).appendChild(h("span", { class: "small muted" }, L.dm_nlu_empty)); $("#dm-nlu-int").textContent = ""; }
+    // move description
+    const mv = $("#dm-move");
+    if (!prev) mv.textContent = L.move.start;
+    else {
+      const ia = CHAIN.indexOf(prev), ib = CHAIN.indexOf(cur);
+      const o = { t: turn, a: L.states[prev], b: L.states[cur], k: ib - ia - 1 };
+      mv.textContent = tpl(prev === cur ? L.move.same : cur === "cancel" || ib === ia + 1 ? L.move.next : ib > ia ? L.move.skip : L.move.back, o);
+    }
+    // reply chips
+    const cb = clear($("#dm-chips"));
+    (L.chips[cur] || []).forEach((c) => cb.appendChild(h("button", { type: "button", onclick: () => { pos = L.scripts[scriptIdx].turns.length; process(c); } }, c)));
+    graph.redraw();
+  }
+
+  segmented("#dm-script", { label: L.script_label, value: 0, options: L.scripts.map((s, i) => ({ value: i, label: s.label })),
+    onChange: (v) => { scriptIdx = v; pos = 0; resetDialog(); } });
+  player("#dm-player", {
+    interval: 1500,
+    step: () => {
+      const turns = L.scripts[scriptIdx].turns;
+      if (pos >= turns.length) { pos = 0; resetDialog(); }
+      process(turns[pos++]);
+      return pos < turns.length;
+    },
+    canStep: () => pos < L.scripts[scriptIdx].turns.length,
+    reset: () => { pos = 0; resetDialog(); },
+  });
+  const inp = $("#dm-input");
+  const send = () => { pos = L.scripts[scriptIdx].turns.length; process(inp.value); inp.value = ""; };
+  $("#dm-send").addEventListener("click", send);
+  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+  resetDialog();
+})();
+
+/* ---------- Part 3: template vs toy generative model ---------- */
+(function generation() {
+  let ti = 0, T = 1, out = [], k = 0;
+  const r = rng(11);
+  const G = () => L.gen_turns[ti];
+  const probsAt = (step, t = T) => softmax(step.opts.map((o) => o.w), t);
+  function joinFrags(frags) {
+    return frags.filter((f) => f.t).reduce((s, f) => (!s ? f.t : /^[.,!?]/.test(f.t) ? s + f.t : s + " " + f.t), "");
+  }
+  function sampleAll() { return G().steps.map((st) => st.opts[sample(probsAt(st), r)]); }
+
+  segmented("#gen-turn", { label: L.turn_label, value: 0, options: L.gen_turns.map((g, i) => ({ value: i, label: g.short })), onChange: (v) => { ti = v; out = sampleAll(); k = out.length; clear($("#gen-samples")); render(); } });
+  slider("#gen-T", { label: L.T_label, min: 0.1, max: 2, step: 0.1, value: T, format: (v) => fmt(v, 1), onInput: (v) => { T = v; render(); } });
+  const chart = canvasBox("#gen-chart", { height: 170, draw: drawChart, label: L.chart_title });
+  legend("#gen-legend", [{ label: L.chart_h, color: cssVar("--bad") }, { label: L.chart_v, color: cssVar("--pen") }]);
+
+  // exact numbers: steps are independent, so P(no invention) and entropy factorise
+  function metrics(t) {
+    let pOk = 1, H = 0, maxN = 1;
+    G().steps.forEach((st) => {
+      const p = probsAt(st, t);
+      pOk *= sum(p.filter((_, j) => !st.opts[j].bad));
+      H -= sum(p.map((x) => (x > 0 ? x * Math.log(x) : 0)));
+      maxN *= st.opts.length;
+    });
+    return { halluc: 1 - pOk, perp: Math.exp(H), maxN, hNorm: H / Math.log(maxN) };
+  }
+  const TS = Array.from({ length: 20 }, (_, i) => +(0.1 * (i + 1)).toFixed(1));
+  function drawChart(ctx, W, H) {
+    const ms = TS.map((t) => metrics(t));
+    lineChart(ctx, W, H, [
+      { values: ms.map((m) => m.halluc), color: cssVar("--bad"), dots: false },
+      { values: ms.map((m) => m.hNorm), color: cssVar("--pen"), dash: [6, 4] },
+    ], { yMin: 0, yMax: 1, xLabels: TS.map((t) => fmt(t, 1)), yFmt: (v) => pct(v, 0), title: L.chart_title, markX: TS.indexOf(Math.round(T * 10) / 10) });
+  }
+
+  function respHTML(frags, mark) {
+    return frags.map((f, i) => (f.t ? { f, i } : null)).filter(Boolean).map(({ f, i }, n) => {
+      const sp = n && /^[.,!?]/.test(f.t) ? "" : n ? " " : "";
+      const cls = "frag" + (f.bad ? " bad" : "") + (mark && i === frags.length - 1 ? " last" : "");
+      return sp + `<span class="${cls}" title="${f.bad ? esc(f.bad) : ""}">${esc(f.t)}</span>`;
+    }).join("");
+  }
+  function render() {
+    const g = G();
+    $("#gen-user").textContent = g.user;
+    const fr = clear($("#gen-frame"));
+    if (g.frame.length) {
+      fr.appendChild(h("span", { style: { border: 0, background: "transparent", paddingLeft: 0 } }, L.frame_known));
+      g.frame.forEach(([lab, v]) => fr.appendChild(h("span", { class: v ? "" : "miss" }, lab + ": " + (v || "?"))));
+    }
+    $("#gen-tpl").textContent = g.tpl;
+    const done = k >= g.steps.length;
+    $("#gen-out").innerHTML = respHTML(out.slice(0, k), !done) + (done ? "" : ' <span class="cursor"></span>');
+    const bad = [...new Set(out.slice(0, k).filter((f) => f.bad).map((f) => f.bad))];
+    const vd = $("#gen-verdict");
+    if (k === 0) { vd.className = "small muted"; vd.textContent = L.gen_ready; }
+    else if (bad.length) { vd.className = "small status bad"; vd.textContent = tpl(L.gen_bad, { list: bad.join("; ") }); }
+    else { vd.className = "small status good"; vd.textContent = L.gen_ok; }
+    // distribution of the current step
+    const si = k === 0 ? 0 : k - 1, st = g.steps[si], p = probsAt(st);
+    $("#gen-step-title").textContent = k === 0 ? L.gen_wait_title : tpl(L.gen_step_title, { k: si + 1, n: g.steps.length, s: st.name });
+    const chosen = k === 0 ? null : out[si];
+    bars("#gen-bars", st.opts.map((o, j) => ({
+      label: (o.t || L.empty_frag) + (o.bad ? " ✗" : ""),
+      value: p[j],
+      color: o === chosen ? (o.bad ? cssVar("--bad") : cssVar("--pen")) : o.bad ? alpha(cssVar("--bad"), 0.35) : cssVar("--faint"),
+      note: o.bad || "",
+    })), { max: 1, format: (v) => pct(v, 0) });
+    // metrics
+    const m = metrics(T);
+    const kv = clear($("#gen-kv"));
+    kv.append(h("dt", null, L.m_halluc), h("dd", { style: { color: m.halluc > 0.005 ? cssVar("--bad") : cssVar("--good") } }, pct(m.halluc, 0)),
+      h("dt", null, L.m_var), h("dd", null, fmt(m.perp, 1) + " / " + m.maxN),
+      h("dt", null, L.m_tpl), h("dd", null, L.m_tpl_v));
+    chart.redraw();
+  }
+  player("#gen-player", {
+    interval: 800,
+    step: () => {
+      const n = G().steps.length;
+      if (k >= n) { out = []; k = 0; }
+      out[k] = G().steps[k].opts[sample(probsAt(G().steps[k]), r)];
+      k++;
+      render();
+      return k < n;
+    },
+    canStep: () => k < G().steps.length,
+    reset: () => { out = []; k = 0; render(); },
+  });
+  button("#gen-many-row", L.many, () => {
+    const box = clear($("#gen-samples"));
+    let bad = 0;
+    for (let i = 1; i <= 10; i++) {
+      const fr = sampleAll();
+      const isBad = fr.some((f) => f.bad);
+      if (isBad) bad++;
+      box.appendChild(h("div", null, h("span", { class: "n" }, i + "."), h("span", { class: isBad ? "bad" : "" }, joinFrags(fr))));
+    }
+    box.appendChild(h("p", { class: "small", style: { margin: "6px 0 0", fontWeight: 600 } }, tpl(L.many_sum, { k: bad })));
+  }, "small ghost");
+  out = sampleAll(); k = out.length;
+  render();
+})();
+
+</script>
+</body>
+</html>
